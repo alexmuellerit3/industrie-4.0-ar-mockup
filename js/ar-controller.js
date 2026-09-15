@@ -23,6 +23,15 @@ export class ARController {
     this.initialPinchDistance = null;
     this.initialPinchZoom = 1.0;
 
+    // Multi-Kamera Hardware (iOS Safari Linsen: Weitwinkel vs. Telephoto)
+    this.nativeCameras = {
+      wide: null,
+      telephoto: null,
+      ultraWide: null,
+      allBack: []
+    };
+    this.currentDeviceId = null;
+
     // DOM-Referenzen
     this.hiroMarker = document.getElementById("hiro-marker");
 
@@ -71,6 +80,7 @@ export class ARController {
         if (tracks && tracks.length > 0) {
           this.activeVideoTrack = tracks[0];
           this.detectZoomCapabilities(this.activeVideoTrack);
+          this.discoverNativeCameras();
           this.setZoom(this.currentZoom);
           return true;
         }
@@ -88,6 +98,96 @@ export class ARController {
     window.addEventListener("resize", () => {
       this.setZoom(this.currentZoom);
     });
+  }
+
+  /**
+   * Erkennt physische Kameralinsen (iOS Safari 16.3+ Multi-Kamera Unterstützung)
+   */
+  async discoverNativeCameras() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      return;
+    }
+
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === "videoinput");
+      console.info("[ARController] Erkannte Videogeräte:", videoDevices.map(d => ({ label: d.label, id: d.deviceId })));
+
+      // Filtern nach Rückkameras
+      const backCameras = videoDevices.filter(d => {
+        const label = (d.label || "").toLowerCase();
+        return label.includes("back") || label.includes("hinten") || label.includes("rück") || label.includes("environment");
+      });
+
+      this.nativeCameras = {
+        wide: null,
+        telephoto: null,
+        ultraWide: null,
+        allBack: backCameras
+      };
+
+      // Heuristische Zuordnung nach Label
+      backCameras.forEach(cam => {
+        const lbl = (cam.label || "").toLowerCase();
+        if (lbl.includes("tele") || lbl.includes("zoom")) {
+          this.nativeCameras.telephoto = cam;
+        } else if (lbl.includes("ultra") || lbl.includes("weit")) {
+          this.nativeCameras.ultraWide = cam;
+        } else if (!this.nativeCameras.wide) {
+          this.nativeCameras.wide = cam;
+        }
+      });
+
+      // Fallback: Wenn mehrere Rückkameras existieren, aber generisch benannt sind (z.B. "Camera 1", "Camera 2")
+      if (!this.nativeCameras.telephoto && backCameras.length >= 2) {
+        this.nativeCameras.wide = backCameras[0];
+        this.nativeCameras.telephoto = backCameras[backCameras.length - 1];
+      }
+
+      console.info("[ARController] Multi-Kamera Profil aktiv:", {
+        wide: this.nativeCameras.wide?.label || "Standard",
+        telephoto: this.nativeCameras.telephoto?.label || "Keine Tele-Linse gefunden"
+      });
+    } catch (err) {
+      console.debug("[ARController] enumerateDevices Fehler:", err);
+    }
+  }
+
+  /**
+   * Schaltet auf eine physische Kameralinse um (z.B. iPhone Telephoto-Linse)
+   */
+  async switchCameraLens(targetDeviceId) {
+    if (!targetDeviceId || targetDeviceId === this.currentDeviceId) return;
+
+    try {
+      const constraints = {
+        video: {
+          deviceId: { exact: targetDeviceId }
+        }
+      };
+
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      const video = document.querySelector("video") || document.getElementById("arjs-video");
+
+      if (video) {
+        if (video.srcObject && video.srcObject.getVideoTracks) {
+          video.srcObject.getVideoTracks().forEach(t => t.stop());
+        }
+
+        video.srcObject = newStream;
+        await video.play().catch(e => console.debug("[ARController] Play nach Linsenwechsel:", e));
+
+        const newTracks = newStream.getVideoTracks();
+        if (newTracks.length > 0) {
+          this.activeVideoTrack = newTracks[0];
+          this.currentDeviceId = targetDeviceId;
+          this.detectZoomCapabilities(this.activeVideoTrack);
+          console.info(`[ARController] Nativ auf optische Linse gewechselt: ${targetDeviceId}`);
+        }
+      }
+    } catch (err) {
+      console.warn("[ARController] Linsen-Umschaltung fehlgeschlagen:", err);
+    }
   }
 
   /**
@@ -174,6 +274,14 @@ export class ARController {
     } else {
       nextZoom = 1.0;
     }
+
+    // Physische Kameralinse auf iOS/Safari umschalten, falls Telephoto-Linse existiert
+    if (nextZoom >= 2.5 && this.nativeCameras?.telephoto) {
+      this.switchCameraLens(this.nativeCameras.telephoto.deviceId);
+    } else if (nextZoom < 2.0 && this.nativeCameras?.wide && this.currentDeviceId === this.nativeCameras.telephoto?.deviceId) {
+      this.switchCameraLens(this.nativeCameras.wide.deviceId);
+    }
+
     return this.setZoom(nextZoom);
   }
 
@@ -183,7 +291,15 @@ export class ARController {
    * und leitet die Geste exklusiv an den Hardware-Kamerazoom weiter.
    */
   initPinchToZoom() {
-    // 1. Nativer iOS Safari Gesten-Handler (WebKit gesturestart / gesturechange)
+    const checkPinchLensSwitch = () => {
+      if (this.currentZoom >= 2.5 && this.nativeCameras?.telephoto) {
+        this.switchCameraLens(this.nativeCameras.telephoto.deviceId);
+      } else if (this.currentZoom < 2.0 && this.nativeCameras?.wide && this.currentDeviceId === this.nativeCameras.telephoto?.deviceId) {
+        this.switchCameraLens(this.nativeCameras.wide.deviceId);
+      }
+    };
+
+    // 1. Nativer iOS Safari Gesten-Handler (WebKit gesturestart / gesturechange / gestureend)
     let gestureBaseZoom = 1.0;
 
     document.addEventListener("gesturestart", (e) => {
@@ -201,6 +317,7 @@ export class ARController {
 
     document.addEventListener("gestureend", (e) => {
       e.preventDefault();
+      checkPinchLensSwitch();
     }, { passive: false });
 
     // 2. Touch-Berechnung für Android & Standard Touch-Browser
@@ -245,6 +362,9 @@ export class ARController {
 
     const resetPinch = (e) => {
       if (!e.touches || e.touches.length < 2) {
+        if (isPinching) {
+          checkPinchLensSwitch();
+        }
         isPinching = false;
         this.initialPinchDistance = null;
       }

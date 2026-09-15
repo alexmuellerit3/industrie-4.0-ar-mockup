@@ -66,6 +66,8 @@ class TestARSceneConfiguration(unittest.TestCase):
             ar_content = f.read()
         self.assertIn("cycleZoom(", ar_content, "cycleZoom-Methode fehlt in ARController")
         self.assertIn("detectZoomCapabilities(", ar_content, "detectZoomCapabilities fehlt in ARController")
+        self.assertIn("discoverNativeCameras(", ar_content, "discoverNativeCameras fehlt in ARController")
+        self.assertIn("switchCameraLens(", ar_content, "switchCameraLens fehlt in ARController")
         self.assertIn("--camera-zoom", ar_content, "--camera-zoom fehlt in ARController")
 
     def test_close_card_and_persistence(self):
