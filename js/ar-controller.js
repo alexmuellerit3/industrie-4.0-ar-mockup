@@ -159,8 +159,19 @@ export class ARController {
 
   /**
    * Natürliche Zwei-Finger-Geste (Pinch-to-Zoom)
+   * Verhindert das Skalieren der Webseite (bleibt fix auf 100%)
+   * und leitet die Geste exklusiv an den Hardware-Kamerazoom weiter.
    */
   initPinchToZoom() {
+    // 1. Safari WebKit Gesten-Zoom auf der Seite blockieren
+    const blockGesture = (e) => {
+      e.preventDefault();
+    };
+    document.addEventListener("gesturestart", blockGesture, { passive: false });
+    document.addEventListener("gesturechange", blockGesture, { passive: false });
+    document.addEventListener("gestureend", blockGesture, { passive: false });
+
+    // 2. Touch-Berechnung für Kamerazoom
     const getTouchDist = (e) => {
       if (e.touches.length < 2) return null;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -168,27 +179,48 @@ export class ARController {
       return Math.hypot(dx, dy);
     };
 
+    let isPinching = false;
+    let lastZoomTime = 0;
+
     document.addEventListener("touchstart", (e) => {
       if (e.touches.length === 2) {
+        isPinching = true;
         this.initialPinchDistance = getTouchDist(e);
         this.initialPinchZoom = this.currentZoom;
       }
-    }, { passive: true });
+    }, { passive: false });
 
     document.addEventListener("touchmove", (e) => {
-      if (e.touches.length === 2 && this.initialPinchDistance) {
-        const currentDist = getTouchDist(e);
-        if (currentDist) {
-          const factor = currentDist / this.initialPinchDistance;
-          const target = this.initialPinchZoom * factor;
-          this.setZoom(target);
+      if (e.touches.length === 2) {
+        // WICHTIG: Verhindert, dass der Browser die Seite zoomt/verzerrt!
+        e.preventDefault();
+
+        if (isPinching && this.initialPinchDistance) {
+          const currentDist = getTouchDist(e);
+          if (currentDist && this.initialPinchDistance > 0) {
+            const factor = currentDist / this.initialPinchDistance;
+            const target = this.initialPinchZoom * factor;
+
+            // Throttling für flüssige Hardware-Kamera-Ansteuerung
+            const now = performance.now();
+            if (now - lastZoomTime > 30) {
+              lastZoomTime = now;
+              this.setZoom(target);
+            }
+          }
         }
       }
-    }, { passive: true });
+    }, { passive: false });
 
-    document.addEventListener("touchend", () => {
-      this.initialPinchDistance = null;
-    }, { passive: true });
+    const resetPinch = (e) => {
+      if (e.touches.length < 2) {
+        isPinching = false;
+        this.initialPinchDistance = null;
+      }
+    };
+
+    document.addEventListener("touchend", resetPinch, { passive: true });
+    document.addEventListener("touchcancel", resetPinch, { passive: true });
   }
 
   /**

@@ -48,7 +48,7 @@ html, body {
   background: transparent !important;
   background-color: transparent !important;
   color: var(--text-primary);
-  touch-action: manipulation;
+  touch-action: none !important;
 }
 
 /* ==========================================================================
