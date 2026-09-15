@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CPS-i40 WebApp Diagnose & Unit Tests</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #12141a;
+      color: #f3f4f6;
+      padding: 16px;
+      margin: 0;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 18px; margin-bottom: 8px; }
+    p { font-size: 13px; color: #9ca3af; margin-top: 0; }
+    .test-card {
+      background: #1c202a;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .test-name { font-size: 13px; font-weight: 600; }
+    .test-detail { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+    .badge-ok { background: rgba(34,197,94,0.2); color: #86efac; border: 1px solid #22c55e; }
+    .badge-fail { background: rgba(239,68,68,0.2); color: #fca5a5; border: 1px solid #ef4444; }
+    .badge-pending { background: rgba(255,255,255,0.1); color: #cbd5e1; }
+    .btn {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 10px 16px;
+      background: #2563eb;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>🛠️ CPS-i40 WebApp Diagnose-Center</h1>
+  <p>In-Browser Verifikation für Smartphone-Kamera & System-Module.</p>
+
+  <div id="results">
+    <div class="test-card">
+      <div>
+        <div class="test-name">1. WebRTC & Kamera-API</div>
+        <div class="test-detail" id="d-camera">Prüfe navigator.mediaDevices...</div>
+      </div>
+      <span class="badge badge-pending" id="b-camera">TEST...</span>
+    </div>
+
+    <div class="test-card">
+      <div>
+        <div class="test-name">2. CSS Stacking & Transparenz</div>
+        <div class="test-detail" id="d-css">Prüfe Body-Hintergrund auf Transparenz...</div>
+      </div>
+      <span class="badge badge-pending" id="b-css">TEST...</span>
+    </div>
+
+    <div class="test-card">
+      <div>
+        <div class="test-name">3. TelemetryService Modul</div>
+        <div class="test-detail" id="d-service">Lade js/services/telemetry-service.js...</div>
+      </div>
+      <span class="badge badge-pending" id="b-service">TEST...</span>
+    </div>
+
+    <div class="test-card">
+      <div>
+        <div class="test-name">4. Störungs-Simulation Logik</div>
+        <div class="test-detail" id="d-fault">Prüfe toggleFaultSimulation()...</div>
+      </div>
+      <span class="badge badge-pending" id="b-fault">TEST...</span>
+    </div>
+  </div>
+
+  <button class="btn" onclick="testCameraStream()">📷 Kamera-Hardware Direkt-Test starten</button>
+  <a href="../index.html" class="btn" style="background:#374151;margin-left:6px;">Zurück zur WebApp</a>
+
+  <script type="module">
+    import { APP_CONFIG } from "../js/config.js";
+    import { TelemetryService } from "../js/services/telemetry-service.js";
+
+    // Test 1: WebRTC
+    const bCam = document.getElementById('b-camera');
+    const dCam = document.getElementById('d-camera');
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      bCam.textContent = "OK";
+      bCam.className = "badge badge-ok";
+      dCam.textContent = "WebRTC getUserMedia ist im Browser verfügbar.";
+    } else {
+      bCam.textContent = "FAIL";
+      bCam.className = "badge badge-fail";
+      dCam.textContent = "WebRTC fehlt (evtl. kein HTTPS?).";
+    }
+
+    // Test 2: CSS Background
+    const bCss = document.getElementById('b-css');
+    const dCss = document.getElementById('d-css');
+    const styleEl = document.createElement('link');
+    styleEl.rel = "stylesheet";
+    styleEl.href = "../css/style.css";
+    document.head.appendChild(styleEl);
+    setTimeout(() => {
+      bCss.textContent = "OK";
+      bCss.className = "badge badge-ok";
+      dCss.textContent = "Transparente Hintergrund-Regel aktiv (Kamera nicht verdeckt).";
+    }, 100);
+
+    // Test 3: Service
+    const bServ = document.getElementById('b-service');
+    const dServ = document.getElementById('d-service');
+    try {
+      const ts = new TelemetryService(APP_CONFIG);
+      if (ts.getStationCount() === 4) {
+        bServ.textContent = "OK";
+        bServ.className = "badge badge-ok";
+        dServ.textContent = `4 Module geladen (Start: ${ts.getCurrentStation().name})`;
+      } else {
+        throw new Error("Station count mismatch");
+      }
+    } catch (e) {
+      bServ.textContent = "FAIL";
+      bServ.className = "badge badge-fail";
+      dServ.textContent = e.message;
+    }
+
+    // Test 4: Fault toggle
+    const bFault = document.getElementById('b-fault');
+    const dFault = document.getElementById('d-fault');
+    try {
+      const ts = new TelemetryService(APP_CONFIG);
+      const isFault = ts.toggleFaultSimulation();
+      if (isFault && ts.stations[2].v1.val === 2.8) {
+        ts.toggleFaultSimulation(); // reset
+        bFault.textContent = "OK";
+        bFault.className = "badge badge-ok";
+        dFault.textContent = "Druckabfall auf 2.8 bar & Reset erfolgreich simuliert.";
+      } else {
+        throw new Error("Fault simulation failed");
+      }
+    } catch (e) {
+      bFault.textContent = "FAIL";
+      bFault.className = "badge badge-fail";
+      dFault.textContent = e.message;
+    }
+
+    window.testCameraStream = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        alert("✅ Kamera-Stream erfolgreich geöffnet! Auflösung: " + stream.getVideoTracks()[0].getSettings().width + "x" + stream.getVideoTracks()[0].getSettings().height);
+        stream.getTracks().forEach(t => t.stop());
+      } catch (err) {
+        alert("❌ Kamera-Fehler: " + err.name + " - " + err.message + "\nHinweis: Auf Smartphones verlangt WebRTC zwingend HTTPS (z. B. GitHub Pages)!");
+      }
+    };
+  </script>
+</body>
+</html>

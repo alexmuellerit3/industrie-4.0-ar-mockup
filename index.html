@@ -22,9 +22,9 @@
        ======================================================================== -->
   <a-scene
     vr-mode-ui="enabled: false"
-    renderer="antialias: true; alpha: true; precision: mediump;"
+    renderer="logarithmicDepthBuffer: true; alpha: true"
     embedded
-    arjs="sourceType: webcam; facingMode: environment; debugUIEnabled: false;">
+    arjs="sourceType: webcam; facingMode: environment; sourceWidth: 1280; sourceHeight: 720; displayWidth: 1280; displayHeight: 720; debugUIEnabled: false;">
     
     <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="4">
       

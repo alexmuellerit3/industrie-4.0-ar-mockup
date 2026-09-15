@@ -1,7 +1,7 @@
 /* ==========================================================================
    CPS-i40 Mobile AR WebApp - Industrial Stylesheet
    Design: Funktional-industrieller Minimalismus (Graphit / Titan, kein Blau)
-   Normen: DIN EN 60073 / IEC 60073 für Signalsysteme
+   Stacking: Transparenter Body für AR.js WebRTC-Videostream
    ========================================================================== */
 
 :root {
@@ -34,6 +34,8 @@
   user-select: none;
 }
 
+/* WICHTIG: Body & HTML MÜSSEN transparent sein, da AR.js den Kamera-Videostream
+   hinter den Body legt (z-index: -2). Eine Hintergrundfarbe auf body verdeckt die Kamera! */
 html, body {
   margin: 0;
   padding: 0;
@@ -42,20 +44,36 @@ html, body {
   height: 100dvh;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #000;
+  background: transparent !important;
+  background-color: transparent !important;
   color: var(--text-primary);
   touch-action: manipulation;
 }
 
-/* iOS Safari & Android Kamera-Stream (Skalierung für AR.js) */
-video, canvas {
+/* AR.js Video & A-Frame Canvas Stacking */
+#arjs-video, video {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
   height: 100dvh !important;
   object-fit: cover !important;
+  z-index: -1 !important;
 }
 
-/* AR Viewport Frame */
+.a-canvas, a-scene canvas {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 1 !important;
+  pointer-events: none;
+}
+
+/* UI Viewport Frame über der 3D-Szene */
 .ar-frame {
   position: fixed;
   inset: 0;
@@ -71,9 +89,7 @@ video, canvas {
   pointer-events: auto;
 }
 
-/* ==========================================================================
-   1. Header: Schlanker Status-Indikator
-   ========================================================================== */
+/* 1. Header: Schlanker Status-Indikator */
 .top-indicator {
   align-self: center;
   display: flex;
@@ -104,9 +120,7 @@ video, canvas {
   font-weight: 600;
 }
 
-/* ==========================================================================
-   2. Zielsucher (Dezente Ecken-Passmarke)
-   ========================================================================== */
+/* 2. Zielsucher (Dezente Ecken-Passmarke) */
 .viewfinder {
   align-self: center;
   display: flex;
@@ -147,9 +161,7 @@ video, canvas {
   color: var(--text-secondary);
 }
 
-/* ==========================================================================
-   3. Bottom-Panel: Telemetrie-Karte
-   ========================================================================== */
+/* 3. Bottom-Panel: Telemetrie-Karte */
 .station-card {
   display: none;
   background: var(--panel-bg);
