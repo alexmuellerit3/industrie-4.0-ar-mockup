@@ -1,14 +1,15 @@
 /* ==========================================================================
-   CPS-i40 Mobile AR WebApp - Industrial Stylesheet
-   Design: Funktional-industrieller Minimalismus (Graphit / Titan, kein Blau)
-   Stacking: Transparenter Body für AR.js WebRTC-Videostream
+   CPS-i40 Mobile AR WebApp - Industrial Responsive Stylesheet
+   - 100% Fullscreen Kamera ohne Balken / Letterboxing (iOS Safari & Android)
+   - Vollständig responsive HMI-Bedienoberfläche nach Apple HIG & Industrie-Standards
+   - Monochromes Titan-/Graphit-Design (Kein Blau)
    ========================================================================== */
 
 :root {
   --bg-dark: #12141a;
   --panel-bg: rgba(22, 25, 32, 0.94);
   --card-bg: rgba(30, 34, 44, 0.85);
-  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.14);
   --border-focus: rgba(255, 255, 255, 0.35);
   
   --text-white: #ffffff;
@@ -17,15 +18,17 @@
   --text-dim: #6b7280;
 
   --status-ok: #22c55e;
-  --status-ok-bg: rgba(34, 197, 94, 0.12);
-  --status-ok-border: rgba(34, 197, 94, 0.35);
+  --status-ok-bg: rgba(34, 197, 94, 0.14);
+  --status-ok-border: rgba(34, 197, 94, 0.4);
 
   --status-fault: #ef4444;
-  --status-fault-bg: rgba(239, 68, 68, 0.15);
+  --status-fault-bg: rgba(239, 68, 68, 0.16);
   --status-fault-border: rgba(239, 68, 68, 0.5);
 
-  --safe-top: env(safe-area-inset-top, 14px);
-  --safe-bottom: env(safe-area-inset-bottom, 14px);
+  --safe-top: max(env(safe-area-inset-top, 0px), 12px);
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+  --safe-left: max(env(safe-area-inset-left, 0px), 12px);
+  --safe-right: max(env(safe-area-inset-right, 0px), 12px);
 }
 
 * {
@@ -34,8 +37,6 @@
   user-select: none;
 }
 
-/* WICHTIG: Body & HTML MÜSSEN transparent sein, da AR.js den Kamera-Videostream
-   hinter den Body legt (z-index: -2). Eine Hintergrundfarbe auf body verdeckt die Kamera! */
 html, body {
   margin: 0;
   padding: 0;
@@ -50,30 +51,46 @@ html, body {
   touch-action: manipulation;
 }
 
-/* AR.js Video & A-Frame Canvas Stacking */
-#arjs-video, video {
+/* ==========================================================================
+   TRUE FULLSCREEN KAMERA-STREAM (Neutralisiert AR.js 4:3 Letterboxing)
+   ========================================================================== */
+#arjs-video, 
+video {
   position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  height: 100dvh !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  -webkit-transform: translate(-50%, -50%) !important;
+  min-width: 100vw !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
   object-fit: cover !important;
   z-index: -1 !important;
 }
 
-.a-canvas, a-scene canvas {
+.a-canvas, 
+a-scene canvas {
   position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  -webkit-transform: translate(-50%, -50%) !important;
+  min-width: 100vw !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
   width: 100vw !important;
-  height: 100vh !important;
   height: 100dvh !important;
+  margin: 0 !important;
   z-index: 1 !important;
   pointer-events: none;
 }
 
-/* UI Viewport Frame über der 3D-Szene */
+/* ==========================================================================
+   RESPONSIVES UI FRAMEWORK
+   ========================================================================== */
 .ar-frame {
   position: fixed;
   inset: 0;
@@ -82,7 +99,7 @@ html, body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: calc(var(--safe-top) + 6px) 14px calc(var(--safe-bottom) + 6px) 14px;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
 
 .interactive {
@@ -95,24 +112,25 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
+  padding: 8px 16px;
   background: var(--panel-bg);
   border: 1px solid var(--border-subtle);
-  border-radius: 20px;
+  border-radius: 24px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  font-size: 11px;
+  font-size: clamp(10px, 2.8vw, 12px);
   letter-spacing: 0.5px;
   color: var(--text-secondary);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--status-ok);
   transition: background-color 0.2s;
+  flex-shrink: 0;
 }
 
 .top-indicator strong {
@@ -120,19 +138,19 @@ html, body {
   font-weight: 600;
 }
 
-/* 2. Zielsucher (Dezente Ecken-Passmarke) */
+/* 2. Zielsucher (Skaliert flüssig auf jeder Bildschirmbreite) */
 .viewfinder {
   align-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   transition: opacity 0.25s ease;
 }
 
 .viewfinder-box {
-  width: 150px;
-  height: 150px;
+  width: clamp(120px, 38vw, 160px);
+  height: clamp(120px, 38vw, 160px);
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.15);
@@ -141,8 +159,8 @@ html, body {
 
 .viewfinder-corner {
   position: absolute;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-color: #ffffff;
   border-style: solid;
 }
@@ -152,33 +170,33 @@ html, body {
 .c-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
 
 .viewfinder-label {
-  background: rgba(18, 20, 26, 0.85);
+  background: rgba(18, 20, 26, 0.88);
   border: 1px solid var(--border-subtle);
-  padding: 5px 12px;
-  border-radius: 4px;
-  font-size: 11px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: clamp(10px, 2.8vw, 12px);
   font-family: ui-monospace, "SF Mono", monospace;
   color: var(--text-secondary);
 }
 
-/* 3. Bottom-Panel: Telemetrie-Karte */
+/* 3. Bottom-Panel: Telemetrie-Karte (Vollständig responsiv) */
 .station-card {
   display: none;
   background: var(--panel-bg);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: clamp(10px, 3vw, 16px);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-  max-width: 440px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.65);
+  max-width: min(440px, 100%);
   width: 100%;
   align-self: center;
   animation: cardAppear 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes cardAppear {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -189,25 +207,30 @@ html, body {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 10px;
+  gap: 8px;
 }
 
 .station-title {
-  font-size: 13px;
+  font-size: clamp(12px, 3.4vw, 14px);
   font-weight: 700;
   color: var(--text-white);
   letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .station-status-tag {
   font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 10px;
+  font-size: clamp(9px, 2.4vw, 11px);
   font-weight: 700;
-  padding: 2px 7px;
-  border-radius: 3px;
+  padding: 3px 8px;
+  border-radius: 4px;
   background: var(--status-ok-bg);
   color: #86efac;
   border: 1px solid var(--status-ok-border);
   letter-spacing: 0.4px;
+  flex-shrink: 0;
 }
 
 .station-status-tag.alert-state {
@@ -216,19 +239,23 @@ html, body {
   border-color: var(--status-fault-border) !important;
 }
 
-/* 3 Messwert-Spalten */
+/* 3 Messwert-Spalten (Responsives Grid) */
 .sensor-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
+  gap: clamp(4px, 1.5vw, 8px);
 }
 
 .sensor-item {
   background: var(--card-bg);
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 7px 8px;
+  border-radius: 8px;
+  padding: clamp(6px, 2vw, 10px) clamp(4px, 1.5vw, 8px);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 52px;
 }
 
 .sensor-item.alert-active {
@@ -238,23 +265,30 @@ html, body {
 
 .sensor-name {
   display: block;
-  font-size: 9px;
+  font-size: clamp(8px, 2.2vw, 10px);
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.4px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sensor-value {
   font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 15px;
+  font-size: clamp(13px, 4vw, 16px);
   font-weight: 700;
   color: var(--text-white);
   font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
 }
 
 .sensor-unit {
-  font-size: 10px;
+  font-size: clamp(9px, 2.4vw, 11px);
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -264,15 +298,15 @@ html, body {
   display: none;
   margin-top: 8px;
   padding: 6px 10px;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--status-fault-bg);
   border: 1px solid var(--status-fault-border);
-  font-size: 10px;
+  font-size: clamp(10px, 2.6vw, 11px);
   color: #fca5a5;
   text-align: center;
 }
 
-/* Schaltflächen */
+/* Schaltflächen (Mindestens 44px Höhe für Touch-Bedienung nach Apple HIG) */
 .card-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -281,20 +315,24 @@ html, body {
 }
 
 .btn-action {
-  padding: 8px 10px;
-  border-radius: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 8px;
   border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
-  font-size: 11px;
+  font-size: clamp(11px, 3vw, 12px);
   font-weight: 600;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .btn-action:active {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.16);
   border-color: var(--border-focus);
 }
 
@@ -303,21 +341,43 @@ html, body {
   border-color: rgba(239, 68, 68, 0.4);
 }
 .btn-fault:active {
-  background: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.28);
 }
 
 /* Desktop-Test Schalter */
 .sim-toggle {
   position: fixed;
-  bottom: calc(var(--safe-bottom) + 6px);
-  right: 14px;
+  bottom: var(--safe-bottom);
+  right: var(--safe-right);
   z-index: 25;
   font-size: 10px;
   font-family: ui-monospace, monospace;
   color: var(--text-secondary);
-  background: rgba(18, 20, 26, 0.85);
+  background: rgba(18, 20, 26, 0.9);
   border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 3px 8px;
+  border-radius: 14px;
+  padding: 4px 10px;
   cursor: pointer;
+}
+
+/* ==========================================================================
+   LANDSCAPE / TABLET QUERY
+   ========================================================================== */
+@media (orientation: landscape) and (max-height: 500px) {
+  .ar-frame {
+    padding: 8px var(--safe-right) 8px var(--safe-left);
+  }
+  .viewfinder-box {
+    width: 100px;
+    height: 100px;
+  }
+  .station-card {
+    padding: 8px 12px;
+  }
+  .card-actions {
+    margin-top: 6px;
+  }
+  .btn-action {
+    min-height: 36px;
+  }
 }
