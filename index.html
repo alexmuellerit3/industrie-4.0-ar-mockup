@@ -5,23 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0a0e17">
-  <title>CPS-i40 AR Sensor Mockup | Bonbon-Fertigung</title>
+  <meta name="theme-color" content="#0a0f1d">
+  <title>CPS-i40 AR Telemetrie | Bonbon-Dosen Fertigung</title>
 
-  <!-- A-Frame & AR.js -->
+  <!-- A-Frame 1.4.0 & AR.js 3.4.5 -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
 
   <style>
     :root {
-      --bg-glass: rgba(10, 16, 26, 0.88);
-      --border-glass: rgba(0, 229, 255, 0.3);
-      --accent-cyan: #00e5ff;
-      --accent-green: #00e676;
-      --accent-warn: #ffd600;
-      --accent-alert: #ff1744;
-      --text-main: #ffffff;
-      --text-muted: #8fa3bf;
+      --bg-dark: #0a0f1d;
+      --panel-bg: rgba(13, 20, 36, 0.92);
+      --panel-border: rgba(45, 75, 120, 0.45);
+      --panel-border-focus: #00d2ff;
+      --accent-cyan: #00d2ff;
+      --accent-blue: #2563eb;
+      --accent-green: #10b981;
+      --accent-warn: #f59e0b;
+      --accent-alert: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
       --safe-top: env(safe-area-inset-top, 16px);
       --safe-bottom: env(safe-area-inset-bottom, 16px);
     }
@@ -39,12 +44,13 @@
       height: 100%;
       height: 100dvh;
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       background-color: #000;
       color: var(--text-main);
+      touch-action: manipulation;
     }
 
-    /* Video & Canvas Anpassung für Vollbild auf Smartphones */
+    /* AR.js Video & Canvas Kamera-Fill für mobile Screens */
     video, canvas {
       position: fixed !important;
       top: 0 !important;
@@ -56,8 +62,8 @@
       z-index: 0 !important;
     }
 
-    /* UI Overlay Layer */
-    .ar-ui-layer {
+    /* Vollflächiger HUD UI Layer über der AR Szene */
+    .hud-layer {
       position: fixed;
       inset: 0;
       z-index: 10;
@@ -65,677 +71,1191 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: calc(var(--safe-top) + 8px) 14px calc(var(--safe-bottom) + 8px) 14px;
+      padding: calc(var(--safe-top) + 8px) 12px calc(var(--safe-bottom) + 8px) 12px;
     }
 
     .interactive {
       pointer-events: auto;
     }
 
-    /* Header Bar */
-    .header-bar {
+    /* TOP BAR: Industrie-Leitstand Header */
+    .top-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .header-panel {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 10px 14px;
-      border-radius: 14px;
-      background: var(--bg-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--border-glass);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      border-radius: 12px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     }
 
-    .header-title {
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid rgba(0, 210, 255, 0.4);
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.8px;
+    }
+
+    .brand-titles {
       display: flex;
       flex-direction: column;
     }
 
-    .header-title h1 {
+    .brand-titles h1 {
       margin: 0;
       font-size: 14px;
       font-weight: 700;
-      letter-spacing: 0.5px;
-      color: var(--accent-cyan);
-      text-transform: uppercase;
+      color: var(--text-main);
+      letter-spacing: 0.3px;
     }
 
-    .header-title span {
+    .brand-titles span {
       font-size: 11px;
       color: var(--text-muted);
+      font-family: var(--font-mono);
     }
 
-    .live-badge {
+    .system-status-pill {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 8px;
+      padding: 4px 10px;
       border-radius: 20px;
-      background: rgba(0, 230, 118, 0.15);
-      border: 1px solid rgba(0, 230, 118, 0.4);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      font-family: var(--font-mono);
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--accent-green);
     }
 
-    .live-dot {
+    .status-dot {
       width: 7px;
       height: 7px;
       border-radius: 50%;
       background: var(--accent-green);
       box-shadow: 0 0 8px var(--accent-green);
-      animation: pulse 1.5s infinite;
+      animation: pulseDot 1.8s infinite;
     }
 
-    @keyframes pulse {
+    @keyframes pulseDot {
       0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
+      50% { opacity: 0.3; transform: scale(0.75); }
     }
 
-    /* Scanner Reticle / Marker Guidance */
-    .scanner-guide {
+    /* Sub-Header / OT-Verbindungsstatus */
+    .ot-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 12px;
+      border-radius: 8px;
+      background: rgba(13, 20, 36, 0.75);
+      border: 1px solid rgba(45, 75, 120, 0.3);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .ot-stat-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .ot-stat-item strong {
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    /* RETICLE: Industrielles Marker-Zielsucher HUD */
+    .scanner-reticle {
       align-self: center;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 12px;
-      transition: opacity 0.3s ease, transform 0.3s ease;
+      transition: opacity 0.35s ease, transform 0.35s ease;
     }
 
-    .scanner-frame {
-      width: 170px;
-      height: 170px;
-      border: 2px dashed rgba(0, 229, 255, 0.45);
-      border-radius: 20px;
+    .reticle-box {
+      width: 180px;
+      height: 180px;
+      position: relative;
+      border: 1px solid rgba(0, 210, 255, 0.2);
+      border-radius: 16px;
+      background: rgba(0, 210, 255, 0.02);
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    /* Ecken-Fadenkreuze */
+    .reticle-corner {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      border-color: var(--accent-cyan);
+      border-style: solid;
+    }
+    .reticle-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 12px; }
+    .reticle-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 12px; }
+    .reticle-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 12px; }
+    .reticle-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 12px; }
+
+    .reticle-crosshair {
+      width: 14px;
+      height: 14px;
       position: relative;
-      background: rgba(0, 229, 255, 0.03);
     }
-
-    .scanner-frame::before {
+    .reticle-crosshair::before, .reticle-crosshair::after {
       content: "";
       position: absolute;
-      width: 24px;
-      height: 24px;
-      border-top: 3px solid var(--accent-cyan);
-      border-left: 3px solid var(--accent-cyan);
-      top: -2px;
-      left: -2px;
-      border-top-left-radius: 16px;
+      background: rgba(0, 210, 255, 0.6);
     }
+    .reticle-crosshair::before { top: 6px; left: 0; width: 14px; height: 2px; }
+    .reticle-crosshair::after { top: 0; left: 6px; width: 2px; height: 14px; }
 
-    .scanner-frame::after {
-      content: "";
-      position: absolute;
-      width: 24px;
-      height: 24px;
-      border-bottom: 3px solid var(--accent-cyan);
-      border-right: 3px solid var(--accent-cyan);
-      bottom: -2px;
-      right: -2px;
-      border-bottom-right-radius: 16px;
-    }
-
-    .scanner-laser {
+    .reticle-laser {
       position: absolute;
       width: 100%;
       height: 2px;
       background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
-      box-shadow: 0 0 8px var(--accent-cyan);
-      animation: scan 2.2s ease-in-out infinite;
+      box-shadow: 0 0 10px var(--accent-cyan);
+      animation: laserSweep 2s ease-in-out infinite;
     }
 
-    @keyframes scan {
-      0%, 100% { top: 10%; opacity: 0.2; }
-      50% { top: 90%; opacity: 1; }
+    @keyframes laserSweep {
+      0%, 100% { top: 12%; opacity: 0.2; }
+      50% { top: 88%; opacity: 1; }
     }
 
-    .scanner-text {
-      background: rgba(0, 0, 0, 0.65);
+    .reticle-caption {
+      background: rgba(10, 15, 29, 0.85);
+      border: 1px solid rgba(0, 210, 255, 0.3);
       padding: 6px 14px;
       border-radius: 20px;
-      font-size: 12px;
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
-    /* Sensor Dashboard Card */
-    .dashboard-card {
+    /* BOTTOM DASHBOARD: Haupt-Telemetrie-Karte */
+    .dashboard-panel {
       display: none;
-      border-radius: 18px;
-      background: var(--bg-glass);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--border-glass);
+      border-radius: 16px;
+      background: var(--panel-bg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--panel-border);
       padding: 14px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-      animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      animation: slidePanelUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    @keyframes slideUp {
-      from { transform: translateY(30px); opacity: 0; }
+    @keyframes slidePanelUp {
+      from { transform: translateY(40px); opacity: 0; }
       to { transform: translateY(0); opacity: 1; }
     }
 
-    /* Module Selector Pills */
+    /* Modul-Auswahl Reiter (Tabs) */
     .module-tabs {
       display: flex;
       gap: 6px;
       overflow-x: auto;
       padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       scrollbar-width: none;
       -webkit-overflow-scrolling: touch;
     }
     .module-tabs::-webkit-scrollbar { display: none; }
 
-    .tab-btn {
+    .module-tab-btn {
       flex: 0 0 auto;
-      padding: 6px 11px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.05);
+      padding: 7px 11px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
       color: var(--text-muted);
       font-size: 11px;
       font-weight: 600;
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
       transition: all 0.2s;
     }
 
-    .tab-btn.active {
-      background: rgba(0, 229, 255, 0.2);
+    .module-tab-btn.active {
+      background: rgba(0, 210, 255, 0.15);
       border-color: var(--accent-cyan);
       color: #fff;
     }
 
-    /* Module Info Row */
-    .station-header {
+    .tab-idx {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--accent-cyan);
+    }
+
+    /* Stations-Titel & Status */
+    .station-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: 8px 0 12px 0;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin: 10px 0 12px 0;
     }
 
-    .station-name {
+    .station-info h2 {
+      margin: 0;
       font-size: 15px;
       font-weight: 700;
       color: #fff;
     }
 
-    .station-status {
+    .station-info p {
+      margin: 2px 0 0 0;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+
+    .station-mode-tag {
+      font-family: var(--font-mono);
       font-size: 10px;
       font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 8px;
+      padding: 4px 9px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
       text-transform: uppercase;
-      background: rgba(0, 230, 118, 0.18);
+      background: rgba(16, 185, 129, 0.16);
       color: var(--accent-green);
-      border: 1px solid rgba(0, 230, 118, 0.4);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      transition: all 0.25s;
     }
 
-    .station-status.alert {
-      background: rgba(255, 23, 68, 0.2);
-      color: var(--accent-alert);
-      border-color: var(--accent-alert);
+    .station-mode-tag.alert-state {
+      background: rgba(239, 68, 68, 0.22) !important;
+      color: var(--accent-alert) !important;
+      border-color: var(--accent-alert) !important;
+      animation: alertBlink 1s infinite;
     }
 
-    /* Metrics Grid */
-    .metrics-grid {
+    @keyframes alertBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    /* 4-KPI Grid */
+    .kpi-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 8px;
     }
 
-    .metric-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 12px;
-      padding: 9px 10px;
+    .kpi-card {
+      background: rgba(18, 28, 48, 0.7);
+      border: 1px solid rgba(45, 75, 120, 0.35);
+      border-radius: 10px;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
-    }
-
-    .metric-label {
-      font-size: 10px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 3px;
-    }
-
-    .metric-val {
-      font-size: 16px;
-      font-weight: 700;
-      color: #fff;
-      font-variant-numeric: tabular-nums;
-      display: flex;
-      align-items: baseline;
-      gap: 3px;
-    }
-
-    .metric-unit {
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--accent-cyan);
-    }
-
-    /* Progress bar */
-    .metric-bar-bg {
-      margin-top: 5px;
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 2px;
+      position: relative;
       overflow: hidden;
     }
 
-    .metric-bar-fill {
+    .kpi-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 3px;
       height: 100%;
-      width: 75%;
+      background: var(--accent-cyan);
+      opacity: 0.6;
+    }
+
+    .kpi-card.alert-metric::before {
+      background: var(--accent-alert);
+      opacity: 1;
+    }
+
+    .kpi-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2px;
+    }
+
+    .kpi-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .kpi-setpoint {
+      font-size: 9px;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+
+    .kpi-val-row {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin: 2px 0;
+    }
+
+    .kpi-val {
+      font-size: 17px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .kpi-unit {
+      font-size: 11px;
+      font-weight: 600;
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+    }
+
+    .kpi-bar-track {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .kpi-bar-fill {
+      height: 100%;
+      width: 50%;
       background: var(--accent-cyan);
       border-radius: 2px;
-      transition: width 0.4s ease;
+      transition: width 0.4s ease, background 0.3s;
+    }
+
+    /* Störungshinweis Banner (erscheint nur bei simulierter Störung) */
+    .alert-banner {
+      display: none;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      font-size: 11px;
+      color: #fca5a5;
+    }
+
+    .alert-banner strong {
+      color: #fff;
+      display: block;
+      margin-bottom: 2px;
     }
 
     /* Action Toolbar */
-    .card-actions {
+    .action-toolbar {
       display: flex;
       gap: 8px;
-      margin-top: 12px;
+      margin-top: 10px;
     }
 
-    .action-btn {
+    .btn-tool {
       flex: 1;
-      padding: 9px 10px;
-      border-radius: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.07);
+      background: rgba(255, 255, 255, 0.06);
       color: #fff;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 6px;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
 
-    .action-btn:active {
-      background: rgba(255, 255, 255, 0.2);
+    .btn-tool:active {
+      background: rgba(255, 255, 255, 0.18);
     }
 
-    .btn-alert {
-      border-color: rgba(255, 23, 68, 0.5);
-      color: #ff8a80;
+    .btn-alert-sim {
+      border-color: rgba(239, 68, 68, 0.5);
+      background: rgba(239, 68, 68, 0.12);
+      color: #fca5a5;
     }
 
-    /* Floating Debug & Info Button */
-    .debug-pill {
+    .btn-alert-sim:active {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    /* Floating Info & Audio Toggle */
+    .floating-tools {
       position: fixed;
-      bottom: calc(var(--safe-bottom) + 10px);
-      right: 14px;
-      z-index: 20;
+      bottom: calc(var(--safe-bottom) + 8px);
+      right: 12px;
+      z-index: 25;
+      display: flex;
+      gap: 6px;
+    }
+
+    .tool-chip {
       padding: 6px 10px;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.2);
       border-radius: 20px;
+      background: rgba(13, 20, 36, 0.85);
+      border: 1px solid rgba(45, 75, 120, 0.5);
       font-size: 11px;
+      font-family: var(--font-mono);
       color: var(--text-muted);
       cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      backdrop-filter: blur(8px);
+    }
+
+    .tool-chip:active {
+      border-color: var(--accent-cyan);
+      color: #fff;
+    }
+
+    /* Modal für OPC UA Node-Inspektor */
+    .opc-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(10px);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .opc-modal-box {
+      width: 100%;
+      max-width: 420px;
+      background: #0f172a;
+      border: 1px solid var(--panel-border-focus);
+      border-radius: 14px;
+      padding: 16px;
+      font-family: var(--font-mono);
+    }
+
+    .opc-modal-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .opc-table {
+      width: 100%;
+      font-size: 10px;
+      border-collapse: collapse;
+    }
+
+    .opc-table th, .opc-table td {
+      padding: 6px 8px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .opc-table th {
+      color: var(--text-dim);
+    }
+
+    .opc-table td {
+      color: var(--text-main);
     }
   </style>
 </head>
 <body>
 
-  <!-- 3D AR Scene -->
+  <!-- 3D A-Frame & AR.js Szene -->
   <a-scene
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true"
     embedded
     arjs="sourceType: webcam; facingMode: environment; sourceWidth: 1280; sourceHeight: 720; displayWidth: 1280; displayHeight: 720; debugUIEnabled: false;">
     
-    <!-- Hiro Marker -->
-    <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="5">
-      <!-- 3D Holographic Cylinder (Bonbon-Dose) über dem Marker -->
-      <a-cylinder
-        id="ar-tin-model"
-        position="0 0.5 0"
-        radius="0.45"
-        height="0.65"
-        color="#00e5ff"
-        material="opacity: 0.65; transparent: true; wireframe: false; metalness: 0.7; roughness: 0.2"
-        animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
-      </a-cylinder>
+    <!-- Marker Preset 'Hiro' -->
+    <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="6">
+      
+      <!-- 3D-Boden-Plattform (Holographic Industrial Floor Target) -->
+      <a-entity position="0 0.02 0" rotation="-90 0 0">
+        <!-- Äußerer Target-Ring -->
+        <a-ring
+          radius-inner="0.75"
+          radius-outer="0.82"
+          color="#00d2ff"
+          material="opacity: 0.6; transparent: true; side: double"
+          animation="property: rotation; to: 0 0 360; loop: true; dur: 12000; easing: linear">
+        </a-ring>
+        <!-- Innerer getakteter Puls-Ring -->
+        <a-ring
+          id="ar-pulse-ring"
+          radius-inner="0.60"
+          radius-outer="0.65"
+          color="#10b981"
+          material="opacity: 0.8; transparent: true; side: double"
+          animation="property: scale; from: 0.95 0.95 0.95; to: 1.15 1.15 1.15; dir: alternate; loop: true; dur: 1400; easing: easeInOutSine">
+        </a-ring>
+        <!-- 4-Punkt Kreuzmarkierung -->
+        <a-plane position="0 0 0.01" width="1.6" height="0.02" color="#00d2ff" material="opacity: 0.4; transparent: true"></a-plane>
+        <a-plane position="0 0 0.01" width="0.02" height="1.6" color="#00d2ff" material="opacity: 0.4; transparent: true"></a-plane>
+      </a-entity>
 
-      <!-- Pulsierender Hologramm-Ring um die Dose -->
-      <a-ring
-        position="0 0.05 0"
-        rotation="-90 0 0"
-        radius-inner="0.6"
-        radius-outer="0.68"
-        color="#00e5ff"
-        material="opacity: 0.8; transparent: true; side: double"
-        animation="property: scale; from: 0.9 0.9 0.9; to: 1.15 1.15 1.15; dir: alternate; loop: true; dur: 1200; easing: easeInOutSine">
-      </a-ring>
+      <!-- 3D BONBON-DOSE (Präzise industrielle Geometrie) -->
+      <a-entity id="ar-tin-assembly" position="0 0.35 0">
+        <!-- Dosen-Körper (Zylinder gebürstetes Metall) -->
+        <a-cylinder
+          id="ar-tin-body"
+          radius="0.42"
+          height="0.55"
+          color="#d4d4d8"
+          material="metalness: 0.85; roughness: 0.25; opacity: 0.92; transparent: true"
+          animation="property: rotation; to: 0 360 0; loop: true; dur: 9000; easing: linear">
+        </a-cylinder>
 
-      <!-- 3D Marker Info Text -->
-      <a-text
-        id="ar-status-text"
-        value="CPS-i40: MODUL 2"
-        position="0 1.1 0"
-        align="center"
-        scale="0.75 0.75 0.75"
-        color="#ffffff"
-        look-at="[camera]">
-      </a-text>
+        <!-- Dosen-Deckel mit Bördelkante -->
+        <a-cylinder
+          id="ar-tin-lid"
+          position="0 0.28 0"
+          radius="0.435"
+          height="0.04"
+          color="#e2e8f0"
+          material="metalness: 0.9; roughness: 0.2">
+        </a-cylinder>
+
+        <!-- Hologramm-Lichtkegel / Beacon über der Dose -->
+        <a-cylinder
+          id="ar-beacon"
+          position="0 0.45 0"
+          radius-top="0.6"
+          radius-bottom="0.42"
+          height="0.3"
+          color="#00d2ff"
+          material="opacity: 0.22; transparent: true; side: double; wireframe: true">
+        </a-cylinder>
+      </a-entity>
+
+      <!-- 3D AR-HUD Text über dem Marker -->
+      <a-entity position="0 1.25 0" look-at="[camera]">
+        <a-plane width="1.6" height="0.35" color="#0a0f1d" material="opacity: 0.85; transparent: true" position="0 0 -0.01"></a-plane>
+        <a-text
+          id="ar-3d-title"
+          value="STATION: MODUL 2"
+          align="center"
+          position="0 0.07 0"
+          scale="0.8 0.8 0.8"
+          color="#00d2ff">
+        </a-text>
+        <a-text
+          id="ar-3d-status"
+          value="STATUS: NORMAL [RUN]"
+          align="center"
+          position="0 -0.07 0"
+          scale="0.6 0.6 0.6"
+          color="#10b981">
+        </a-text>
+      </a-entity>
+
     </a-marker>
 
     <!-- Kamera -->
     <a-entity camera></a-entity>
   </a-scene>
 
-  <!-- Smartphone UI HUD Layer -->
-  <div class="ar-ui-layer">
+  <!-- SMARTPHONE HUD LAYER -->
+  <div class="hud-layer">
     
-    <!-- Header -->
-    <header class="header-bar interactive">
-      <div class="header-title">
-        <h1>CPS-i40 Telemetrie</h1>
-        <span>Bonbon-Dosen Fertigung #LF7</span>
+    <!-- OBERER BEREICH: Header & OT-Verbindung -->
+    <header class="top-bar interactive">
+      <div class="header-panel">
+        <div class="brand-section">
+          <div class="brand-badge">CPS-i40</div>
+          <div class="brand-titles">
+            <h1>Bonbon-Fertigung AR</h1>
+            <span id="header-clock">12:00:00 • LINIE 1</span>
+          </div>
+        </div>
+        <div class="system-status-pill" id="sys-status-pill">
+          <span class="status-dot" id="sys-status-dot"></span>
+          <span id="sys-status-text">OPC UA: ON</span>
+        </div>
       </div>
-      <div class="live-badge" id="hud-live-badge">
-        <span class="live-dot"></span>
-        <span id="hud-status-label">ONLINE</span>
+
+      <div class="ot-status-bar">
+        <div class="ot-stat-item">GW: <strong>192.168.10.254</strong></div>
+        <div class="ot-stat-item">Latenz: <strong id="ot-ping">11ms</strong></div>
+        <div class="ot-stat-item">SPS: <strong id="ot-plc">S7-1500</strong></div>
       </div>
     </header>
 
-    <!-- Marker Finder / Reticle (Sichtbar wenn kein Marker getrackt wird) -->
-    <div class="scanner-guide interactive" id="scanner-guide">
-      <div class="scanner-frame">
-        <div class="scanner-laser"></div>
+    <!-- MITTE: ZIELSUCHER (Wenn Marker nicht im Fokus ist) -->
+    <div class="scanner-reticle interactive" id="scanner-reticle">
+      <div class="reticle-box">
+        <div class="reticle-corner reticle-tl"></div>
+        <div class="reticle-corner reticle-tr"></div>
+        <div class="reticle-corner reticle-bl"></div>
+        <div class="reticle-corner reticle-br"></div>
+        <div class="reticle-crosshair"></div>
+        <div class="reticle-laser"></div>
       </div>
-      <div class="scanner-text" id="scanner-status">Kamera auf Hiro-Marker richten</div>
+      <div class="reticle-caption">
+        <span>Kamera auf Hiro-Marker richten</span>
+      </div>
     </div>
 
-    <!-- Live Telemetrie Dashboard Card (Sichtbar wenn Marker gefunden oder im Testmodus) -->
-    <main class="dashboard-card interactive" id="dashboard-card">
+    <!-- UNTEN: TELEMETRIE-DASHBOARD (Aktiv bei Marker-Erkennung) -->
+    <main class="dashboard-panel interactive" id="dashboard-panel">
       
-      <!-- Modul-Auswahl Reiter -->
+      <!-- Modul-Tabs -->
       <nav class="module-tabs" id="module-tabs">
-        <button class="tab-btn" data-module="0">1: Zuführung</button>
-        <button class="tab-btn active" data-module="1">2: Befüllung</button>
-        <button class="tab-btn" data-module="2">3: Bördelung</button>
-        <button class="tab-btn" data-module="3">4: QS & Waage</button>
+        <button class="module-tab-btn" data-idx="0"><span class="tab-idx">M1</span> Zuführung</button>
+        <button class="module-tab-btn active" data-idx="1"><span class="tab-idx">M2</span> Befüllung</button>
+        <button class="module-tab-btn" data-idx="2"><span class="tab-idx">M3</span> Bördelung</button>
+        <button class="module-tab-btn" data-idx="3"><span class="tab-idx">M4</span> QS & Waage</button>
       </nav>
 
-      <!-- Modul Kopfzeile -->
-      <div class="station-header">
-        <div>
-          <div class="station-name" id="station-name">Modul 2: Dosier- & Befüllstation</div>
-          <small style="color: var(--text-muted); font-size: 10px;" id="station-id">SPS: S7-1500 / Node: 192.168.10.12</small>
+      <!-- Stations-Kopfzeile -->
+      <div class="station-bar">
+        <div class="station-info">
+          <h2 id="st-name">Modul 2: Dosier- & Befüllstation</h2>
+          <p id="st-sub">NODE: ST-020 • ZYKLUS: 1.8s • BÖRDELUNG AKTIV</p>
         </div>
-        <span class="station-status" id="station-status">NORMAL</span>
+        <div class="station-mode-tag" id="st-badge">🟢 BETRIEB OK</div>
       </div>
 
-      <!-- Sensor-Werte Grid -->
-      <div class="metrics-grid">
-        <div class="metric-box">
-          <span class="metric-label" id="m1-label">Füllgewicht (Ist)</span>
-          <span class="metric-val" id="m1-val">250.4 <span class="metric-unit" id="m1-unit">g</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m1-bar" style="width: 85%;"></div>
+      <!-- 4 Sensor-KPIs -->
+      <div class="kpi-grid">
+        
+        <!-- KPI 1 -->
+        <div class="kpi-card" id="card-k1">
+          <div class="kpi-head">
+            <span class="kpi-label" id="k1-label">Füllgewicht Ist</span>
+            <span class="kpi-setpoint" id="k1-sp">Soll: 250.0g</span>
+          </div>
+          <div class="kpi-val-row">
+            <span class="kpi-val" id="k1-val">250.3</span>
+            <span class="kpi-unit" id="k1-unit">g</span>
+          </div>
+          <div class="kpi-bar-track">
+            <div class="kpi-bar-fill" id="k1-bar" style="width: 85%;"></div>
           </div>
         </div>
 
-        <div class="metric-box">
-          <span class="metric-label" id="m2-label">Durchfluss / Takt</span>
-          <span class="metric-val" id="m2-val">32.0 <span class="metric-unit" id="m2-unit">D/min</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m2-bar" style="width: 64%;"></div>
+        <!-- KPI 2 -->
+        <div class="kpi-card" id="card-k2">
+          <div class="kpi-head">
+            <span class="kpi-label" id="k2-label">Durchsatz</span>
+            <span class="kpi-setpoint" id="k2-sp">Max: 35.0</span>
+          </div>
+          <div class="kpi-val-row">
+            <span class="kpi-val" id="k2-val">32.2</span>
+            <span class="kpi-unit" id="k2-unit">D/min</span>
+          </div>
+          <div class="kpi-bar-track">
+            <div class="kpi-bar-fill" id="k2-bar" style="width: 65%;"></div>
           </div>
         </div>
 
-        <div class="metric-box">
-          <span class="metric-label" id="m3-label">Temperatur Masse</span>
-          <span class="metric-val" id="m3-val">22.4 <span class="metric-unit" id="m3-unit">°C</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m3-bar" style="width: 50%;"></div>
+        <!-- KPI 3 -->
+        <div class="kpi-card" id="card-k3">
+          <div class="kpi-head">
+            <span class="kpi-label" id="k3-label">Temperatur Masse</span>
+            <span class="kpi-setpoint" id="k3-sp">Opt: 22.0°C</span>
+          </div>
+          <div class="kpi-val-row">
+            <span class="kpi-val" id="k3-val">21.8</span>
+            <span class="kpi-unit" id="k3-unit">°C</span>
+          </div>
+          <div class="kpi-bar-track">
+            <div class="kpi-bar-fill" id="k3-bar" style="width: 50%;"></div>
           </div>
         </div>
 
-        <div class="metric-box">
-          <span class="metric-label" id="m4-label">Gesamt-OEE</span>
-          <span class="metric-val" id="m4-val">92.4 <span class="metric-unit" id="m4-unit">%</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m4-bar" style="width: 92%;"></div>
+        <!-- KPI 4 -->
+        <div class="kpi-card" id="card-k4">
+          <div class="kpi-head">
+            <span class="kpi-label" id="k4-label">Gesamt-OEE</span>
+            <span class="kpi-setpoint" id="k4-sp">Ziel: >90%</span>
+          </div>
+          <div class="kpi-val-row">
+            <span class="kpi-val" id="k4-val">93.4</span>
+            <span class="kpi-unit" id="k4-unit">%</span>
+          </div>
+          <div class="kpi-bar-track">
+            <div class="kpi-bar-fill" id="k4-bar" style="width: 93%;"></div>
           </div>
         </div>
+
       </div>
 
-      <!-- Interaktive Demo-Buttons fürs Meeting -->
-      <div class="card-actions">
-        <button class="action-btn" id="btn-toggle-demo">⚡ Test-Modus</button>
-        <button class="action-btn btn-alert" id="btn-toggle-alert">⚠️ Störung simulieren</button>
+      <!-- Störungs-Handlungsanweisung (Nur aktiv bei Simulation) -->
+      <div class="alert-banner" id="alert-banner">
+        <strong>⚠️ STÖRUNGSMELDUNG (CODE E-304):</strong>
+        <span id="alert-text">Pneumatik-Druckabfall an Bördelwalze! Bitte Ventilinsel 3 und Drucksensor S3.2 prüfen.</span>
       </div>
+
+      <!-- Action Toolbar für das Meeting -->
+      <div class="action-toolbar">
+        <button class="btn-tool" id="btn-next-mod">🔁 Nächstes Modul</button>
+        <button class="btn-tool btn-alert-sim" id="btn-sim-alert">⚡ Störung simulieren</button>
+      </div>
+
     </main>
 
   </div>
 
-  <!-- Kleiner Debug-Knopf für Desktop / Testen ohne Kamera-Drucker -->
-  <div class="debug-pill interactive" id="debug-toggle">
-    🛠️ Marker-Sim: <span id="debug-state">Kamera</span>
+  <!-- FLOATING QUICK TOOLS -->
+  <div class="floating-tools interactive">
+    <button class="tool-chip" id="chip-audio" title="Ton umschalten">🔊 Sound</button>
+    <button class="tool-chip" id="chip-opc" title="OPC UA Nodes anzeigen">📋 Nodes</button>
+    <button class="tool-chip" id="chip-sim" title="Marker erzwingen (Desktop Test)">🛠️ Sim</button>
   </div>
 
+  <!-- OPC UA NODES INSPEKTOR MODAL -->
+  <div class="opc-modal interactive" id="opc-modal">
+    <div class="opc-modal-box">
+      <div class="opc-modal-title">
+        <span>OPC UA Adressraum (Read-Only)</span>
+        <button id="btn-close-modal" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;">✕</button>
+      </div>
+      <table class="opc-table">
+        <thead>
+          <tr>
+            <th>NodeId (ns=2)</th>
+            <th>Typ</th>
+            <th>Aktueller Wert</th>
+          </tr>
+        </thead>
+        <tbody id="opc-tbody">
+          <!-- Dynamisch befüllt -->
+        </tbody>
+      </table>
+      <div style="margin-top: 10px; font-size: 9px; color: var(--text-dim); text-align: center;">
+        Sicherheitsprofil: Basic256Sha256 • Zonentrennung: DMZ Gateway aktiv
+      </div>
+    </div>
+  </div>
+
+  <!-- STEUERUNGSLOGIK & SIMULATION -->
   <script>
-    // Module Demodaten (FiSi LF7 Bonbon-Dosen-Fertigung)
-    const modulesData = [
+    /* ====================================================================
+       1. CPS-i40 ANLAGENDATEN (Bonbon-Dosen Fertigung)
+       ==================================================================== */
+    const stations = [
       {
-        id: "Modul 1",
+        id: "ST-010",
         name: "Modul 1: Dosen-Zuführung",
-        plc: "SPS: S7-1500 / IP: 192.168.10.11",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Magazin Füllstand", val: 87.0, unit: "%", bar: 87, min: 85, max: 90 },
-        m2: { label: "Vereinzeler-Takt", val: 1.8, unit: "s", bar: 60, min: 1.7, max: 1.9 },
-        m3: { label: "Lichtschranke", val: 1, unit: "AKTIV", bar: 100, isDiscrete: true },
-        m4: { label: "Dosen gesamt", val: 1420, unit: "Stk", bar: 75, isCounter: true }
+        sub: "SPS: S7-1500 (192.168.10.11) • VAKUUM-VEREINZELER",
+        k1: { label: "Magazin Füllstand", sp: "Soll: >20%", val: 84.0, unit: "%", bar: 84, min: 82, max: 86 },
+        k2: { label: "Vereinzeler-Takt", sp: "Soll: 1.8s", val: 1.78, unit: "s", bar: 65, min: 1.75, max: 1.82 },
+        k3: { label: "Vakuum Sauger", sp: "Soll: -0.8bar", val: -0.82, unit: "bar", bar: 82, min: -0.85, max: -0.80 },
+        k4: { label: "Dosenzähler", sp: "Schichtziel: 2500", val: 1684, unit: "Stk", bar: 67, isCounter: true },
+        nodes: [
+          { node: "ns=2;s=Modul1.MagazineLevel", type: "Float32", val: "84.0 %" },
+          { node: "ns=2;s=Modul1.CycleTime", type: "Float32", val: "1.78 s" },
+          { node: "ns=2;s=Modul1.VacuumPressure", type: "Float32", val: "-0.82 bar" },
+          { node: "ns=2;s=Modul1.PartsCount", type: "UInt32", val: "1684" }
+        ]
       },
       {
-        id: "Modul 2",
+        id: "ST-020",
         name: "Modul 2: Dosier- & Befüllstation",
-        plc: "SPS: S7-1500 / IP: 192.168.10.12",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Füllgewicht (Ist)", val: 250.4, unit: "g", bar: 85, min: 249.5, max: 250.8 },
-        m2: { label: "Durchfluss / Takt", val: 32.0, unit: "D/min", bar: 64, min: 31.0, max: 33.0 },
-        m3: { label: "Temperatur Masse", val: 22.4, unit: "°C", bar: 50, min: 22.0, max: 23.0 },
-        m4: { label: "Gesamt-OEE", val: 92.4, unit: "%", bar: 92, min: 91.5, max: 93.0 }
+        sub: "SPS: S7-1500 (192.168.10.12) • MULTIKOPF-WAAGE",
+        k1: { label: "Füllgewicht Ist", sp: "Soll: 250.0g ±1.5", val: 250.3, unit: "g", bar: 85, min: 249.6, max: 250.8 },
+        k2: { label: "Durchsatz", sp: "Soll: 32 D/min", val: 32.2, unit: "D/min", bar: 64, min: 31.5, max: 33.0 },
+        k3: { label: "Temperatur Masse", sp: "Opt: 22.0°C", val: 21.8, unit: "°C", bar: 50, min: 21.4, max: 22.2 },
+        k4: { label: "Gesamt-OEE", sp: "Ziel: >90%", val: 93.4, unit: "%", bar: 93, min: 92.5, max: 94.0 },
+        nodes: [
+          { node: "ns=2;s=Modul2.FillWeight_Actual", type: "Float32", val: "250.3 g" },
+          { node: "ns=2;s=Modul2.Throughput", type: "Float32", val: "32.2 D/min" },
+          { node: "ns=2;s=Modul2.ProductTemp", type: "Float32", val: "21.8 °C" },
+          { node: "ns=2;s=Modul2.OverallOEE", type: "Float32", val: "93.4 %" }
+        ]
       },
       {
-        id: "Modul 3",
+        id: "ST-030",
         name: "Modul 3: Deckel- & Bördelstation",
-        plc: "SPS: S7-1500 / IP: 192.168.10.13",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Anpressdruck", val: 5.2, unit: "bar", bar: 70, min: 5.0, max: 5.4 },
-        m2: { label: "Drehmoment", val: 3.8, unit: "Nm", bar: 65, min: 3.6, max: 4.0 },
-        m3: { label: "Bördelprüfung", val: 100, unit: "% Gut", bar: 100, isDiscrete: true },
-        m4: { label: "Taktzeit", val: 1.9, unit: "s", bar: 65, min: 1.8, max: 2.0 }
+        sub: "SPS: S7-1500 (192.168.10.13) • SERVO-BÖRDELROLLE",
+        k1: { label: "Anpressdruck", sp: "Soll: 5.2bar ±0.3", val: 5.22, unit: "bar", bar: 70, min: 5.10, max: 5.35 },
+        k2: { label: "Drehmoment", sp: "Soll: 4.0Nm", val: 3.95, unit: "Nm", bar: 60, min: 3.85, max: 4.10 },
+        k3: { label: "Verschlussprüfung", sp: "Gutteile: 100%", val: 100.0, unit: "% Gut", bar: 100, min: 100, max: 100 },
+        k4: { label: "Werkzeugverschleiß", sp: "Grenze: <80%", val: 94.2, unit: "% OK", bar: 94, min: 94, max: 94.5 },
+        nodes: [
+          { node: "ns=2;s=Modul3.RollerPressure", type: "Float32", val: "5.22 bar" },
+          { node: "ns=2;s=Modul3.Torque_Actual", type: "Float32", val: "3.95 Nm" },
+          { node: "ns=2;s=Modul3.SealQuality", type: "Float32", val: "100.0 %" },
+          { node: "ns=2;s=Modul3.ToolWearLife", type: "Float32", val: "94.2 %" }
+        ]
       },
       {
-        id: "Modul 4",
+        id: "ST-040",
         name: "Modul 4: Qualitätskontrolle & Waage",
-        plc: "SPS: S7-1500 / IP: 192.168.10.14",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Kontrollgewicht", val: 250.2, unit: "g", bar: 80, min: 249.8, max: 250.5 },
-        m2: { label: "Ausschussrate", val: 0.4, unit: "%", bar: 15, min: 0.3, max: 0.6 },
-        m3: { label: "Höhentoleranz", val: 0.12, unit: "mm", bar: 30, min: 0.1, max: 0.2 },
-        m4: { label: "Status Weiche", val: 1, unit: "GUTTEIL", bar: 100, isDiscrete: true }
+        sub: "SPS: S7-1500 (192.168.10.14) • DYNAMISCHE CHECKWAAGE",
+        k1: { label: "Kontrollgewicht", sp: "Toleranz: ±1.5g", val: 250.1, unit: "g", bar: 80, min: 249.7, max: 250.5 },
+        k2: { label: "Ausschussquote", sp: "Ziel: <0.5%", val: 0.38, unit: "%", bar: 18, min: 0.35, max: 0.42 },
+        k3: { label: "Optische Prüfung", sp: "Kamera-Inspektion", val: 100.0, unit: "% PASS", bar: 100, min: 100, max: 100 },
+        k4: { label: "Weichenstatus", sp: "Gutteil-Ausschleusung", val: 1, unit: "AKTIV", bar: 100, isDiscrete: true },
+        nodes: [
+          { node: "ns=2;s=Modul4.FinalCheckWeight", type: "Float32", val: "250.1 g" },
+          { node: "ns=2;s=Modul4.RejectRate", type: "Float32", val: "0.38 %" },
+          { node: "ns=2;s=Modul4.OpticalCheckPassed", type: "Boolean", val: "TRUE" },
+          { node: "ns=2;s=Modul4.DiverterGateState", type: "UInt16", val: "1 (OK)" }
+        ]
       }
     ];
 
-    let currentModuleIndex = 1; // Standard: Modul 2 Befüllung
-    let isAlertSimulated = false;
-    let isMarkerVisible = false;
-    let isDebugForced = false;
+    let currentIdx = 1; // Standard: Modul 2 Befüllung
+    let isMarkerDetected = false;
+    let isSimulationForced = false;
+    let isFaultActive = false;
+    let isAudioEnabled = true;
 
-    // DOM Elements
-    const hiroMarker = document.getElementById('hiro-marker');
-    const scannerGuide = document.getElementById('scanner-guide');
-    const dashboardCard = document.getElementById('dashboard-card');
-    const debugToggle = document.getElementById('debug-toggle');
-    const debugState = document.getElementById('debug-state');
-    const arTinModel = document.getElementById('ar-tin-model');
-    const arStatusText = document.getElementById('ar-status-text');
+    /* ====================================================================
+       2. WEB AUDIO API SYNTHESIZER (Für professionelles HMI-Feedback)
+       ==================================================================== */
+    let audioCtx = null;
+    function playSound(type) {
+      if (!isAudioEnabled) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
 
-    const stationName = document.getElementById('station-name');
-    const stationId = document.getElementById('station-id');
-    const stationStatus = document.getElementById('station-status');
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    const btnToggleAlert = document.getElementById('btn-toggle-alert');
-    const btnToggleDemo = document.getElementById('btn-toggle-demo');
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
 
-    // UI View aktualisieren
-    function renderModule(index) {
-      const data = modulesData[index];
-      stationName.textContent = data.name;
-      stationId.textContent = data.plc;
-      
-      if (isAlertSimulated) {
-        stationStatus.textContent = "STÖRUNG: DRUCKABFALL";
-        stationStatus.className = "station-status alert";
-        if (arTinModel) arTinModel.setAttribute('color', '#ff1744');
-        if (arStatusText) arStatusText.setAttribute('value', 'STÖRUNG: DRUCK!');
-      } else {
-        stationStatus.textContent = data.status;
-        stationStatus.className = "station-status";
-        if (arTinModel) arTinModel.setAttribute('color', '#00e5ff');
-        if (arStatusText) arStatusText.setAttribute('value', `CPS: ${data.id}`);
-      }
-
-      // Render 4 metrics
-      renderMetric('m1', data.m1);
-      renderMetric('m2', data.m2);
-      renderMetric('m3', data.m3);
-      renderMetric('m4', data.m4);
-
-      // Tabs hervorheben
-      tabButtons.forEach((btn, i) => {
-        btn.classList.toggle('active', i === index);
-      });
-    }
-
-    function renderMetric(idPrefix, metric) {
-      document.getElementById(`${idPrefix}-label`).textContent = metric.label;
-      document.getElementById(`${idPrefix}-val`).innerHTML = `${metric.val} <span class="metric-unit" id="${idPrefix}-unit">${metric.unit}</span>`;
-      document.getElementById(`${idPrefix}-bar`).style.width = `${metric.bar}%`;
-      
-      if (isAlertSimulated && idPrefix === 'm1') {
-        document.getElementById(`${idPrefix}-val`).style.color = '#ff5252';
-        document.getElementById(`${idPrefix}-bar`).style.background = '#ff1744';
-      } else {
-        document.getElementById(`${idPrefix}-val`).style.color = '#ffffff';
-        document.getElementById(`${idPrefix}-bar`).style.background = '#00e5ff';
-      }
-    }
-
-    // Leichte Fluktuation der Messwerte (Live-Feeling für die Demo)
-    setInterval(() => {
-      if (!isMarkerVisible && !isDebugForced) return;
-
-      const mod = modulesData[currentModuleIndex];
-      ['m1', 'm2', 'm3', 'm4'].forEach(key => {
-        const m = mod[key];
-        if (!m.isDiscrete && !m.isCounter && !isAlertSimulated) {
-          const delta = (Math.random() - 0.5) * 0.2;
-          let newVal = +(m.val + delta).toFixed(1);
-          if (newVal >= m.min && newVal <= m.max) {
-            m.val = newVal;
-          }
+        const now = audioCtx.currentTime;
+        if (type === 'lock') {
+          // Zweiklang Beep bei Marker-Erkennung
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+          osc.start(now);
+          osc.stop(now + 0.15);
+        } else if (type === 'click') {
+          // Sanfter Klick
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(440, now);
+          gain.gain.setValueAtTime(0.05, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        } else if (type === 'alert') {
+          // Industrieller Alarmton
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(750, now);
+          osc.frequency.setValueAtTime(500, now + 0.15);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
         }
-      });
-      renderModule(currentModuleIndex);
-    }, 1400);
+      } catch (e) {
+        console.debug('Audio error:', e);
+      }
+    }
 
-    // Tab Klick-Handling
-    tabButtons.forEach((btn) => {
+    /* ====================================================================
+       3. DOM-ELEMENTE
+       ==================================================================== */
+    const hiroMarker = document.getElementById('hiro-marker');
+    const scannerReticle = document.getElementById('scanner-reticle');
+    const dashboardPanel = document.getElementById('dashboard-panel');
+    const headerClock = document.getElementById('header-clock');
+    const otPing = document.getElementById('ot-ping');
+
+    // 3D Entities
+    const arTinBody = document.getElementById('ar-tin-body');
+    const arPulseRing = document.getElementById('ar-pulse-ring');
+    const arBeacon = document.getElementById('ar-beacon');
+    const ar3dTitle = document.getElementById('ar-3d-title');
+    const ar3dStatus = document.getElementById('ar-3d-status');
+
+    // Station UI
+    const stName = document.getElementById('st-name');
+    const stSub = document.getElementById('st-sub');
+    const stBadge = document.getElementById('st-badge');
+    const alertBanner = document.getElementById('alert-banner');
+    const moduleTabBtns = document.querySelectorAll('.module-tab-btn');
+
+    // Buttons & Tools
+    const btnNextMod = document.getElementById('btn-next-mod');
+    const btnSimAlert = document.getElementById('btn-sim-alert');
+    const chipAudio = document.getElementById('chip-audio');
+    const chipOpc = document.getElementById('chip-opc');
+    const chipSim = document.getElementById('chip-sim');
+    const opcModal = document.getElementById('opc-modal');
+    const btnCloseModal = document.getElementById('btn-close-modal');
+    const opcTbody = document.getElementById('opc-tbody');
+
+    /* ====================================================================
+       4. UI RENDERING & AKTUALISIERUNG
+       ==================================================================== */
+    function renderStation(idx) {
+      const st = stations[idx];
+      stName.textContent = st.name;
+      stSub.textContent = `${st.sub} • ID: ${st.id}`;
+
+      // Tab Buttons Status
+      moduleTabBtns.forEach((btn, i) => {
+        btn.classList.toggle('active', i === idx);
+      });
+
+      if (isFaultActive) {
+        // Alarmanzeige
+        stBadge.textContent = "🔴 STÖRUNG (E-304)";
+        stBadge.className = "station-mode-tag alert-state";
+        alertBanner.style.display = 'block';
+
+        // 3D-AR Anpassung
+        if (arTinBody) arTinBody.setAttribute('color', '#ef4444');
+        if (arPulseRing) arPulseRing.setAttribute('color', '#ef4444');
+        if (arBeacon) arBeacon.setAttribute('color', '#ef4444');
+        if (ar3dTitle) ar3dTitle.setAttribute('value', `ALARM: ${st.id}`);
+        if (ar3dStatus) {
+          ar3dStatus.setAttribute('value', 'FEHLER: PNEUMATIK DRUCKABFALL');
+          ar3dStatus.setAttribute('color', '#ef4444');
+        }
+      } else {
+        // Normalbetrieb
+        stBadge.textContent = "🟢 BETRIEB OK";
+        stBadge.className = "station-mode-tag";
+        alertBanner.style.display = 'none';
+
+        // 3D-AR Normal
+        if (arTinBody) arTinBody.setAttribute('color', '#d4d4d8');
+        if (arPulseRing) arPulseRing.setAttribute('color', '#10b981');
+        if (arBeacon) arBeacon.setAttribute('color', '#00d2ff');
+        if (ar3dTitle) ar3dTitle.setAttribute('value', `STATION: ${st.name.split(':')[0]}`);
+        if (ar3dStatus) {
+          ar3dStatus.setAttribute('value', 'STATUS: NORMAL [RUN]');
+          ar3dStatus.setAttribute('color', '#10b981');
+        }
+      }
+
+      // KPIs rendern
+      renderKpi('k1', st.k1);
+      renderKpi('k2', st.k2);
+      renderKpi('k3', st.k3);
+      renderKpi('k4', st.k4);
+
+      // OPC UA Table aktualisieren
+      renderOpcTable(st);
+    }
+
+    function renderKpi(id, data) {
+      document.getElementById(`${id}-label`).textContent = data.label;
+      document.getElementById(`${id}-sp`).textContent = data.sp;
+      document.getElementById(`${id}-val`).textContent = data.val;
+      document.getElementById(`${id}-unit`).textContent = data.unit;
+
+      const bar = document.getElementById(`${id}-bar`);
+      const card = document.getElementById(`card-${id}`);
+
+      bar.style.width = `${Math.min(100, Math.max(5, data.bar))}%`;
+
+      if (isFaultActive && id === 'k1') {
+        card.classList.add('alert-metric');
+        document.getElementById(`${id}-val`).style.color = '#f87171';
+        bar.style.background = '#ef4444';
+      } else {
+        card.classList.remove('alert-metric');
+        document.getElementById(`${id}-val`).style.color = '#ffffff';
+        bar.style.background = '#00d2ff';
+      }
+    }
+
+    function renderOpcTable(st) {
+      opcTbody.innerHTML = st.nodes.map(n => `
+        <tr>
+          <td style="color:var(--accent-cyan);">${n.node}</td>
+          <td style="color:var(--text-dim);">${n.type}</td>
+          <td style="font-weight:700;">${n.val}</td>
+        </tr>
+      `).join('');
+    }
+
+    /* ====================================================================
+       5. ECHTZEIT-SIMULATION (LEICHTE FLUKTUATION DER SENSORWERTE)
+       ==================================================================== */
+    setInterval(() => {
+      // Uhrzeit
+      const now = new Date();
+      headerClock.textContent = `${now.toTimeString().split(' ')[0]} • LINIE 1`;
+
+      // Simuliertes Ping-Jitter (8ms - 14ms)
+      otPing.textContent = `${Math.floor(8 + Math.random() * 6)}ms`;
+
+      // Messwertschwankung (nur wenn aktiv im Blickfeld und keine Störung)
+      if ((isMarkerDetected || isSimulationForced) && !isFaultActive) {
+        const st = stations[currentIdx];
+        ['k1', 'k2', 'k3'].forEach(k => {
+          const item = st[k];
+          if (!item.isDiscrete && !item.isCounter) {
+            const delta = (Math.random() - 0.5) * 0.15;
+            let val = +(item.val + delta).toFixed(2);
+            if (val >= item.min && val <= item.max) {
+              item.val = val;
+            }
+          }
+        });
+        renderStation(currentIdx);
+      }
+    }, 1200);
+
+    /* ====================================================================
+       6. INTERAKTIONEN & EVENT-LISTENER
+       ==================================================================== */
+    // Tab Umschaltung
+    moduleTabBtns.forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        currentModuleIndex = parseInt(btn.getAttribute('data-module'), 10);
-        renderModule(currentModuleIndex);
+        playSound('click');
+        currentIdx = parseInt(btn.getAttribute('data-idx'), 10);
+        renderStation(currentIdx);
       });
+    });
+
+    // Nächstes Modul Button
+    btnNextMod.addEventListener('click', () => {
+      playSound('click');
+      currentIdx = (currentIdx + 1) % stations.length;
+      renderStation(currentIdx);
     });
 
     // Störung simulieren Button
-    btnToggleAlert.addEventListener('click', () => {
-      isAlertSimulated = !isAlertSimulated;
-      if (isAlertSimulated) {
-        btnToggleAlert.textContent = "🔄 Störung beheben";
-        modulesData[currentModuleIndex].m1.val = 3.2; // Kritischer Druckabfall
-        modulesData[currentModuleIndex].m1.bar = 25;
+    btnSimAlert.addEventListener('click', () => {
+      isFaultActive = !isFaultActive;
+      if (isFaultActive) {
+        playSound('alert');
+        btnSimAlert.textContent = "🔄 Störung beheben";
+        btnSimAlert.style.background = "rgba(239, 68, 68, 0.4)";
+        // Modul 3 auswählen (Druckabfall-Demo)
+        currentIdx = 2;
+        stations[2].k1.val = 2.85; // Kritischer Druck
+        stations[2].k1.bar = 22;
+        stations[2].nodes[0].val = "2.85 bar (CRITICAL)";
       } else {
-        btnToggleAlert.textContent = "⚠️ Störung simulieren";
-        modulesData[currentModuleIndex].m1.val = 5.2;
-        modulesData[currentModuleIndex].m1.bar = 70;
+        playSound('click');
+        btnSimAlert.textContent = "⚡ Störung simulieren";
+        btnSimAlert.style.background = "rgba(239, 68, 68, 0.12)";
+        stations[2].k1.val = 5.22;
+        stations[2].k1.bar = 70;
+        stations[2].nodes[0].val = "5.22 bar";
       }
-      renderModule(currentModuleIndex);
+      renderStation(currentIdx);
     });
 
-    // Testmodus Umschalter
-    btnToggleDemo.addEventListener('click', () => {
-      currentModuleIndex = (currentModuleIndex + 1) % modulesData.length;
-      renderModule(currentModuleIndex);
+    // Audio Mute Umschalter
+    chipAudio.addEventListener('click', () => {
+      isAudioEnabled = !isAudioEnabled;
+      chipAudio.textContent = isAudioEnabled ? "🔊 Sound" : "🔇 Stumm";
+      if (isAudioEnabled) playSound('click');
     });
 
-    // AR.js Marker Event Listener
-    hiroMarker.addEventListener('markerFound', () => {
-      console.debug('Hiro-Marker gefunden');
-      isMarkerVisible = true;
-      scannerGuide.style.opacity = '0';
-      dashboardCard.style.display = 'block';
-      renderModule(currentModuleIndex);
+    // OPC UA Nodes Modal
+    chipOpc.addEventListener('click', () => {
+      playSound('click');
+      opcModal.style.display = 'flex';
+    });
+    btnCloseModal.addEventListener('click', () => {
+      opcModal.style.display = 'none';
+    });
+    opcModal.addEventListener('click', (e) => {
+      if (e.target === opcModal) opcModal.style.display = 'none';
     });
 
-    hiroMarker.addEventListener('markerLost', () => {
-      console.debug('Hiro-Marker verloren');
-      isMarkerVisible = false;
-      if (!isDebugForced) {
-        scannerGuide.style.opacity = '1';
-        dashboardCard.style.display = 'none';
-      }
-    });
-
-    // Debug Button: Erlaubt das Testen der Smartphone UI ohne gedruckten Marker
-    debugToggle.addEventListener('click', () => {
-      isDebugForced = !isDebugForced;
-      if (isDebugForced) {
-        debugState.textContent = "Erzwungen";
-        scannerGuide.style.opacity = '0';
-        dashboardCard.style.display = 'block';
-        renderModule(currentModuleIndex);
+    // Desktop Testmodus (Simuliert Marker-Erkennung)
+    chipSim.addEventListener('click', () => {
+      playSound('click');
+      isSimulationForced = !isSimulationForced;
+      if (isSimulationForced) {
+        chipSim.style.borderColor = "var(--accent-cyan)";
+        chipSim.style.color = "#fff";
+        scannerReticle.style.opacity = '0';
+        dashboardPanel.style.display = 'block';
+        renderStation(currentIdx);
       } else {
-        debugState.textContent = "Kamera";
-        if (!isMarkerVisible) {
-          scannerGuide.style.opacity = '1';
-          dashboardCard.style.display = 'none';
+        chipSim.style.borderColor = "rgba(45, 75, 120, 0.5)";
+        chipSim.style.color = "var(--text-muted)";
+        if (!isMarkerDetected) {
+          scannerReticle.style.opacity = '1';
+          dashboardPanel.style.display = 'none';
         }
       }
     });
 
-    // Initialisierung
-    renderModule(currentModuleIndex);
+    /* ====================================================================
+       7. AR.JS MARKER TRACKING EVENTS
+       ==================================================================== */
+    hiroMarker.addEventListener('markerFound', () => {
+      console.debug('[AR] Hiro-Marker erkannt');
+      isMarkerDetected = true;
+      playSound('lock');
+      scannerReticle.style.opacity = '0';
+      dashboardPanel.style.display = 'block';
+      renderStation(currentIdx);
+    });
 
-    /* Globale Debugging Helfer */
-    window.fireEventMarkerFound = () => {
-      hiroMarker.dispatchEvent(new CustomEvent('markerFound'));
-    };
-    window.fireEventMarkerLost = () => {
-      hiroMarker.dispatchEvent(new CustomEvent('markerLost'));
-    };
+    hiroMarker.addEventListener('markerLost', () => {
+      console.debug('[AR] Hiro-Marker verloren');
+      isMarkerDetected = false;
+      if (!isSimulationForced) {
+        scannerReticle.style.opacity = '1';
+        dashboardPanel.style.display = 'none';
+      }
+    });
+
+    // Init
+    renderStation(currentIdx);
+
+    /* Globale Debugger-Funktionen */
+    window.fireEventMarkerFound = () => hiroMarker.dispatchEvent(new CustomEvent('markerFound'));
+    window.fireEventMarkerLost = () => hiroMarker.dispatchEvent(new CustomEvent('markerLost'));
   </script>
 </body>
 </html>
