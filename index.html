@@ -8,321 +8,17 @@
   <meta name="theme-color" content="#12141a">
   <title>CPS-i40 AR Telemetrie</title>
 
+  <!-- Modular Stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
+
   <!-- A-Frame 1.4.0 & AR.js 3.4.5 -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
-
-  <style>
-    /* ==========================================================================
-       Hochwertiges deutsches Industrie-Design (Monochrom, Graphit & Edelstahl)
-       Kein Blau, keine Gaming-Effekte, maximale Funktionalität & Klarheit
-       ========================================================================== */
-    :root {
-      --bg-dark: #12141a;
-      --panel-bg: rgba(22, 25, 32, 0.94);
-      --card-bg: rgba(30, 34, 44, 0.85);
-      --border-subtle: rgba(255, 255, 255, 0.12);
-      --border-focus: rgba(255, 255, 255, 0.35);
-      
-      --text-white: #ffffff;
-      --text-primary: #f3f4f6;
-      --text-secondary: #9ca3af;
-      --text-dim: #6b7280;
-
-      --status-ok: #22c55e;
-      --status-ok-bg: rgba(34, 197, 94, 0.12);
-      --status-ok-border: rgba(34, 197, 94, 0.35);
-
-      --status-fault: #ef4444;
-      --status-fault-bg: rgba(239, 68, 68, 0.15);
-      --status-fault-border: rgba(239, 68, 68, 0.5);
-
-      --safe-top: env(safe-area-inset-top, 14px);
-      --safe-bottom: env(safe-area-inset-bottom, 14px);
-    }
-
-    * {
-      box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-    }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      height: 100dvh;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #000;
-      color: var(--text-primary);
-      touch-action: manipulation;
-    }
-
-    /* iOS Safari Kamera-Darstellung (Kompatibel mit AR.js Matrix) */
-    video, canvas {
-      width: 100vw !important;
-      height: 100vh !important;
-      height: 100dvh !important;
-      object-fit: cover !important;
-    }
-
-    /* UI Frame Layer */
-    .ar-frame {
-      position: fixed;
-      inset: 0;
-      z-index: 10;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: calc(var(--safe-top) + 6px) 14px calc(var(--safe-bottom) + 6px) 14px;
-    }
-
-    .interactive {
-      pointer-events: auto;
-    }
-
-    /* 1. Header: Schlanker, eleganter Industrie-Indikator */
-    .top-indicator {
-      align-self: center;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      background: var(--panel-bg);
-      border: 1px solid var(--border-subtle);
-      border-radius: 20px;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      font-size: 11px;
-      letter-spacing: 0.5px;
-      color: var(--text-secondary);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    }
-
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--status-ok);
-    }
-
-    .top-indicator strong {
-      color: var(--text-white);
-      font-weight: 600;
-    }
-
-    /* 2. Zielsucher (Sehr dezente Passmarke, kein Sci-Fi) */
-    .viewfinder {
-      align-self: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      transition: opacity 0.25s ease;
-    }
-
-    .viewfinder-box {
-      width: 150px;
-      height: 150px;
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      border-radius: 8px;
-      background: rgba(0, 0, 0, 0.15);
-      position: relative;
-    }
-
-    .viewfinder-corner {
-      position: absolute;
-      width: 12px;
-      height: 12px;
-      border-color: #ffffff;
-      border-style: solid;
-    }
-    .c-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-    .c-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
-    .c-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
-    .c-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-
-    .viewfinder-label {
-      background: rgba(18, 20, 26, 0.85);
-      border: 1px solid var(--border-subtle);
-      padding: 5px 12px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-family: ui-monospace, "SF Mono", monospace;
-      color: var(--text-secondary);
-    }
-
-    /* 3. Schlankes Bottom-Panel (Erscheint bei Marker-Erkennung) */
-    .station-card {
-      display: none;
-      background: var(--panel-bg);
-      border: 1px solid var(--border-subtle);
-      border-radius: 10px;
-      padding: 12px 14px;
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-      max-width: 440px;
-      width: 100%;
-      align-self: center;
-      animation: cardAppear 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    @keyframes cardAppear {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Kopfzeile der Station */
-    .station-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border-subtle);
-      margin-bottom: 10px;
-    }
-
-    .station-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-white);
-      letter-spacing: 0.2px;
-    }
-
-    .station-status-tag {
-      font-family: ui-monospace, "SF Mono", monospace;
-      font-size: 10px;
-      font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 3px;
-      background: var(--status-ok-bg);
-      color: #86efac;
-      border: 1px solid var(--status-ok-border);
-      letter-spacing: 0.4px;
-    }
-
-    .station-status-tag.alert-state {
-      background: var(--status-fault-bg) !important;
-      color: #fca5a5 !important;
-      border-color: var(--status-fault-border) !important;
-    }
-
-    /* 3 präzise Messwert-Spalten */
-    .sensor-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-
-    .sensor-item {
-      background: var(--card-bg);
-      border: 1px solid var(--border-subtle);
-      border-radius: 6px;
-      padding: 7px 8px;
-      text-align: center;
-    }
-
-    .sensor-item.alert-active {
-      border-color: var(--status-fault);
-      background: rgba(239, 68, 68, 0.18);
-    }
-
-    .sensor-name {
-      display: block;
-      font-size: 9px;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      margin-bottom: 3px;
-    }
-
-    .sensor-value {
-      font-family: ui-monospace, "SF Mono", monospace;
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--text-white);
-      font-variant-numeric: tabular-nums;
-    }
-
-    .sensor-unit {
-      font-size: 10px;
-      font-weight: 500;
-      color: var(--text-secondary);
-    }
-
-    /* Störungshinweis Banner */
-    .alert-strip {
-      display: none;
-      margin-top: 8px;
-      padding: 6px 10px;
-      border-radius: 4px;
-      background: var(--status-fault-bg);
-      border: 1px solid var(--status-fault-border);
-      font-size: 10px;
-      color: #fca5a5;
-      text-align: center;
-    }
-
-    /* Aktions-Schaltflächen (Schlicht, flach, matt) */
-    .card-actions {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-top: 10px;
-    }
-
-    .btn-action {
-      padding: 8px 10px;
-      border-radius: 6px;
-      border: 1px solid var(--border-subtle);
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text-primary);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      text-align: center;
-      transition: background 0.15s, border-color 0.15s;
-    }
-
-    .btn-action:active {
-      background: rgba(255, 255, 255, 0.14);
-      border-color: var(--border-focus);
-    }
-
-    .btn-fault {
-      color: #fca5a5;
-      border-color: rgba(239, 68, 68, 0.4);
-    }
-    .btn-fault:active {
-      background: rgba(239, 68, 68, 0.25);
-    }
-
-    /* Dezenter Sim-Button für Desktop-Tests */
-    .sim-toggle {
-      position: fixed;
-      bottom: calc(var(--safe-bottom) + 6px);
-      right: 14px;
-      z-index: 25;
-      font-size: 10px;
-      font-family: ui-monospace, monospace;
-      color: var(--text-secondary);
-      background: rgba(18, 20, 26, 0.85);
-      border: 1px solid var(--border-subtle);
-      border-radius: 12px;
-      padding: 3px 8px;
-      cursor: pointer;
-    }
-  </style>
 </head>
 <body>
 
   <!-- ========================================================================
-       AR Szene: 
-       Kompatibel mit iOS WebKit / Safari (Flexible constraints, kein Übermaß)
+       AR Szene: Hiro Marker & 3D Industriemodell
        ======================================================================== -->
   <a-scene
     vr-mode-ui="enabled: false"
@@ -332,12 +28,12 @@
     
     <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="4">
       
-      <!-- Bodenrahmen (Passmarke auf Marker) -->
+      <!-- Bodenrahmen (Passmarke) -->
       <a-entity position="0 0.01 0" rotation="-90 0 0">
         <a-plane width="1.1" height="1.1" color="#181a20" material="opacity: 0.4; transparent: true"></a-plane>
       </a-entity>
 
-      <!-- Reale 3D-Bonbon-Dose (Gebürstetes Metall & Titan) -->
+      <!-- 3D-Bonbon-Dose (Edelstahl / Titan) -->
       <a-entity position="0 0.28 0">
         <a-cylinder
           id="tin-body"
@@ -355,7 +51,7 @@
         </a-cylinder>
       </a-entity>
 
-      <!-- Sachliches 3D-Typenschild über dem Marker -->
+      <!-- 3D-Typenschild über dem Marker -->
       <a-entity position="0 0.82 0" look-at="[camera]">
         <a-plane width="1.2" height="0.26" color="#161920" material="opacity: 0.95; transparent: true"></a-plane>
         <a-text
@@ -382,7 +78,7 @@
   </a-scene>
 
   <!-- ========================================================================
-       UI Overlay Frame
+       Schlanke HMI-Benutzeroberfläche
        ======================================================================== -->
   <div class="ar-frame">
     
@@ -392,7 +88,7 @@
       <span>CPS-i40 • <strong>Bonbon-Fertigung</strong></span>
     </header>
 
-    <!-- Fadenkreuz / Passmarke (nur bei Markersuche) -->
+    <!-- Fadenkreuz (nur bei Markersuche) -->
     <div class="viewfinder interactive" id="viewfinder">
       <div class="viewfinder-box">
         <div class="viewfinder-corner c-tl"></div>
@@ -445,201 +141,8 @@
   <!-- Sim-Schalter für Desktop -->
   <div class="sim-toggle interactive" id="btn-sim">Sim: Kamera</div>
 
-  <!-- Steuerungslogik & iOS Video Fix -->
-  <script>
-    /* ====================================================================
-       1. iOS SAFARI KAMERA INITIALISIERUNG & UNPAUSE FIX
-       ==================================================================== */
-    function ensureIosCameraPlays() {
-      const checkVideo = setInterval(() => {
-        const video = document.querySelector('video') || document.getElementById('arjs-video');
-        if (video) {
-          video.setAttribute('playsinline', 'true');
-          video.setAttribute('webkit-playsinline', 'true');
-          video.setAttribute('muted', 'true');
-          video.muted = true;
-          if (video.paused) {
-            video.play().catch(e => console.debug('Autoplay waiting for touch:', e));
-          }
-          clearInterval(checkVideo);
-        }
-      }, 250);
-    }
-    window.addEventListener('DOMContentLoaded', ensureIosCameraPlays);
-    window.addEventListener('load', ensureIosCameraPlays);
-    document.body.addEventListener('touchstart', () => {
-      const video = document.querySelector('video');
-      if (video && video.paused) video.play();
-    }, { once: true });
+  <!-- Modular WebApp Application Entry -->
+  <script type="module" src="js/app.js"></script>
 
-    /* ====================================================================
-       2. ANLAGENDATEN (4 MODULE)
-       ==================================================================== */
-    const stations = [
-      {
-        name: "Modul 1: Dosen-Zuführung",
-        v1: { label: "Magazin", val: 84, unit: "%", min: 82, max: 86 },
-        v2: { label: "Vakuum", val: -0.8, unit: "bar", min: -0.85, max: -0.78 },
-        v3: { label: "Zähler", val: 1684, unit: "Stk", isFixed: true }
-      },
-      {
-        name: "Modul 2: Dosierung & Befüllung",
-        v1: { label: "Füllgewicht", val: 250.3, unit: "g", min: 249.7, max: 250.6 },
-        v2: { label: "Druck", val: 5.2, unit: "bar", min: 5.1, max: 5.3 },
-        v3: { label: "Takt", val: 32, unit: "D/min", min: 31, max: 33 }
-      },
-      {
-        name: "Modul 3: Verschluss & Bördelung",
-        v1: { label: "Anpressdruck", val: 5.2, unit: "bar", min: 5.1, max: 5.3 },
-        v2: { label: "Drehmoment", val: 3.9, unit: "Nm", min: 3.8, max: 4.1 },
-        v3: { label: "Prüfung", val: 100, unit: "%", isFixed: true }
-      },
-      {
-        name: "Modul 4: Qualitätskontrolle & Waage",
-        v1: { label: "Kontrollgewicht", val: 250.1, unit: "g", min: 249.8, max: 250.4 },
-        v2: { label: "Ausschuss", val: 0.4, unit: "%", min: 0.3, max: 0.5 },
-        v3: { label: "OEE", val: 93, unit: "%", isFixed: true }
-      }
-    ];
-
-    let currentIdx = 1; // Standard: Modul 2
-    let isMarkerVisible = false;
-    let isSimMode = false;
-    let isFaultActive = false;
-
-    // DOM Referenzen
-    const hiroMarker = document.getElementById('hiro-marker');
-    const viewfinder = document.getElementById('viewfinder');
-    const stationCard = document.getElementById('station-card');
-    const stName = document.getElementById('st-name');
-    const stTag = document.getElementById('st-tag');
-    const alertStrip = document.getElementById('alert-strip');
-    const btnNext = document.getElementById('btn-next');
-    const btnFault = document.getElementById('btn-fault');
-    const btnSim = document.getElementById('btn-sim');
-    const statusDot = document.getElementById('status-dot');
-
-    // 3D Referenzen
-    const tinBody = document.getElementById('tin-body');
-    const arTextTitle = document.getElementById('ar-text-title');
-    const arTextData = document.getElementById('ar-text-data');
-
-    function updateDisplay(idx) {
-      const s = stations[idx];
-      stName.textContent = s.name;
-
-      if (isFaultActive) {
-        stTag.textContent = "STÖRUNG";
-        stTag.className = "station-status-tag alert-state";
-        alertStrip.style.display = 'block';
-        statusDot.style.background = 'var(--status-fault)';
-
-        // 3D Alarm
-        if (tinBody) tinBody.setAttribute('color', '#ef4444');
-        if (arTextTitle) arTextTitle.setAttribute('value', 'STÖRUNG: DRUCKABFALL');
-        if (arTextData) {
-          arTextData.setAttribute('value', '2.8 bar [HALT]');
-          arTextData.setAttribute('color', '#fca5a5');
-        }
-
-        document.getElementById('cell-v2').classList.add('alert-active');
-        document.getElementById('v2-val').textContent = "2.8";
-      } else {
-        stTag.textContent = "NORMAL";
-        stTag.className = "station-status-tag";
-        alertStrip.style.display = 'none';
-        statusDot.style.background = 'var(--status-ok)';
-
-        // 3D Normal
-        if (tinBody) tinBody.setAttribute('color', '#a1a1aa');
-        if (arTextTitle) arTextTitle.setAttribute('value', s.name.toUpperCase());
-        if (arTextData) {
-          arTextData.setAttribute('value', `${s.v1.val} ${s.v1.unit}  |  ${s.v2.val} ${s.v2.unit}`);
-          arTextData.setAttribute('color', '#86efac');
-        }
-
-        document.getElementById('cell-v2').classList.remove('alert-active');
-      }
-
-      // Werte aktualisieren
-      document.getElementById('v1-lbl').textContent = s.v1.label;
-      document.getElementById('v1-val').textContent = s.v1.val;
-      document.getElementById('v1-unit').textContent = s.v1.unit;
-
-      document.getElementById('v2-lbl').textContent = s.v2.label;
-      if (!isFaultActive) document.getElementById('v2-val').textContent = s.v2.val;
-      document.getElementById('v2-unit').textContent = s.v2.unit;
-
-      document.getElementById('v3-lbl').textContent = s.v3.label;
-      document.getElementById('v3-val').textContent = s.v3.val;
-      document.getElementById('v3-unit').textContent = s.v3.unit;
-    }
-
-    // Leichte Messwert-Fluktuation (Echtzeit-Simulation)
-    setInterval(() => {
-      if ((isMarkerVisible || isSimMode) && !isFaultActive) {
-        const s = stations[currentIdx];
-        ['v1', 'v2', 'v3'].forEach(k => {
-          const item = s[k];
-          if (!item.isFixed) {
-            const delta = (Math.random() - 0.5) * 0.1;
-            let val = +(item.val + delta).toFixed(1);
-            if (val >= item.min && val <= item.max) item.val = val;
-          }
-        });
-        updateDisplay(currentIdx);
-      }
-    }, 1500);
-
-    // Station umschalten
-    btnNext.addEventListener('click', () => {
-      currentIdx = (currentIdx + 1) % stations.length;
-      updateDisplay(currentIdx);
-    });
-
-    // Störung simulieren / beheben
-    btnFault.addEventListener('click', () => {
-      isFaultActive = !isFaultActive;
-      btnFault.textContent = isFaultActive ? "Störung beheben" : "Störung simulieren";
-      updateDisplay(currentIdx);
-    });
-
-    // AR.js Marker Events
-    hiroMarker.addEventListener('markerFound', () => {
-      isMarkerVisible = true;
-      viewfinder.style.opacity = '0';
-      stationCard.style.display = 'block';
-      updateDisplay(currentIdx);
-    });
-
-    hiroMarker.addEventListener('markerLost', () => {
-      isMarkerVisible = false;
-      if (!isSimMode) {
-        viewfinder.style.opacity = '1';
-        stationCard.style.display = 'none';
-      }
-    });
-
-    // Desktop Testmodus Umschalter
-    btnSim.addEventListener('click', () => {
-      isSimMode = !isSimMode;
-      btnSim.textContent = isSimMode ? "Sim: AN" : "Sim: Kamera";
-      if (isSimMode) {
-        viewfinder.style.opacity = '0';
-        stationCard.style.display = 'block';
-        updateDisplay(currentIdx);
-      } else if (!isMarkerVisible) {
-        viewfinder.style.opacity = '1';
-        stationCard.style.display = 'none';
-      }
-    });
-
-    // Init
-    updateDisplay(currentIdx);
-
-    /* Globale Debugger-Funktionen */
-    window.fireEventMarkerFound = () => hiroMarker.dispatchEvent(new CustomEvent('markerFound'));
-    window.fireEventMarkerLost = () => hiroMarker.dispatchEvent(new CustomEvent('markerLost'));
-  </script>
 </body>
 </html>

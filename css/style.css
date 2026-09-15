@@ -1,0 +1,311 @@
+/* ==========================================================================
+   CPS-i40 Mobile AR WebApp - Industrial Stylesheet
+   Design: Funktional-industrieller Minimalismus (Graphit / Titan, kein Blau)
+   Normen: DIN EN 60073 / IEC 60073 für Signalsysteme
+   ========================================================================== */
+
+:root {
+  --bg-dark: #12141a;
+  --panel-bg: rgba(22, 25, 32, 0.94);
+  --card-bg: rgba(30, 34, 44, 0.85);
+  --border-subtle: rgba(255, 255, 255, 0.12);
+  --border-focus: rgba(255, 255, 255, 0.35);
+  
+  --text-white: #ffffff;
+  --text-primary: #f3f4f6;
+  --text-secondary: #9ca3af;
+  --text-dim: #6b7280;
+
+  --status-ok: #22c55e;
+  --status-ok-bg: rgba(34, 197, 94, 0.12);
+  --status-ok-border: rgba(34, 197, 94, 0.35);
+
+  --status-fault: #ef4444;
+  --status-fault-bg: rgba(239, 68, 68, 0.15);
+  --status-fault-border: rgba(239, 68, 68, 0.5);
+
+  --safe-top: env(safe-area-inset-top, 14px);
+  --safe-bottom: env(safe-area-inset-bottom, 14px);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #000;
+  color: var(--text-primary);
+  touch-action: manipulation;
+}
+
+/* iOS Safari & Android Kamera-Stream (Skalierung für AR.js) */
+video, canvas {
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  object-fit: cover !important;
+}
+
+/* AR Viewport Frame */
+.ar-frame {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: calc(var(--safe-top) + 6px) 14px calc(var(--safe-bottom) + 6px) 14px;
+}
+
+.interactive {
+  pointer-events: auto;
+}
+
+/* ==========================================================================
+   1. Header: Schlanker Status-Indikator
+   ========================================================================== */
+.top-indicator {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--status-ok);
+  transition: background-color 0.2s;
+}
+
+.top-indicator strong {
+  color: var(--text-white);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   2. Zielsucher (Dezente Ecken-Passmarke)
+   ========================================================================== */
+.viewfinder {
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transition: opacity 0.25s ease;
+}
+
+.viewfinder-box {
+  width: 150px;
+  height: 150px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.15);
+  position: relative;
+}
+
+.viewfinder-corner {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: #ffffff;
+  border-style: solid;
+}
+.c-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+.c-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+.c-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+.c-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+
+.viewfinder-label {
+  background: rgba(18, 20, 26, 0.85);
+  border: 1px solid var(--border-subtle);
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", monospace;
+  color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   3. Bottom-Panel: Telemetrie-Karte
+   ========================================================================== */
+.station-card {
+  display: none;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 12px 14px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  max-width: 440px;
+  width: 100%;
+  align-self: center;
+  animation: cardAppear 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardAppear {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.station-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 10px;
+}
+
+.station-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-white);
+  letter-spacing: 0.2px;
+}
+
+.station-status-tag {
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: var(--status-ok-bg);
+  color: #86efac;
+  border: 1px solid var(--status-ok-border);
+  letter-spacing: 0.4px;
+}
+
+.station-status-tag.alert-state {
+  background: var(--status-fault-bg) !important;
+  color: #fca5a5 !important;
+  border-color: var(--status-fault-border) !important;
+}
+
+/* 3 Messwert-Spalten */
+.sensor-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.sensor-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  padding: 7px 8px;
+  text-align: center;
+}
+
+.sensor-item.alert-active {
+  border-color: var(--status-fault);
+  background: rgba(239, 68, 68, 0.18);
+}
+
+.sensor-name {
+  display: block;
+  font-size: 9px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 3px;
+}
+
+.sensor-value {
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-white);
+  font-variant-numeric: tabular-nums;
+}
+
+.sensor-unit {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Störungshinweis */
+.alert-strip {
+  display: none;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: var(--status-fault-bg);
+  border: 1px solid var(--status-fault-border);
+  font-size: 10px;
+  color: #fca5a5;
+  text-align: center;
+}
+
+/* Schaltflächen */
+.card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.btn-action {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-action:active {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--border-focus);
+}
+
+.btn-fault {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.btn-fault:active {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+/* Desktop-Test Schalter */
+.sim-toggle {
+  position: fixed;
+  bottom: calc(var(--safe-bottom) + 6px);
+  right: 14px;
+  z-index: 25;
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+  color: var(--text-secondary);
+  background: rgba(18, 20, 26, 0.85);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
