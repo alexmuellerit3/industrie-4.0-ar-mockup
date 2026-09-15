@@ -1,0 +1,64 @@
+# ==========================================
+# .gitignore - Industrie 4.0 AR Mockup (LF7)
+# ==========================================
+
+# Betriebssysteme & Dateimanager
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editoren & IDEs
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*~
+
+# Sensible Daten & Zugangsdaten / Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+credentials.json
+secrets.json
+
+# Node.js & Web-Pakete (falls npm genutzt wird)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+
+# Build- & Ausgabeverzeichnisse
+dist/
+build/
+out/
+.cache/
+
+# Python & Edge-Gateway Scripte (falls Test-Server genutzt werden)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+ENV/
+
+# Temporäre Dateien & Logs
+*.log
+tmp/
+temp/
