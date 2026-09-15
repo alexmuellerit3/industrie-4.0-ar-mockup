@@ -200,7 +200,8 @@ export class ARController {
       const capabilities = track.getCapabilities ? track.getCapabilities() : {};
       if ("zoom" in capabilities) {
         this.hasNativeZoom = true;
-        this.minZoom = capabilities.zoom.min || 1.0;
+        // Minimum strikt auf 1.0 sperren (verhindert Zoom < 1.0 / Ultraweitwinkel-Verkleinerung)
+        this.minZoom = Math.max(1.0, capabilities.zoom.min || 1.0);
         this.maxZoom = Math.min(capabilities.zoom.max || 5.0, 5.0);
         this.zoomStep = capabilities.zoom.step || 0.1;
         console.info(`[ARController] Nativer Hardware-Zoom aktiv (Min: ${this.minZoom}x, Max: ${this.maxZoom}x)`);
@@ -218,7 +219,7 @@ export class ARController {
    * @param {number} targetLevel - z. B. 1.0, 2.0, 3.0
    */
   async setZoom(targetLevel) {
-    const clamped = Math.max(this.minZoom, Math.min(this.maxZoom, +targetLevel.toFixed(1)));
+    const clamped = Math.max(1.0, Math.max(this.minZoom, Math.min(this.maxZoom, +targetLevel.toFixed(1))));
     this.currentZoom = clamped;
 
     const zoom = this.currentZoom;
@@ -310,7 +311,7 @@ export class ARController {
     document.addEventListener("gesturechange", (e) => {
       e.preventDefault();
       if (typeof e.scale === "number" && !isNaN(e.scale)) {
-        const target = gestureBaseZoom * e.scale;
+        const target = Math.max(1.0, gestureBaseZoom * e.scale);
         this.setZoom(target);
       }
     }, { passive: false });
@@ -348,7 +349,7 @@ export class ARController {
           const currentDist = getTouchDist(e);
           if (currentDist && this.initialPinchDistance > 0) {
             const factor = currentDist / this.initialPinchDistance;
-            const target = this.initialPinchZoom * factor;
+            const target = Math.max(1.0, this.initialPinchZoom * factor);
 
             const now = performance.now();
             if (now - lastZoomTime > 30) {

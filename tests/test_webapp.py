@@ -69,6 +69,7 @@ class TestARSceneConfiguration(unittest.TestCase):
         self.assertIn("discoverNativeCameras(", ar_content, "discoverNativeCameras fehlt in ARController")
         self.assertIn("switchCameraLens(", ar_content, "switchCameraLens fehlt in ARController")
         self.assertIn("--camera-zoom", ar_content, "--camera-zoom fehlt in ARController")
+        self.assertIn("Math.max(1.0,", ar_content, "Minimum-Zoom muss strikt auf mindestens 1.0 gesperrt sein!")
 
     def test_close_card_and_persistence(self):
         """Prüft, dass der Schließen-Button existiert und das Popup persistent bleibt."""
