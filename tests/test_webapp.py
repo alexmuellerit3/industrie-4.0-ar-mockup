@@ -59,6 +59,14 @@ class TestARSceneConfiguration(unittest.TestCase):
         self.assertIn('<script type="module" src="js/app.js"></script>', self.html)
         self.assertIn('<link rel="stylesheet" href="css/style.css">', self.html)
 
+    def test_zoom_components(self):
+        """Prüft das Vorhandensein des Zoom-Buttons und der Zoom-Steuerung."""
+        self.assertIn('id="btn-zoom"', self.html, "Zoom-Button #btn-zoom fehlt in index.html")
+        with open(os.path.join(BASE_DIR, "js", "ar-controller.js"), "r") as f:
+            ar_content = f.read()
+        self.assertIn("cycleZoom(", ar_content, "cycleZoom-Methode fehlt in ARController")
+        self.assertIn("detectZoomCapabilities(", ar_content, "detectZoomCapabilities fehlt in ARController")
+
 
 class TestConfigAndTelemetryService(unittest.TestCase):
     """Prüft Konfiguration und Service-Dateien."""

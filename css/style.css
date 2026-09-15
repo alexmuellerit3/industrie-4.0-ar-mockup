@@ -106,9 +106,18 @@ a-scene canvas {
   pointer-events: auto;
 }
 
-/* 1. Header: Schlanker Status-Indikator */
+/* 1. Header: Schlanker Status-Indikator & Zoom-Button */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: min(440px, 100%);
+  margin: 0 auto;
+  gap: 8px;
+}
+
 .top-indicator {
-  align-self: center;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -122,6 +131,32 @@ a-scene canvas {
   letter-spacing: 0.5px;
   color: var(--text-secondary);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.zoom-pill {
+  padding: 6px 14px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: clamp(10px, 2.8vw, 12px);
+  font-weight: 700;
+  color: var(--text-white);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.zoom-pill:active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--border-focus);
 }
 
 .status-dot {

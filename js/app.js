@@ -3,7 +3,7 @@
  * 
  * Verknüpft:
  * - TelemetryService (Schnittstellen & Sensordaten)
- * - ARController (3D Marker Tracking & iOS Kamera)
+ * - ARController (Marker Tracking, iOS Kamera & Native Zoom)
  * - UIController (HMI HUD Darstellung)
  */
 
@@ -23,19 +23,20 @@ class CandyArApp {
     this.ui = new UIController({
       onNextStation: () => this.telemetryService.nextStation(),
       onToggleFault: () => this.telemetryService.toggleFaultSimulation(),
-      onToggleSim: () => this.toggleDesktopSimulation()
+      onToggleSim: () => this.toggleDesktopSimulation(),
+      onZoomCycle: () => this.ar.cycleZoom()
     });
 
-    // 3. AR-Controller initialisieren
+    // 3. AR-Controller initialisieren (inkl. Kamera-Zoom)
     this.ar = new ARController({
       onMarkerFound: () => this.handleMarkerFound(),
-      onMarkerLost: () => this.handleMarkerLost()
+      onMarkerLost: () => this.handleMarkerLost(),
+      onZoomChange: (level) => this.ui.updateZoomDisplay(level)
     });
 
     // 4. Observer-Verbindung herstellen
     this.telemetryService.subscribe((stationData, isFault) => {
       this.ui.render(stationData, isFault);
-      this.ar.update3DOverlay(stationData, isFault);
     });
 
     // 5. Telemetrie-Stream starten

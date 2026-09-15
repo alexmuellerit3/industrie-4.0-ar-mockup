@@ -1,23 +1,35 @@
 /**
- * ARController - Verwaltet die A-Frame AR-Szene, Marker-Ereignisse
- * und die Kamera-Stabilität auf Mobilgeräten (insb. iPhone / iOS WebKit).
+ * ARController - Verwaltet die A-Frame AR-Szene, Marker-Ereignisse,
+ * die Kamera-Stabilität auf Mobilgeräten (insb. iPhone / iOS WebKit)
+ * sowie die native Hardware-Kamerazoom-Funktionalität.
  */
 
 export class ARController {
-  constructor({ onMarkerFound, onMarkerLost }) {
+  constructor({ onMarkerFound, onMarkerLost, onZoomChange }) {
     this.onMarkerFound = onMarkerFound;
     this.onMarkerLost = onMarkerLost;
+    this.onZoomChange = onZoomChange;
+
     this.isMarkerVisible = false;
     this.isSimulationActive = false;
 
+    // Zoom-Zustand
+    this.currentZoom = 1.0;
+    this.minZoom = 1.0;
+    this.maxZoom = 4.0;
+    this.zoomStep = 0.1;
+    this.hasNativeZoom = false;
+    this.activeVideoTrack = null;
+    this.initialPinchDistance = null;
+    this.initialPinchZoom = 1.0;
+
     // DOM-Referenzen
     this.hiroMarker = document.getElementById("hiro-marker");
-    this.tinBody = document.getElementById("tin-body");
-    this.arTextTitle = document.getElementById("ar-text-title");
-    this.arTextData = document.getElementById("ar-text-data");
 
     this.initEventListeners();
     this.applyIosCameraStreamFix();
+    this.initCameraStreamWatcher();
+    this.initPinchToZoom();
   }
 
   initEventListeners() {
@@ -27,13 +39,11 @@ export class ARController {
     }
 
     this.hiroMarker.addEventListener("markerFound", () => {
-      console.debug("[ARController] Hiro-Marker im Sichtfeld erkannt.");
       this.isMarkerVisible = true;
       if (this.onMarkerFound) this.onMarkerFound();
     });
 
     this.hiroMarker.addEventListener("markerLost", () => {
-      console.debug("[ARController] Hiro-Marker verloren.");
       this.isMarkerVisible = false;
       if (this.onMarkerLost && !this.isSimulationActive) {
         this.onMarkerLost();
@@ -50,8 +60,139 @@ export class ARController {
   }
 
   /**
+   * Überwacht die Initialisierung des WebRTC-Kamerastreams
+   * und bindet die native Hardware-Zoomsteuerung an.
+   */
+  initCameraStreamWatcher() {
+    const bindTrack = () => {
+      const video = document.querySelector("video") || document.getElementById("arjs-video");
+      if (video && video.srcObject && video.srcObject.getVideoTracks) {
+        const tracks = video.srcObject.getVideoTracks();
+        if (tracks && tracks.length > 0) {
+          this.activeVideoTrack = tracks[0];
+          this.detectZoomCapabilities(this.activeVideoTrack);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (!bindTrack()) {
+      const pollTimer = setInterval(() => {
+        if (bindTrack()) clearInterval(pollTimer);
+      }, 300);
+      window.addEventListener("load", bindTrack);
+    }
+  }
+
+  /**
+   * Prüft native Zoom-Fähigkeiten des Kamerasensors (z.B. iPhone 17 Pro, Android)
+   */
+  detectZoomCapabilities(track) {
+    if (!track) return;
+
+    try {
+      const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+      if ("zoom" in capabilities) {
+        this.hasNativeZoom = true;
+        this.minZoom = capabilities.zoom.min || 1.0;
+        this.maxZoom = Math.min(capabilities.zoom.max || 5.0, 5.0);
+        this.zoomStep = capabilities.zoom.step || 0.1;
+        console.info(`[ARController] Nativer Hardware-Zoom aktiv (Min: ${this.minZoom}x, Max: ${this.maxZoom}x)`);
+      } else {
+        console.info("[ARController] Nativer Zoom nicht direkt im Treiber, nutze nahtlosen Zoom-Fallback.");
+      }
+    } catch (e) {
+      console.debug("[ARController] Fehler beim Lesen der Zoom-Capabilities:", e);
+    }
+  }
+
+  /**
+   * Setzt den Kamerazoom (bevorzugt hardware-nativ via WebRTC MediaStreamTrack,
+   * mit optischem Fallback falls vom Browser limitiert).
+   * @param {number} targetLevel - z. B. 1.0, 2.0, 3.0
+   */
+  async setZoom(targetLevel) {
+    const clamped = Math.max(this.minZoom, Math.min(this.maxZoom, +targetLevel.toFixed(1)));
+    this.currentZoom = clamped;
+
+    // 1. Nativer WebRTC Hardware-Zoom
+    if (this.hasNativeZoom && this.activeVideoTrack) {
+      try {
+        await this.activeVideoTrack.applyConstraints({
+          advanced: [{ zoom: this.currentZoom }]
+        });
+      } catch (err) {
+        console.debug("[ARController] Hardware-Zoom applyConstraints fehlgeschlagen:", err);
+      }
+    }
+
+    // 2. Optischer Viewport-Fallback (skaliert zusätzlich das Video-Element geschmeidig)
+    const video = document.querySelector("video") || document.getElementById("arjs-video");
+    if (video && (!this.hasNativeZoom || this.currentZoom > 1.0)) {
+      const scaleVal = this.hasNativeZoom ? 1 : this.currentZoom;
+      video.style.transform = `translate(-50%, -50%) scale(${scaleVal})`;
+      video.style.webkitTransform = `translate(-50%, -50%) scale(${scaleVal})`;
+    }
+
+    if (this.onZoomChange) {
+      this.onZoomChange(this.currentZoom);
+    }
+
+    return this.currentZoom;
+  }
+
+  /**
+   * Schaltet zyklisch durch Standard-Zoomstufen: 1.0x -> 2.0x -> 3.0x -> 1.0x
+   */
+  cycleZoom() {
+    let nextZoom = 1.0;
+    if (this.currentZoom < 1.8) {
+      nextZoom = 2.0;
+    } else if (this.currentZoom < 2.8) {
+      nextZoom = 3.0;
+    } else {
+      nextZoom = 1.0;
+    }
+    return this.setZoom(nextZoom);
+  }
+
+  /**
+   * Natürliche Zwei-Finger-Geste (Pinch-to-Zoom)
+   */
+  initPinchToZoom() {
+    const getTouchDist = (e) => {
+      if (e.touches.length < 2) return null;
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    document.addEventListener("touchstart", (e) => {
+      if (e.touches.length === 2) {
+        this.initialPinchDistance = getTouchDist(e);
+        this.initialPinchZoom = this.currentZoom;
+      }
+    }, { passive: true });
+
+    document.addEventListener("touchmove", (e) => {
+      if (e.touches.length === 2 && this.initialPinchDistance) {
+        const currentDist = getTouchDist(e);
+        if (currentDist) {
+          const factor = currentDist / this.initialPinchDistance;
+          const target = this.initialPinchZoom * factor;
+          this.setZoom(target);
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener("touchend", () => {
+      this.initialPinchDistance = null;
+    }, { passive: true });
+  }
+
+  /**
    * iPhone 17 Pro / iOS Safari Autoplay & Inline-Video Fix
-   * Verhindert das Einfrieren des Videostreams auf iOS Geräten.
    */
   applyIosCameraStreamFix() {
     const ensurePlaysinline = () => {
@@ -69,7 +210,6 @@ export class ARController {
       }
     };
 
-    // Mehrstufige Prüfung bei Seitenstart
     const checkInterval = setInterval(() => {
       const v = document.querySelector("video");
       if (v) {
@@ -83,34 +223,6 @@ export class ARController {
       const video = document.querySelector("video");
       if (video && video.paused) video.play();
     }, { once: true });
-  }
-
-  /**
-   * Aktualisiert die 3D-Beschriftung und das Modell über dem Marker
-   * @param {Object} station - Aktuelle Stationsdaten
-   * @param {boolean} isFault - Störungszustand
-   */
-  update3DOverlay(station, isFault) {
-    if (!station) return;
-
-    if (isFault) {
-      if (this.tinBody) this.tinBody.setAttribute("color", "#ef4444");
-      if (this.arTextTitle) this.arTextTitle.setAttribute("value", "STÖRUNG: DRUCKABFALL");
-      if (this.arTextData) {
-        this.arTextData.setAttribute("value", "2.8 bar [HALT]");
-        this.arTextData.setAttribute("color", "#fca5a5");
-      }
-    } else {
-      if (this.tinBody) this.tinBody.setAttribute("color", "#a1a1aa");
-      if (this.arTextTitle) this.arTextTitle.setAttribute("value", station.name.toUpperCase());
-      if (this.arTextData) {
-        this.arTextData.setAttribute(
-          "value",
-          `${station.v1.val} ${station.v1.unit}  |  ${station.v2.val} ${station.v2.unit}`
-        );
-        this.arTextData.setAttribute("color", "#86efac");
-      }
-    }
   }
 
   setSimulationMode(active) {

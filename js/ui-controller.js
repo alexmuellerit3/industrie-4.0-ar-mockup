@@ -1,14 +1,15 @@
 /**
  * UIController - Steuert die schlanke, funktionale HMI-Benutzeroberfläche.
- * Aktualisiert Messwert-Zellen, Status-Tags und Störungsanzeigen.
+ * Aktualisiert Messwert-Zellen, Status-Tags, Störungsanzeigen und Zoom-Button.
  */
 
 export class UIController {
-  constructor({ onNextStation, onToggleFault, onToggleSim }) {
+  constructor({ onNextStation, onToggleFault, onToggleSim, onZoomCycle }) {
     // Callbacks
     this.onNextStation = onNextStation;
     this.onToggleFault = onToggleFault;
     this.onToggleSim = onToggleSim;
+    this.onZoomCycle = onZoomCycle;
 
     // DOM-Elemente
     this.viewfinder = document.getElementById("viewfinder");
@@ -36,6 +37,7 @@ export class UIController {
     this.btnNext = document.getElementById("btn-next");
     this.btnFault = document.getElementById("btn-fault");
     this.btnSim = document.getElementById("btn-sim");
+    this.btnZoom = document.getElementById("btn-zoom");
 
     this.bindEvents();
   }
@@ -56,6 +58,12 @@ export class UIController {
     if (this.btnSim) {
       this.btnSim.addEventListener("click", () => {
         if (this.onToggleSim) this.onToggleSim();
+      });
+    }
+
+    if (this.btnZoom) {
+      this.btnZoom.addEventListener("click", () => {
+        if (this.onZoomCycle) this.onZoomCycle();
       });
     }
   }
@@ -119,6 +127,12 @@ export class UIController {
   updateSimButton(isActive) {
     if (this.btnSim) {
       this.btnSim.textContent = isActive ? "Sim: AN" : "Sim: Kamera";
+    }
+  }
+
+  updateZoomDisplay(level) {
+    if (this.btnZoom) {
+      this.btnZoom.textContent = `${level.toFixed(1)}×`;
     }
   }
 }
