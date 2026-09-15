@@ -149,25 +149,25 @@ a-scene canvas {
 }
 
 .viewfinder-box {
-  width: clamp(120px, 38vw, 160px);
-  height: clamp(120px, 38vw, 160px);
+  width: clamp(210px, 62vw, 300px);
+  height: clamp(210px, 62vw, 300px);
   border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.15);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.12);
   position: relative;
 }
 
 .viewfinder-corner {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   border-color: #ffffff;
   border-style: solid;
 }
-.c-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-.c-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
-.c-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
-.c-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+.c-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 8px; }
+.c-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 8px; }
+.c-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 8px; }
+.c-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 8px; }
 
 .viewfinder-label {
   background: rgba(18, 20, 26, 0.88);
