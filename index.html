@@ -5,30 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0a0f1d">
-  <title>CPS-i40 AR Telemetrie | Bonbon-Dosen Fertigung</title>
+  <meta name="theme-color" content="#1a202c">
+  <title>CPS-i40 Mobiles HMI | Bonbon-Fertigung</title>
 
   <!-- A-Frame 1.4.0 & AR.js 3.4.5 -->
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
 
   <style>
+    /* ==========================================================================
+       Funktional-industrielles Design (HMI / SCADA Standard nach IEC/DIN)
+       Keine Neoneffekte, keine Gaming-Animationen, hohe Ablesbarkeit
+       ========================================================================== */
     :root {
-      --bg-dark: #0a0f1d;
-      --panel-bg: rgba(13, 20, 36, 0.92);
-      --panel-border: rgba(45, 75, 120, 0.45);
-      --panel-border-focus: #00d2ff;
-      --accent-cyan: #00d2ff;
-      --accent-blue: #2563eb;
-      --accent-green: #10b981;
-      --accent-warn: #f59e0b;
-      --accent-alert: #ef4444;
-      --text-main: #f8fafc;
+      --hmi-bg-main: #12161f;
+      --hmi-panel-bg: #1c2230;
+      --hmi-card-bg: #242c3d;
+      --hmi-border: #333f54;
+      --hmi-border-light: #475569;
+      
+      /* Signal- und Statusfarben nach DIN EN 60073 */
+      --status-ok: #16a34a;       /* Grün: Normal / Betrieb */
+      --status-ok-bg: #14532d;
+      --status-warn: #d97706;     /* Gelb/Amber: Warnung */
+      --status-warn-bg: #78350f;
+      --status-alarm: #dc2626;    /* Rot: Störung / Halt */
+      --status-alarm-bg: #7f1d1d;
+      --status-info: #0284c7;     /* Blau: Information / Bus */
+      
+      --text-primary: #f8fafc;
+      --text-secondary: #cbd5e1;
       --text-muted: #94a3b8;
       --text-dim: #64748b;
-      --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
-      --safe-top: env(safe-area-inset-top, 16px);
-      --safe-bottom: env(safe-area-inset-bottom, 16px);
+      
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Consolas, monospace;
+      
+      --safe-top: env(safe-area-inset-top, 12px);
+      --safe-bottom: env(safe-area-inset-bottom, 12px);
     }
 
     * {
@@ -44,13 +58,13 @@
       height: 100%;
       height: 100dvh;
       overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-family: var(--font-ui);
       background-color: #000;
-      color: var(--text-main);
+      color: var(--text-primary);
       touch-action: manipulation;
     }
 
-    /* AR.js Video & Canvas Kamera-Fill für mobile Screens */
+    /* AR Kamera-Stream */
     video, canvas {
       position: fixed !important;
       top: 0 !important;
@@ -62,8 +76,8 @@
       z-index: 0 !important;
     }
 
-    /* Vollflächiger HUD UI Layer über der AR Szene */
-    .hud-layer {
+    /* UI Layout Frame */
+    .hmi-viewport {
       position: fixed;
       inset: 0;
       z-index: 10;
@@ -71,629 +85,482 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding: calc(var(--safe-top) + 8px) 12px calc(var(--safe-bottom) + 8px) 12px;
+      padding: calc(var(--safe-top) + 6px) 10px calc(var(--safe-bottom) + 6px) 10px;
     }
 
     .interactive {
       pointer-events: auto;
     }
 
-    /* TOP BAR: Industrie-Leitstand Header */
-    .top-bar {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .header-panel {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      border-radius: 12px;
-      background: var(--panel-bg);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid var(--panel-border);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-    }
-
-    .brand-section {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .brand-badge {
-      background: linear-gradient(135deg, #1e293b, #0f172a);
-      border: 1px solid rgba(0, 210, 255, 0.4);
-      color: var(--accent-cyan);
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 4px 8px;
+    /* ==========================================================================
+       Header: Industrie-Kopfleiste (Typenschild & Systemstatus)
+       ========================================================================== */
+    .hmi-header {
+      background: var(--hmi-panel-bg);
+      border: 1px solid var(--hmi-border);
       border-radius: 6px;
-      letter-spacing: 0.8px;
-    }
-
-    .brand-titles {
+      padding: 8px 12px;
       display: flex;
       flex-direction: column;
-    }
-
-    .brand-titles h1 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--text-main);
-      letter-spacing: 0.3px;
-    }
-
-    .brand-titles span {
-      font-size: 11px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-
-    .system-status-pill {
-      display: flex;
-      align-items: center;
       gap: 6px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      font-family: var(--font-mono);
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--accent-green);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     }
 
-    .status-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--accent-green);
-      box-shadow: 0 0 8px var(--accent-green);
-      animation: pulseDot 1.8s infinite;
-    }
-
-    @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.3; transform: scale(0.75); }
-    }
-
-    /* Sub-Header / OT-Verbindungsstatus */
-    .ot-status-bar {
+    .header-top-row {
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      padding: 4px 12px;
-      border-radius: 8px;
-      background: rgba(13, 20, 36, 0.75);
-      border: 1px solid rgba(45, 75, 120, 0.3);
+      align-items: center;
+    }
+
+    .system-identity {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .system-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      color: var(--text-primary);
+      text-transform: uppercase;
+    }
+
+    .system-tag {
       font-family: var(--font-mono);
       font-size: 10px;
-      color: var(--text-dim);
+      color: var(--text-muted);
     }
 
-    .ot-stat-item {
+    .plc-badge {
       display: flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
+      padding: 3px 8px;
+      background: var(--status-ok-bg);
+      border: 1px solid var(--status-ok);
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      color: #86efac;
     }
 
-    .ot-stat-item strong {
-      color: var(--accent-cyan);
+    .plc-led {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #86efac;
+    }
+
+    /* Statuszeile unter Header */
+    .system-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 4px;
+      border-top: 1px solid var(--hmi-border);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .meta-col strong {
+      color: var(--text-primary);
       font-weight: 600;
     }
 
-    /* RETICLE: Industrielles Marker-Zielsucher HUD */
-    .scanner-reticle {
+    /* ==========================================================================
+       Marker Sucher: Minimaler, sachlicher Kamerafokus
+       ========================================================================== */
+    .marker-guide {
       align-self: center;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
-      transition: opacity 0.35s ease, transform 0.35s ease;
+      gap: 10px;
+      transition: opacity 0.25s ease;
     }
 
-    .reticle-box {
-      width: 180px;
-      height: 180px;
+    .guide-box {
+      width: 160px;
+      height: 160px;
       position: relative;
-      border: 1px solid rgba(0, 210, 255, 0.2);
-      border-radius: 16px;
-      background: rgba(0, 210, 255, 0.02);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+      background: rgba(0, 0, 0, 0.2);
     }
 
-    /* Ecken-Fadenkreuze */
-    .reticle-corner {
+    .guide-corner {
       position: absolute;
-      width: 20px;
-      height: 20px;
-      border-color: var(--accent-cyan);
-      border-style: solid;
-    }
-    .reticle-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 12px; }
-    .reticle-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 12px; }
-    .reticle-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 12px; }
-    .reticle-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 12px; }
-
-    .reticle-crosshair {
       width: 14px;
       height: 14px;
-      position: relative;
+      border-color: #cbd5e1;
+      border-style: solid;
     }
-    .reticle-crosshair::before, .reticle-crosshair::after {
-      content: "";
-      position: absolute;
-      background: rgba(0, 210, 255, 0.6);
-    }
-    .reticle-crosshair::before { top: 6px; left: 0; width: 14px; height: 2px; }
-    .reticle-crosshair::after { top: 0; left: 6px; width: 2px; height: 14px; }
+    .c-tl { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
+    .c-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
+    .c-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+    .c-br { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
 
-    .reticle-laser {
-      position: absolute;
-      width: 100%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
-      box-shadow: 0 0 10px var(--accent-cyan);
-      animation: laserSweep 2s ease-in-out infinite;
-    }
-
-    @keyframes laserSweep {
-      0%, 100% { top: 12%; opacity: 0.2; }
-      50% { top: 88%; opacity: 1; }
-    }
-
-    .reticle-caption {
-      background: rgba(10, 15, 29, 0.85);
-      border: 1px solid rgba(0, 210, 255, 0.3);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-family: var(--font-mono);
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    /* BOTTOM DASHBOARD: Haupt-Telemetrie-Karte */
-    .dashboard-panel {
-      display: none;
-      border-radius: 16px;
-      background: var(--panel-bg);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      border: 1px solid var(--panel-border);
-      padding: 14px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-      animation: slidePanelUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    @keyframes slidePanelUp {
-      from { transform: translateY(40px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    /* Modul-Auswahl Reiter (Tabs) */
-    .module-tabs {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-    }
-    .module-tabs::-webkit-scrollbar { display: none; }
-
-    .module-tab-btn {
-      flex: 0 0 auto;
-      padding: 7px 11px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s;
-    }
-
-    .module-tab-btn.active {
-      background: rgba(0, 210, 255, 0.15);
-      border-color: var(--accent-cyan);
-      color: #fff;
-    }
-
-    .tab-idx {
-      font-family: var(--font-mono);
-      font-size: 10px;
-      background: rgba(0, 0, 0, 0.3);
-      padding: 1px 5px;
+    .guide-text {
+      background: rgba(18, 22, 31, 0.9);
+      border: 1px solid var(--hmi-border);
+      padding: 6px 12px;
       border-radius: 4px;
-      color: var(--accent-cyan);
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
     }
 
-    /* Stations-Titel & Status */
-    .station-bar {
+    /* ==========================================================================
+       Hauptpanel: Stations-Dashboard (Kompakt & Datenorientiert)
+       ========================================================================== */
+    .station-panel {
+      display: none;
+      background: var(--hmi-panel-bg);
+      border: 1px solid var(--hmi-border);
+      border-radius: 6px;
+      padding: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Modul-Umschalter (Flache funktionale Schaltflächen) */
+    .station-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+
+    .tab-item {
+      padding: 6px 4px;
+      background: var(--hmi-card-bg);
+      border: 1px solid var(--hmi-border);
+      border-radius: 4px;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-weight: 600;
+      text-align: center;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tab-item.active {
+      background: #2563eb;
+      border-color: #3b82f6;
+      color: #ffffff;
+    }
+
+    /* Stations-Header */
+    .station-header-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin: 10px 0 12px 0;
+      padding: 6px 8px;
+      background: var(--hmi-card-bg);
+      border: 1px solid var(--hmi-border);
+      border-radius: 4px;
+      margin-bottom: 8px;
     }
 
-    .station-info h2 {
-      margin: 0;
-      font-size: 15px;
+    .st-title {
+      font-size: 12px;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
     }
 
-    .station-info p {
-      margin: 2px 0 0 0;
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: var(--text-dim);
-    }
-
-    .station-mode-tag {
+    .st-code {
       font-family: var(--font-mono);
       font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .status-flag {
+      font-family: var(--font-mono);
+      font-size: 10px;
       font-weight: 700;
-      padding: 4px 9px;
-      border-radius: 6px;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      background: rgba(16, 185, 129, 0.16);
-      color: var(--accent-green);
-      border: 1px solid rgba(16, 185, 129, 0.4);
-      transition: all 0.25s;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: var(--status-ok-bg);
+      color: #86efac;
+      border: 1px solid var(--status-ok);
     }
 
-    .station-mode-tag.alert-state {
-      background: rgba(239, 68, 68, 0.22) !important;
-      color: var(--accent-alert) !important;
-      border-color: var(--accent-alert) !important;
-      animation: alertBlink 1s infinite;
+    .status-flag.alert {
+      background: var(--status-alarm-bg) !important;
+      color: #fca5a5 !important;
+      border-color: var(--status-alarm) !important;
     }
 
-    @keyframes alertBlink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-
-    /* 4-KPI Grid */
-    .kpi-grid {
+    /* Messwerte Grid (2x2) */
+    .metrics-container {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
+      gap: 6px;
     }
 
-    .kpi-card {
-      background: rgba(18, 28, 48, 0.7);
-      border: 1px solid rgba(45, 75, 120, 0.35);
-      border-radius: 10px;
-      padding: 8px 10px;
+    .metric-cell {
+      background: var(--hmi-card-bg);
+      border: 1px solid var(--hmi-border);
+      border-radius: 4px;
+      padding: 6px 8px;
       display: flex;
       flex-direction: column;
-      position: relative;
-      overflow: hidden;
     }
 
-    .kpi-card::before {
-      content: "";
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 3px;
-      height: 100%;
-      background: var(--accent-cyan);
-      opacity: 0.6;
+    .metric-cell.alert-highlight {
+      border-color: var(--status-alarm);
+      background: rgba(127, 29, 29, 0.4);
     }
 
-    .kpi-card.alert-metric::before {
-      background: var(--accent-alert);
-      opacity: 1;
-    }
-
-    .kpi-head {
+    .metric-label-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      font-size: 10px;
+      color: var(--text-muted);
       margin-bottom: 2px;
     }
 
-    .kpi-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-    }
-
-    .kpi-setpoint {
-      font-size: 9px;
+    .metric-sp {
       font-family: var(--font-mono);
+      font-size: 9px;
       color: var(--text-dim);
     }
 
-    .kpi-val-row {
+    .metric-value-row {
       display: flex;
       align-items: baseline;
       gap: 4px;
-      margin: 2px 0;
     }
 
-    .kpi-val {
-      font-size: 17px;
-      font-weight: 700;
+    .metric-value {
       font-family: var(--font-mono);
-      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-primary);
       font-variant-numeric: tabular-nums;
     }
 
-    .kpi-unit {
-      font-size: 11px;
-      font-weight: 600;
+    .metric-unit {
       font-family: var(--font-mono);
-      color: var(--accent-cyan);
+      font-size: 11px;
+      color: var(--text-secondary);
     }
 
-    .kpi-bar-track {
+    /* Schlichter technischer Füllstandsbalken */
+    .bar-track {
       width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 2px;
+      height: 3px;
+      background: #1e293b;
+      border-radius: 1px;
       overflow: hidden;
       margin-top: 4px;
     }
 
-    .kpi-bar-fill {
+    .bar-indicator {
       height: 100%;
-      width: 50%;
-      background: var(--accent-cyan);
-      border-radius: 2px;
-      transition: width 0.4s ease, background 0.3s;
+      width: 60%;
+      background: #3b82f6;
+      transition: width 0.3s linear;
     }
 
-    /* Störungshinweis Banner (erscheint nur bei simulierter Störung) */
-    .alert-banner {
+    /* Störungs-Meldungszeile (Alarmtext nach SCADA-Muster) */
+    .alarm-box {
       display: none;
-      margin-top: 10px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.4);
+      margin-top: 8px;
+      padding: 6px 8px;
+      background: var(--status-alarm-bg);
+      border: 1px solid var(--status-alarm);
+      border-radius: 4px;
       font-size: 11px;
-      color: #fca5a5;
+      color: #fecaca;
     }
 
-    .alert-banner strong {
-      color: #fff;
-      display: block;
-      margin-bottom: 2px;
+    .alarm-code {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      color: #ffffff;
+      margin-right: 4px;
     }
 
-    /* Action Toolbar */
-    .action-toolbar {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
+    /* Steuerungs-Schaltflächen unten */
+    .hmi-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 8px;
     }
 
-    .btn-tool {
-      flex: 1;
-      padding: 8px 10px;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.06);
-      color: #fff;
+    .hmi-btn {
+      padding: 7px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--hmi-border-light);
+      background: var(--hmi-card-bg);
+      color: var(--text-primary);
       font-size: 11px;
       font-weight: 600;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: all 0.2s;
+      text-align: center;
     }
 
-    .btn-tool:active {
-      background: rgba(255, 255, 255, 0.18);
+    .hmi-btn:active {
+      background: #334155;
     }
 
-    .btn-alert-sim {
-      border-color: rgba(239, 68, 68, 0.5);
-      background: rgba(239, 68, 68, 0.12);
+    .hmi-btn-alarm {
+      border-color: #b91c1c;
       color: #fca5a5;
     }
-
-    .btn-alert-sim:active {
-      background: rgba(239, 68, 68, 0.3);
+    .hmi-btn-alarm:active {
+      background: var(--status-alarm-bg);
     }
 
-    /* Floating Info & Audio Toggle */
-    .floating-tools {
+    /* Fußzeile mit Diagnose-Tools */
+    .quick-diagnostics {
       position: fixed;
-      bottom: calc(var(--safe-bottom) + 8px);
-      right: 12px;
-      z-index: 25;
+      bottom: calc(var(--safe-bottom) + 4px);
+      right: 10px;
+      z-index: 20;
       display: flex;
       gap: 6px;
     }
 
-    .tool-chip {
-      padding: 6px 10px;
-      border-radius: 20px;
-      background: rgba(13, 20, 36, 0.85);
-      border: 1px solid rgba(45, 75, 120, 0.5);
-      font-size: 11px;
-      font-family: var(--font-mono);
+    .diag-pill {
+      background: rgba(28, 34, 48, 0.95);
+      border: 1px solid var(--hmi-border);
       color: var(--text-muted);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 10px;
       cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      backdrop-filter: blur(8px);
     }
 
-    .tool-chip:active {
-      border-color: var(--accent-cyan);
+    .diag-pill:active {
       color: #fff;
+      border-color: #64748b;
     }
 
-    /* Modal für OPC UA Node-Inspektor */
-    .opc-modal {
+    /* OPC UA Adressraum Modal */
+    .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      z-index: 30;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(10px);
+      z-index: 50;
+      background: rgba(0, 0, 0, 0.7);
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 16px;
     }
 
-    .opc-modal-box {
+    .modal-card {
       width: 100%;
-      max-width: 420px;
-      background: #0f172a;
-      border: 1px solid var(--panel-border-focus);
-      border-radius: 14px;
-      padding: 16px;
+      max-width: 440px;
+      background: var(--hmi-panel-bg);
+      border: 1px solid var(--hmi-border-light);
+      border-radius: 6px;
+      padding: 12px;
       font-family: var(--font-mono);
     }
 
-    .opc-modal-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--accent-cyan);
-      margin-bottom: 10px;
+    .modal-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
+      border-bottom: 1px solid var(--hmi-border);
+      padding-bottom: 6px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
     }
 
-    .opc-table {
+    .modal-table {
       width: 100%;
-      font-size: 10px;
       border-collapse: collapse;
+      font-size: 10px;
     }
 
-    .opc-table th, .opc-table td {
-      padding: 6px 8px;
+    .modal-table th, .modal-table td {
+      padding: 5px 6px;
       text-align: left;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid var(--hmi-border);
     }
 
-    .opc-table th {
-      color: var(--text-dim);
-    }
-
-    .opc-table td {
-      color: var(--text-main);
-    }
+    .modal-table th { color: var(--text-muted); }
   </style>
 </head>
 <body>
 
-  <!-- 3D A-Frame & AR.js Szene -->
+  <!-- ========================================================================
+       AR Szene: Sachlich-technische Marker-Darstellung
+       Keine rotierenden Hologramm-Ringe, sondern realistische Dosen-Geometrie
+       mit technischem Typenschild über dem Marker
+       ======================================================================== -->
   <a-scene
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true"
     embedded
     arjs="sourceType: webcam; facingMode: environment; sourceWidth: 1280; sourceHeight: 720; displayWidth: 1280; displayHeight: 720; debugUIEnabled: false;">
     
-    <!-- Marker Preset 'Hiro' -->
-    <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="6">
+    <!-- Marker 'Hiro' -->
+    <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="5">
       
-      <!-- 3D-Boden-Plattform (Holographic Industrial Floor Target) -->
-      <a-entity position="0 0.02 0" rotation="-90 0 0">
-        <!-- Äußerer Target-Ring -->
-        <a-ring
-          radius-inner="0.75"
-          radius-outer="0.82"
-          color="#00d2ff"
-          material="opacity: 0.6; transparent: true; side: double"
-          animation="property: rotation; to: 0 0 360; loop: true; dur: 12000; easing: linear">
-        </a-ring>
-        <!-- Innerer getakteter Puls-Ring -->
-        <a-ring
-          id="ar-pulse-ring"
-          radius-inner="0.60"
-          radius-outer="0.65"
-          color="#10b981"
-          material="opacity: 0.8; transparent: true; side: double"
-          animation="property: scale; from: 0.95 0.95 0.95; to: 1.15 1.15 1.15; dir: alternate; loop: true; dur: 1400; easing: easeInOutSine">
-        </a-ring>
-        <!-- 4-Punkt Kreuzmarkierung -->
-        <a-plane position="0 0 0.01" width="1.6" height="0.02" color="#00d2ff" material="opacity: 0.4; transparent: true"></a-plane>
-        <a-plane position="0 0 0.01" width="0.02" height="1.6" color="#00d2ff" material="opacity: 0.4; transparent: true"></a-plane>
+      <!-- Fester technischer Bodenrahmen um den Marker (Passmarke) -->
+      <a-entity position="0 0.01 0" rotation="-90 0 0">
+        <a-plane width="1.2" height="1.2" color="#1e293b" material="opacity: 0.35; transparent: true"></a-plane>
+        <!-- Eck-Positionsmarken -->
+        <a-plane position="-0.55 0 0.01" width="0.02" height="1.1" color="#94a3b8"></a-plane>
+        <a-plane position="0.55 0 0.01" width="0.02" height="1.1" color="#94a3b8"></a-plane>
+        <a-plane position="0 -0.55 0.01" width="1.1" height="0.02" color="#94a3b8"></a-plane>
+        <a-plane position="0 0.55 0.01" width="1.1" height="0.02" color="#94a3b8"></a-plane>
       </a-entity>
 
-      <!-- 3D BONBON-DOSE (Präzise industrielle Geometrie) -->
-      <a-entity id="ar-tin-assembly" position="0 0.35 0">
-        <!-- Dosen-Körper (Zylinder gebürstetes Metall) -->
+      <!-- Reales 3D-Prüfobjekt: Zylindrische Bonbon-Dose (Metalloberfläche) -->
+      <a-entity id="ar-tin" position="0 0.32 0">
+        <!-- Zylinder Dose -->
         <a-cylinder
-          id="ar-tin-body"
+          id="tin-cylinder"
           radius="0.42"
-          height="0.55"
-          color="#d4d4d8"
-          material="metalness: 0.85; roughness: 0.25; opacity: 0.92; transparent: true"
-          animation="property: rotation; to: 0 360 0; loop: true; dur: 9000; easing: linear">
+          height="0.60"
+          color="#94a3b8"
+          material="metalness: 0.8; roughness: 0.35">
         </a-cylinder>
 
-        <!-- Dosen-Deckel mit Bördelkante -->
+        <!-- Deckel mit Wulst -->
         <a-cylinder
-          id="ar-tin-lid"
-          position="0 0.28 0"
+          id="tin-lid"
+          position="0 0.305 0"
           radius="0.435"
-          height="0.04"
-          color="#e2e8f0"
-          material="metalness: 0.9; roughness: 0.2">
-        </a-cylinder>
-
-        <!-- Hologramm-Lichtkegel / Beacon über der Dose -->
-        <a-cylinder
-          id="ar-beacon"
-          position="0 0.45 0"
-          radius-top="0.6"
-          radius-bottom="0.42"
-          height="0.3"
-          color="#00d2ff"
-          material="opacity: 0.22; transparent: true; side: double; wireframe: true">
+          height="0.03"
+          color="#cbd5e1"
+          material="metalness: 0.85; roughness: 0.3">
         </a-cylinder>
       </a-entity>
 
-      <!-- 3D AR-HUD Text über dem Marker -->
-      <a-entity position="0 1.25 0" look-at="[camera]">
-        <a-plane width="1.6" height="0.35" color="#0a0f1d" material="opacity: 0.85; transparent: true" position="0 0 -0.01"></a-plane>
+      <!-- Funktionales 3D-Typenschild (Floating Station Tag) -->
+      <a-entity position="0 0.95 0" look-at="[camera]">
+        <!-- Hintergrund-Plakette -->
+        <a-plane width="1.5" height="0.32" color="#1c2230" material="opacity: 0.95; transparent: true" position="0 0 -0.01"></a-plane>
+        <!-- Textzeile Station -->
         <a-text
-          id="ar-3d-title"
-          value="STATION: MODUL 2"
+          id="ar-text-station"
+          value="STATION: MODUL 2 (BEFUELLUNG)"
           align="center"
-          position="0 0.07 0"
-          scale="0.8 0.8 0.8"
-          color="#00d2ff">
+          position="0 0.06 0"
+          scale="0.65 0.65 0.65"
+          color="#f8fafc">
         </a-text>
+        <!-- Textzeile Zustand -->
         <a-text
-          id="ar-3d-status"
-          value="STATUS: NORMAL [RUN]"
+          id="ar-text-status"
+          value="STATUS: AUTOMATIK [RUN]"
           align="center"
-          position="0 -0.07 0"
-          scale="0.6 0.6 0.6"
-          color="#10b981">
+          position="0 -0.06 0"
+          scale="0.55 0.55 0.55"
+          color="#86efac">
         </a-text>
       </a-entity>
 
@@ -703,557 +570,460 @@
     <a-entity camera></a-entity>
   </a-scene>
 
-  <!-- SMARTPHONE HUD LAYER -->
-  <div class="hud-layer">
+  <!-- ========================================================================
+       Mobiles HMI-Overlay
+       ======================================================================== -->
+  <div class="hmi-viewport">
     
-    <!-- OBERER BEREICH: Header & OT-Verbindung -->
-    <header class="top-bar interactive">
-      <div class="header-panel">
-        <div class="brand-section">
-          <div class="brand-badge">CPS-i40</div>
-          <div class="brand-titles">
-            <h1>Bonbon-Fertigung AR</h1>
-            <span id="header-clock">12:00:00 • LINIE 1</span>
-          </div>
+    <!-- OBERE LEISTE: System & Verbindung -->
+    <header class="hmi-header interactive">
+      <div class="header-top-row">
+        <div class="system-identity">
+          <span class="system-title">CPS-i40 Bonbon-Linie</span>
+          <span class="system-tag">HALLE 3B • CPR-01</span>
         </div>
-        <div class="system-status-pill" id="sys-status-pill">
-          <span class="status-dot" id="sys-status-dot"></span>
-          <span id="sys-status-text">OPC UA: ON</span>
+        <div class="plc-badge" id="plc-badge">
+          <span class="plc-led" id="plc-led"></span>
+          <span id="plc-status">S7-1500: RUN</span>
         </div>
       </div>
-
-      <div class="ot-status-bar">
-        <div class="ot-stat-item">GW: <strong>192.168.10.254</strong></div>
-        <div class="ot-stat-item">Latenz: <strong id="ot-ping">11ms</strong></div>
-        <div class="ot-stat-item">SPS: <strong id="ot-plc">S7-1500</strong></div>
+      <div class="system-meta-row">
+        <div class="meta-col">Gateway: <strong>192.168.10.254</strong></div>
+        <div class="meta-col">OPC UA: <strong id="meta-opc">VERBUNDEN</strong></div>
+        <div class="meta-col"><span id="meta-time">12:00:00</span></div>
       </div>
     </header>
 
-    <!-- MITTE: ZIELSUCHER (Wenn Marker nicht im Fokus ist) -->
-    <div class="scanner-reticle interactive" id="scanner-reticle">
-      <div class="reticle-box">
-        <div class="reticle-corner reticle-tl"></div>
-        <div class="reticle-corner reticle-tr"></div>
-        <div class="reticle-corner reticle-bl"></div>
-        <div class="reticle-corner reticle-br"></div>
-        <div class="reticle-crosshair"></div>
-        <div class="reticle-laser"></div>
+    <!-- ZIELSUCHER (Schlichte Eckenmarken, kein Laser) -->
+    <div class="marker-guide interactive" id="marker-guide">
+      <div class="guide-box">
+        <div class="guide-corner c-tl"></div>
+        <div class="guide-corner c-tr"></div>
+        <div class="guide-corner c-bl"></div>
+        <div class="guide-corner c-br"></div>
       </div>
-      <div class="reticle-caption">
-        <span>Kamera auf Hiro-Marker richten</span>
-      </div>
+      <div class="guide-text">Kamera auf Modul-Marker (Hiro) ausrichten</div>
     </div>
 
-    <!-- UNTEN: TELEMETRIE-DASHBOARD (Aktiv bei Marker-Erkennung) -->
-    <main class="dashboard-panel interactive" id="dashboard-panel">
+    <!-- HAUPT-DASHBOARD (Aktiv bei Marker-Erkennung) -->
+    <main class="station-panel interactive" id="station-panel">
       
-      <!-- Modul-Tabs -->
-      <nav class="module-tabs" id="module-tabs">
-        <button class="module-tab-btn" data-idx="0"><span class="tab-idx">M1</span> Zuführung</button>
-        <button class="module-tab-btn active" data-idx="1"><span class="tab-idx">M2</span> Befüllung</button>
-        <button class="module-tab-btn" data-idx="2"><span class="tab-idx">M3</span> Bördelung</button>
-        <button class="module-tab-btn" data-idx="3"><span class="tab-idx">M4</span> QS & Waage</button>
+      <!-- Modul-Auswahl (4 Stationen) -->
+      <nav class="station-tabs" id="station-tabs">
+        <button class="tab-item" data-idx="0">M1: Zuführung</button>
+        <button class="tab-item active" data-idx="1">M2: Befüllung</button>
+        <button class="tab-item" data-idx="2">M3: Verschluss</button>
+        <button class="tab-item" data-idx="3">M4: End-QS</button>
       </nav>
 
-      <!-- Stations-Kopfzeile -->
-      <div class="station-bar">
-        <div class="station-info">
-          <h2 id="st-name">Modul 2: Dosier- & Befüllstation</h2>
-          <p id="st-sub">NODE: ST-020 • ZYKLUS: 1.8s • BÖRDELUNG AKTIV</p>
+      <!-- Stations-Titel & Betriebszustand -->
+      <div class="station-header-bar">
+        <div>
+          <div class="st-title" id="st-title">Modul 2: Dosier- & Befüllstation</div>
+          <div class="st-code" id="st-code">NODE: ST-020 • IP: 192.168.10.12</div>
         </div>
-        <div class="station-mode-tag" id="st-badge">🟢 BETRIEB OK</div>
+        <div class="status-flag" id="st-status-flag">AUTOMATIK</div>
       </div>
 
-      <!-- 4 Sensor-KPIs -->
-      <div class="kpi-grid">
+      <!-- 4 Messwert-Zellen (Soll/Ist) -->
+      <div class="metrics-container">
         
-        <!-- KPI 1 -->
-        <div class="kpi-card" id="card-k1">
-          <div class="kpi-head">
-            <span class="kpi-label" id="k1-label">Füllgewicht Ist</span>
-            <span class="kpi-setpoint" id="k1-sp">Soll: 250.0g</span>
+        <!-- Messwert 1 -->
+        <div class="metric-cell" id="cell-m1">
+          <div class="metric-label-row">
+            <span id="m1-label">Füllgewicht Ist</span>
+            <span class="metric-sp" id="m1-sp">Soll: 250.0g</span>
           </div>
-          <div class="kpi-val-row">
-            <span class="kpi-val" id="k1-val">250.3</span>
-            <span class="kpi-unit" id="k1-unit">g</span>
+          <div class="metric-value-row">
+            <span class="metric-value" id="m1-val">250.3</span>
+            <span class="metric-unit" id="m1-unit">g</span>
           </div>
-          <div class="kpi-bar-track">
-            <div class="kpi-bar-fill" id="k1-bar" style="width: 85%;"></div>
-          </div>
-        </div>
-
-        <!-- KPI 2 -->
-        <div class="kpi-card" id="card-k2">
-          <div class="kpi-head">
-            <span class="kpi-label" id="k2-label">Durchsatz</span>
-            <span class="kpi-setpoint" id="k2-sp">Max: 35.0</span>
-          </div>
-          <div class="kpi-val-row">
-            <span class="kpi-val" id="k2-val">32.2</span>
-            <span class="kpi-unit" id="k2-unit">D/min</span>
-          </div>
-          <div class="kpi-bar-track">
-            <div class="kpi-bar-fill" id="k2-bar" style="width: 65%;"></div>
+          <div class="bar-track">
+            <div class="bar-indicator" id="m1-bar" style="width: 85%;"></div>
           </div>
         </div>
 
-        <!-- KPI 3 -->
-        <div class="kpi-card" id="card-k3">
-          <div class="kpi-head">
-            <span class="kpi-label" id="k3-label">Temperatur Masse</span>
-            <span class="kpi-setpoint" id="k3-sp">Opt: 22.0°C</span>
+        <!-- Messwert 2 -->
+        <div class="metric-cell" id="cell-m2">
+          <div class="metric-label-row">
+            <span id="m2-label">Durchsatz</span>
+            <span class="metric-sp" id="m2-sp">Nenn: 32 D/m</span>
           </div>
-          <div class="kpi-val-row">
-            <span class="kpi-val" id="k3-val">21.8</span>
-            <span class="kpi-unit" id="k3-unit">°C</span>
+          <div class="metric-value-row">
+            <span class="metric-value" id="m2-val">32.2</span>
+            <span class="metric-unit" id="m2-unit">D/min</span>
           </div>
-          <div class="kpi-bar-track">
-            <div class="kpi-bar-fill" id="k3-bar" style="width: 50%;"></div>
+          <div class="bar-track">
+            <div class="bar-indicator" id="m2-bar" style="width: 65%;"></div>
           </div>
         </div>
 
-        <!-- KPI 4 -->
-        <div class="kpi-card" id="card-k4">
-          <div class="kpi-head">
-            <span class="kpi-label" id="k4-label">Gesamt-OEE</span>
-            <span class="kpi-setpoint" id="k4-sp">Ziel: >90%</span>
+        <!-- Messwert 3 -->
+        <div class="metric-cell" id="cell-m3">
+          <div class="metric-label-row">
+            <span id="m3-label">Temperatur Masse</span>
+            <span class="metric-sp" id="m3-sp">Bereich: 18-24°C</span>
           </div>
-          <div class="kpi-val-row">
-            <span class="kpi-val" id="k4-val">93.4</span>
-            <span class="kpi-unit" id="k4-unit">%</span>
+          <div class="metric-value-row">
+            <span class="metric-value" id="m3-val">21.8</span>
+            <span class="metric-unit" id="m3-unit">°C</span>
           </div>
-          <div class="kpi-bar-track">
-            <div class="kpi-bar-fill" id="k4-bar" style="width: 93%;"></div>
+          <div class="bar-track">
+            <div class="bar-indicator" id="m3-bar" style="width: 50%;"></div>
+          </div>
+        </div>
+
+        <!-- Messwert 4 -->
+        <div class="metric-cell" id="cell-m4">
+          <div class="metric-label-row">
+            <span id="m4-label">Taktzeit</span>
+            <span class="metric-sp" id="m4-sp">Soll: 1.80s</span>
+          </div>
+          <div class="metric-value-row">
+            <span class="metric-value" id="m4-val">1.82</span>
+            <span class="metric-unit" id="m4-unit">s</span>
+          </div>
+          <div class="bar-track">
+            <div class="bar-indicator" id="m4-bar" style="width: 60%;"></div>
           </div>
         </div>
 
       </div>
 
-      <!-- Störungs-Handlungsanweisung (Nur aktiv bei Simulation) -->
-      <div class="alert-banner" id="alert-banner">
-        <strong>⚠️ STÖRUNGSMELDUNG (CODE E-304):</strong>
-        <span id="alert-text">Pneumatik-Druckabfall an Bördelwalze! Bitte Ventilinsel 3 und Drucksensor S3.2 prüfen.</span>
+      <!-- Alarmanzeige (nur aktiv bei simulierter Störung) -->
+      <div class="alarm-box" id="alarm-box">
+        <span class="alarm-code">[F-302]</span>
+        <span id="alarm-msg">Pneumatikdruck Bördelwalze < 4.5 bar (Ist: 2.8 bar). Ventilinsel 3 prüfen.</span>
       </div>
 
-      <!-- Action Toolbar für das Meeting -->
-      <div class="action-toolbar">
-        <button class="btn-tool" id="btn-next-mod">🔁 Nächstes Modul</button>
-        <button class="btn-tool btn-alert-sim" id="btn-sim-alert">⚡ Störung simulieren</button>
+      <!-- Funktionale Schaltflächen -->
+      <div class="hmi-actions">
+        <button class="hmi-btn" id="btn-cycle-mod">Station umschalten</button>
+        <button class="hmi-btn hmi-btn-alarm" id="btn-toggle-fault">Störung simulieren</button>
       </div>
 
     </main>
 
   </div>
 
-  <!-- FLOATING QUICK TOOLS -->
-  <div class="floating-tools interactive">
-    <button class="tool-chip" id="chip-audio" title="Ton umschalten">🔊 Sound</button>
-    <button class="tool-chip" id="chip-opc" title="OPC UA Nodes anzeigen">📋 Nodes</button>
-    <button class="tool-chip" id="chip-sim" title="Marker erzwingen (Desktop Test)">🛠️ Sim</button>
+  <!-- DIAGNOSE WERKZEUGE (Unten rechts) -->
+  <div class="quick-diagnostics interactive">
+    <button class="diag-pill" id="btn-open-opc">OPC UA Tags</button>
+    <button class="diag-pill" id="btn-force-marker">Sim: Kamera</button>
   </div>
 
-  <!-- OPC UA NODES INSPEKTOR MODAL -->
-  <div class="opc-modal interactive" id="opc-modal">
-    <div class="opc-modal-box">
-      <div class="opc-modal-title">
-        <span>OPC UA Adressraum (Read-Only)</span>
-        <button id="btn-close-modal" style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;">✕</button>
+  <!-- OPC UA INSPEKTOR MODAL -->
+  <div class="modal-overlay interactive" id="modal-opc">
+    <div class="modal-card">
+      <div class="modal-head">
+        <span>OPC UA Server (IEC 62541)</span>
+        <button id="btn-close-opc" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer;">✕</button>
       </div>
-      <table class="opc-table">
+      <table class="modal-table">
         <thead>
           <tr>
-            <th>NodeId (ns=2)</th>
+            <th>NodeId</th>
             <th>Typ</th>
-            <th>Aktueller Wert</th>
+            <th>Wert</th>
           </tr>
         </thead>
-        <tbody id="opc-tbody">
-          <!-- Dynamisch befüllt -->
+        <tbody id="modal-tbody">
+          <!-- Dynamisch -->
         </tbody>
       </table>
-      <div style="margin-top: 10px; font-size: 9px; color: var(--text-dim); text-align: center;">
-        Sicherheitsprofil: Basic256Sha256 • Zonentrennung: DMZ Gateway aktiv
+      <div style="margin-top: 8px; font-size: 9px; color: var(--text-dim);">
+        Protokoll: opc.tcp • Sicherheit: Read-Only (Unidirektional via DMZ)
       </div>
     </div>
   </div>
 
-  <!-- STEUERUNGSLOGIK & SIMULATION -->
+  <!-- ========================================================================
+       Javascript Steuerungslogik (Industrielle Demodaten)
+       ======================================================================== -->
   <script>
-    /* ====================================================================
-       1. CPS-i40 ANLAGENDATEN (Bonbon-Dosen Fertigung)
-       ==================================================================== */
-    const stations = [
+    // Definition der 4 CPS-Module
+    const plantModules = [
       {
         id: "ST-010",
         name: "Modul 1: Dosen-Zuführung",
-        sub: "SPS: S7-1500 (192.168.10.11) • VAKUUM-VEREINZELER",
-        k1: { label: "Magazin Füllstand", sp: "Soll: >20%", val: 84.0, unit: "%", bar: 84, min: 82, max: 86 },
-        k2: { label: "Vereinzeler-Takt", sp: "Soll: 1.8s", val: 1.78, unit: "s", bar: 65, min: 1.75, max: 1.82 },
-        k3: { label: "Vakuum Sauger", sp: "Soll: -0.8bar", val: -0.82, unit: "bar", bar: 82, min: -0.85, max: -0.80 },
-        k4: { label: "Dosenzähler", sp: "Schichtziel: 2500", val: 1684, unit: "Stk", bar: 67, isCounter: true },
-        nodes: [
-          { node: "ns=2;s=Modul1.MagazineLevel", type: "Float32", val: "84.0 %" },
-          { node: "ns=2;s=Modul1.CycleTime", type: "Float32", val: "1.78 s" },
-          { node: "ns=2;s=Modul1.VacuumPressure", type: "Float32", val: "-0.82 bar" },
-          { node: "ns=2;s=Modul1.PartsCount", type: "UInt32", val: "1684" }
+        code: "NODE: ST-010 • IP: 192.168.10.11",
+        status: "AUTOMATIK",
+        isAlarm: false,
+        m1: { label: "Magazin-Füllstand", sp: "Soll: >20%", val: 84.0, unit: "%", bar: 84, min: 82, max: 86 },
+        m2: { label: "Taktzeit Vereinzelung", sp: "Soll: 1.80s", val: 1.78, unit: "s", bar: 65, min: 1.76, max: 1.82 },
+        m3: { label: "Vakuum-Greifer", sp: "Soll: -0.80bar", val: -0.82, unit: "bar", bar: 82, min: -0.84, max: -0.80 },
+        m4: { label: "Zähler Schicht", sp: "Ziel: 2500", val: 1684, unit: "Stk", bar: 67, isFixed: true },
+        tags: [
+          { node: "ns=2;s=M1.MagazineLevel", type: "Float32", val: "84.0 %" },
+          { node: "ns=2;s=M1.CycleTime", type: "Float32", val: "1.78 s" },
+          { node: "ns=2;s=M1.VacuumPressure", type: "Float32", val: "-0.82 bar" },
+          { node: "ns=2;s=M1.PartCounter", type: "UInt32", val: "1684" }
         ]
       },
       {
         id: "ST-020",
         name: "Modul 2: Dosier- & Befüllstation",
-        sub: "SPS: S7-1500 (192.168.10.12) • MULTIKOPF-WAAGE",
-        k1: { label: "Füllgewicht Ist", sp: "Soll: 250.0g ±1.5", val: 250.3, unit: "g", bar: 85, min: 249.6, max: 250.8 },
-        k2: { label: "Durchsatz", sp: "Soll: 32 D/min", val: 32.2, unit: "D/min", bar: 64, min: 31.5, max: 33.0 },
-        k3: { label: "Temperatur Masse", sp: "Opt: 22.0°C", val: 21.8, unit: "°C", bar: 50, min: 21.4, max: 22.2 },
-        k4: { label: "Gesamt-OEE", sp: "Ziel: >90%", val: 93.4, unit: "%", bar: 93, min: 92.5, max: 94.0 },
-        nodes: [
-          { node: "ns=2;s=Modul2.FillWeight_Actual", type: "Float32", val: "250.3 g" },
-          { node: "ns=2;s=Modul2.Throughput", type: "Float32", val: "32.2 D/min" },
-          { node: "ns=2;s=Modul2.ProductTemp", type: "Float32", val: "21.8 °C" },
-          { node: "ns=2;s=Modul2.OverallOEE", type: "Float32", val: "93.4 %" }
+        code: "NODE: ST-020 • IP: 192.168.10.12",
+        status: "AUTOMATIK",
+        isAlarm: false,
+        m1: { label: "Füllgewicht Ist", sp: "Soll: 250.0g", val: 250.3, unit: "g", bar: 85, min: 249.7, max: 250.6 },
+        m2: { label: "Durchsatz", sp: "Nenn: 32 D/m", val: 32.2, unit: "D/min", bar: 64, min: 31.8, max: 32.6 },
+        m3: { label: "Temperatur Masse", sp: "Bereich: 18-24°C", val: 21.8, unit: "°C", bar: 50, min: 21.5, max: 22.1 },
+        m4: { label: "Taktzeit", sp: "Soll: 1.80s", val: 1.82, unit: "s", bar: 60, min: 1.79, max: 1.84 },
+        tags: [
+          { node: "ns=2;s=M2.FillWeight_Actual", type: "Float32", val: "250.3 g" },
+          { node: "ns=2;s=M2.Throughput", type: "Float32", val: "32.2 D/min" },
+          { node: "ns=2;s=M2.ProductTemp", type: "Float32", val: "21.8 °C" },
+          { node: "ns=2;s=M2.CycleTime", type: "Float32", val: "1.82 s" }
         ]
       },
       {
         id: "ST-030",
-        name: "Modul 3: Deckel- & Bördelstation",
-        sub: "SPS: S7-1500 (192.168.10.13) • SERVO-BÖRDELROLLE",
-        k1: { label: "Anpressdruck", sp: "Soll: 5.2bar ±0.3", val: 5.22, unit: "bar", bar: 70, min: 5.10, max: 5.35 },
-        k2: { label: "Drehmoment", sp: "Soll: 4.0Nm", val: 3.95, unit: "Nm", bar: 60, min: 3.85, max: 4.10 },
-        k3: { label: "Verschlussprüfung", sp: "Gutteile: 100%", val: 100.0, unit: "% Gut", bar: 100, min: 100, max: 100 },
-        k4: { label: "Werkzeugverschleiß", sp: "Grenze: <80%", val: 94.2, unit: "% OK", bar: 94, min: 94, max: 94.5 },
-        nodes: [
-          { node: "ns=2;s=Modul3.RollerPressure", type: "Float32", val: "5.22 bar" },
-          { node: "ns=2;s=Modul3.Torque_Actual", type: "Float32", val: "3.95 Nm" },
-          { node: "ns=2;s=Modul3.SealQuality", type: "Float32", val: "100.0 %" },
-          { node: "ns=2;s=Modul3.ToolWearLife", type: "Float32", val: "94.2 %" }
+        name: "Modul 3: Verschluss & Bördelung",
+        code: "NODE: ST-030 • IP: 192.168.10.13",
+        status: "AUTOMATIK",
+        isAlarm: false,
+        m1: { label: "Anpressdruck", sp: "Soll: 5.20bar", val: 5.22, unit: "bar", bar: 72, min: 5.12, max: 5.30 },
+        m2: { label: "Drehmoment", sp: "Soll: 4.0Nm", val: 3.95, unit: "Nm", bar: 65, min: 3.88, max: 4.05 },
+        m3: { label: "Verschlussprüfung", sp: "Grenze: 100%", val: 100.0, unit: "% OK", bar: 100, isFixed: true },
+        m4: { label: "Werkzeugstandzeit", sp: "Grenze: >80%", val: 94.2, unit: "%", bar: 94, isFixed: true },
+        tags: [
+          { node: "ns=2;s=M3.RollerPressure", type: "Float32", val: "5.22 bar" },
+          { node: "ns=2;s=M3.Torque_Actual", type: "Float32", val: "3.95 Nm" },
+          { node: "ns=2;s=M3.SealQuality", type: "Float32", val: "100.0 %" },
+          { node: "ns=2;s=M3.ToolLife", type: "Float32", val: "94.2 %" }
         ]
       },
       {
         id: "ST-040",
         name: "Modul 4: Qualitätskontrolle & Waage",
-        sub: "SPS: S7-1500 (192.168.10.14) • DYNAMISCHE CHECKWAAGE",
-        k1: { label: "Kontrollgewicht", sp: "Toleranz: ±1.5g", val: 250.1, unit: "g", bar: 80, min: 249.7, max: 250.5 },
-        k2: { label: "Ausschussquote", sp: "Ziel: <0.5%", val: 0.38, unit: "%", bar: 18, min: 0.35, max: 0.42 },
-        k3: { label: "Optische Prüfung", sp: "Kamera-Inspektion", val: 100.0, unit: "% PASS", bar: 100, min: 100, max: 100 },
-        k4: { label: "Weichenstatus", sp: "Gutteil-Ausschleusung", val: 1, unit: "AKTIV", bar: 100, isDiscrete: true },
-        nodes: [
-          { node: "ns=2;s=Modul4.FinalCheckWeight", type: "Float32", val: "250.1 g" },
-          { node: "ns=2;s=Modul4.RejectRate", type: "Float32", val: "0.38 %" },
-          { node: "ns=2;s=Modul4.OpticalCheckPassed", type: "Boolean", val: "TRUE" },
-          { node: "ns=2;s=Modul4.DiverterGateState", type: "UInt16", val: "1 (OK)" }
+        code: "NODE: ST-040 • IP: 192.168.10.14",
+        status: "AUTOMATIK",
+        isAlarm: false,
+        m1: { label: "Kontrollgewicht", sp: "Tol: ±1.5g", val: 250.1, unit: "g", bar: 80, min: 249.8, max: 250.4 },
+        m2: { label: "Ausschussquote", sp: "Ziel: <0.5%", val: 0.38, unit: "%", bar: 18, min: 0.36, max: 0.40 },
+        m3: { label: "Höhentoleranz", sp: "Max: 0.25mm", val: 0.12, unit: "mm", bar: 30, min: 0.10, max: 0.15 },
+        m4: { label: "Weichenstatus", sp: "Ausschleusung", val: 1, unit: "GUTTEIL", bar: 100, isFixed: true },
+        tags: [
+          { node: "ns=2;s=M4.CheckWeight_Actual", type: "Float32", val: "250.1 g" },
+          { node: "ns=2;s=M4.RejectRate", type: "Float32", val: "0.38 %" },
+          { node: "ns=2;s=M4.HeightTolerance", type: "Float32", val: "0.12 mm" },
+          { node: "ns=2;s=M4.GateState", type: "UInt16", val: "1 (OK)" }
         ]
       }
     ];
 
-    let currentIdx = 1; // Standard: Modul 2 Befüllung
-    let isMarkerDetected = false;
-    let isSimulationForced = false;
-    let isFaultActive = false;
-    let isAudioEnabled = true;
+    let currentModuleIndex = 1; // Standard: Modul 2
+    let isMarkerVisible = false;
+    let isForcedMode = false;
+    let isFaultSimulated = false;
 
-    /* ====================================================================
-       2. WEB AUDIO API SYNTHESIZER (Für professionelles HMI-Feedback)
-       ==================================================================== */
-    let audioCtx = null;
-    function playSound(type) {
-      if (!isAudioEnabled) return;
-      try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        const now = audioCtx.currentTime;
-        if (type === 'lock') {
-          // Zweiklang Beep bei Marker-Erkennung
-          osc.type = 'sine';
-          osc.frequency.setValueAtTime(880, now);
-          osc.frequency.exponentialRampToValueAtTime(1320, now + 0.12);
-          gain.gain.setValueAtTime(0.08, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-          osc.start(now);
-          osc.stop(now + 0.15);
-        } else if (type === 'click') {
-          // Sanfter Klick
-          osc.type = 'triangle';
-          osc.frequency.setValueAtTime(440, now);
-          gain.gain.setValueAtTime(0.05, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-          osc.start(now);
-          osc.stop(now + 0.05);
-        } else if (type === 'alert') {
-          // Industrieller Alarmton
-          osc.type = 'sawtooth';
-          osc.frequency.setValueAtTime(750, now);
-          osc.frequency.setValueAtTime(500, now + 0.15);
-          gain.gain.setValueAtTime(0.12, now);
-          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-          osc.start(now);
-          osc.stop(now + 0.35);
-        }
-      } catch (e) {
-        console.debug('Audio error:', e);
-      }
-    }
-
-    /* ====================================================================
-       3. DOM-ELEMENTE
-       ==================================================================== */
+    // DOM Verknüpfungen
     const hiroMarker = document.getElementById('hiro-marker');
-    const scannerReticle = document.getElementById('scanner-reticle');
-    const dashboardPanel = document.getElementById('dashboard-panel');
-    const headerClock = document.getElementById('header-clock');
-    const otPing = document.getElementById('ot-ping');
+    const markerGuide = document.getElementById('marker-guide');
+    const stationPanel = document.getElementById('station-panel');
+    const metaTime = document.getElementById('meta-time');
 
-    // 3D Entities
-    const arTinBody = document.getElementById('ar-tin-body');
-    const arPulseRing = document.getElementById('ar-pulse-ring');
-    const arBeacon = document.getElementById('ar-beacon');
-    const ar3dTitle = document.getElementById('ar-3d-title');
-    const ar3dStatus = document.getElementById('ar-3d-status');
+    // 3D Entitäten
+    const tinCylinder = document.getElementById('tin-cylinder');
+    const arTextStation = document.getElementById('ar-text-station');
+    const arTextStatus = document.getElementById('ar-text-status');
 
-    // Station UI
-    const stName = document.getElementById('st-name');
-    const stSub = document.getElementById('st-sub');
-    const stBadge = document.getElementById('st-badge');
-    const alertBanner = document.getElementById('alert-banner');
-    const moduleTabBtns = document.querySelectorAll('.module-tab-btn');
+    // UI Komponenten
+    const stTitle = document.getElementById('st-title');
+    const stCode = document.getElementById('st-code');
+    const stStatusFlag = document.getElementById('st-status-flag');
+    const alarmBox = document.getElementById('alarm-box');
+    const tabButtons = document.querySelectorAll('.tab-item');
+    const btnCycleMod = document.getElementById('btn-cycle-mod');
+    const btnToggleFault = document.getElementById('btn-toggle-fault');
+    const btnForceMarker = document.getElementById('btn-force-marker');
+    const btnOpenOpc = document.getElementById('btn-open-opc');
+    const modalOpc = document.getElementById('modal-opc');
+    const btnCloseOpc = document.getElementById('btn-close-opc');
+    const modalTbody = document.getElementById('modal-tbody');
 
-    // Buttons & Tools
-    const btnNextMod = document.getElementById('btn-next-mod');
-    const btnSimAlert = document.getElementById('btn-sim-alert');
-    const chipAudio = document.getElementById('chip-audio');
-    const chipOpc = document.getElementById('chip-opc');
-    const chipSim = document.getElementById('chip-sim');
-    const opcModal = document.getElementById('opc-modal');
-    const btnCloseModal = document.getElementById('btn-close-modal');
-    const opcTbody = document.getElementById('opc-tbody');
+    // Rendern der Station
+    function updateHmiView(idx) {
+      const mod = plantModules[idx];
+      stTitle.textContent = mod.name;
+      stCode.textContent = mod.code;
 
-    /* ====================================================================
-       4. UI RENDERING & AKTUALISIERUNG
-       ==================================================================== */
-    function renderStation(idx) {
-      const st = stations[idx];
-      stName.textContent = st.name;
-      stSub.textContent = `${st.sub} • ID: ${st.id}`;
+      // Tabs aktualisieren
+      tabButtons.forEach((btn, i) => btn.classList.toggle('active', i === idx));
 
-      // Tab Buttons Status
-      moduleTabBtns.forEach((btn, i) => {
-        btn.classList.toggle('active', i === idx);
-      });
+      // Alarm / Normal Zustand
+      if (isFaultSimulated) {
+        stStatusFlag.textContent = "STÖRUNG";
+        stStatusFlag.className = "status-flag alert";
+        alarmBox.style.display = 'block';
 
-      if (isFaultActive) {
-        // Alarmanzeige
-        stBadge.textContent = "🔴 STÖRUNG (E-304)";
-        stBadge.className = "station-mode-tag alert-state";
-        alertBanner.style.display = 'block';
-
-        // 3D-AR Anpassung
-        if (arTinBody) arTinBody.setAttribute('color', '#ef4444');
-        if (arPulseRing) arPulseRing.setAttribute('color', '#ef4444');
-        if (arBeacon) arBeacon.setAttribute('color', '#ef4444');
-        if (ar3dTitle) ar3dTitle.setAttribute('value', `ALARM: ${st.id}`);
-        if (ar3dStatus) {
-          ar3dStatus.setAttribute('value', 'FEHLER: PNEUMATIK DRUCKABFALL');
-          ar3dStatus.setAttribute('color', '#ef4444');
+        if (tinCylinder) tinCylinder.setAttribute('color', '#ef4444');
+        if (arTextStation) arTextStation.setAttribute('value', `ALARM: ${mod.id}`);
+        if (arTextStatus) {
+          arTextStatus.setAttribute('value', 'PNEUMATIK FEHLER [HALT]');
+          arTextStatus.setAttribute('color', '#fca5a5');
         }
       } else {
-        // Normalbetrieb
-        stBadge.textContent = "🟢 BETRIEB OK";
-        stBadge.className = "station-mode-tag";
-        alertBanner.style.display = 'none';
+        stStatusFlag.textContent = mod.status;
+        stStatusFlag.className = "status-flag";
+        alarmBox.style.display = 'none';
 
-        // 3D-AR Normal
-        if (arTinBody) arTinBody.setAttribute('color', '#d4d4d8');
-        if (arPulseRing) arPulseRing.setAttribute('color', '#10b981');
-        if (arBeacon) arBeacon.setAttribute('color', '#00d2ff');
-        if (ar3dTitle) ar3dTitle.setAttribute('value', `STATION: ${st.name.split(':')[0]}`);
-        if (ar3dStatus) {
-          ar3dStatus.setAttribute('value', 'STATUS: NORMAL [RUN]');
-          ar3dStatus.setAttribute('color', '#10b981');
+        if (tinCylinder) tinCylinder.setAttribute('color', '#94a3b8');
+        if (arTextStation) arTextStation.setAttribute('value', `STATION: ${mod.id} (${mod.name.split(':')[1].trim()})`);
+        if (arTextStatus) {
+          arTextStatus.setAttribute('value', 'STATUS: AUTOMATIK [RUN]');
+          arTextStatus.setAttribute('color', '#86efac');
         }
       }
 
       // KPIs rendern
-      renderKpi('k1', st.k1);
-      renderKpi('k2', st.k2);
-      renderKpi('k3', st.k3);
-      renderKpi('k4', st.k4);
+      renderMetricBlock('m1', mod.m1);
+      renderMetricBlock('m2', mod.m2);
+      renderMetricBlock('m3', mod.m3);
+      renderMetricBlock('m4', mod.m4);
 
-      // OPC UA Table aktualisieren
-      renderOpcTable(st);
+      // OPC UA Modal aktualisieren
+      renderOpcTags(mod);
     }
 
-    function renderKpi(id, data) {
+    function renderMetricBlock(id, data) {
       document.getElementById(`${id}-label`).textContent = data.label;
       document.getElementById(`${id}-sp`).textContent = data.sp;
       document.getElementById(`${id}-val`).textContent = data.val;
       document.getElementById(`${id}-unit`).textContent = data.unit;
 
       const bar = document.getElementById(`${id}-bar`);
-      const card = document.getElementById(`card-${id}`);
-
+      const cell = document.getElementById(`cell-${id}`);
       bar.style.width = `${Math.min(100, Math.max(5, data.bar))}%`;
 
-      if (isFaultActive && id === 'k1') {
-        card.classList.add('alert-metric');
+      if (isFaultSimulated && id === 'm1') {
+        cell.classList.add('alert-highlight');
         document.getElementById(`${id}-val`).style.color = '#f87171';
-        bar.style.background = '#ef4444';
+        bar.style.background = '#dc2626';
       } else {
-        card.classList.remove('alert-metric');
-        document.getElementById(`${id}-val`).style.color = '#ffffff';
-        bar.style.background = '#00d2ff';
+        cell.classList.remove('alert-highlight');
+        document.getElementById(`${id}-val`).style.color = 'var(--text-primary)';
+        bar.style.background = '#3b82f6';
       }
     }
 
-    function renderOpcTable(st) {
-      opcTbody.innerHTML = st.nodes.map(n => `
+    function renderOpcTags(mod) {
+      modalTbody.innerHTML = mod.tags.map(t => `
         <tr>
-          <td style="color:var(--accent-cyan);">${n.node}</td>
-          <td style="color:var(--text-dim);">${n.type}</td>
-          <td style="font-weight:700;">${n.val}</td>
+          <td style="color:#93c5fd;">${t.node}</td>
+          <td style="color:var(--text-muted);">${t.type}</td>
+          <td style="font-weight:700;">${t.val}</td>
         </tr>
       `).join('');
     }
 
-    /* ====================================================================
-       5. ECHTZEIT-SIMULATION (LEICHTE FLUKTUATION DER SENSORWERTE)
-       ==================================================================== */
+    // Uhrzeit & Dezentrale Sensor-Fluktuation (Echtzeit-Verhalten)
     setInterval(() => {
-      // Uhrzeit
-      const now = new Date();
-      headerClock.textContent = `${now.toTimeString().split(' ')[0]} • LINIE 1`;
+      const d = new Date();
+      metaTime.textContent = d.toTimeString().split(' ')[0];
 
-      // Simuliertes Ping-Jitter (8ms - 14ms)
-      otPing.textContent = `${Math.floor(8 + Math.random() * 6)}ms`;
-
-      // Messwertschwankung (nur wenn aktiv im Blickfeld und keine Störung)
-      if ((isMarkerDetected || isSimulationForced) && !isFaultActive) {
-        const st = stations[currentIdx];
-        ['k1', 'k2', 'k3'].forEach(k => {
-          const item = st[k];
-          if (!item.isDiscrete && !item.isCounter) {
-            const delta = (Math.random() - 0.5) * 0.15;
-            let val = +(item.val + delta).toFixed(2);
-            if (val >= item.min && val <= item.max) {
-              item.val = val;
-            }
+      if ((isMarkerVisible || isForcedMode) && !isFaultSimulated) {
+        const mod = plantModules[currentModuleIndex];
+        ['m1', 'm2', 'm3', 'm4'].forEach(k => {
+          const item = mod[k];
+          if (!item.isFixed) {
+            const diff = (Math.random() - 0.5) * 0.12;
+            let n = +(item.val + diff).toFixed(2);
+            if (n >= item.min && n <= item.max) item.val = n;
           }
         });
-        renderStation(currentIdx);
+        updateHmiView(currentModuleIndex);
       }
-    }, 1200);
+    }, 1400);
 
-    /* ====================================================================
-       6. INTERAKTIONEN & EVENT-LISTENER
-       ==================================================================== */
-    // Tab Umschaltung
-    moduleTabBtns.forEach(btn => {
+    // Tab-Interaktion
+    tabButtons.forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        playSound('click');
-        currentIdx = parseInt(btn.getAttribute('data-idx'), 10);
-        renderStation(currentIdx);
+        currentModuleIndex = parseInt(btn.getAttribute('data-idx'), 10);
+        updateHmiView(currentModuleIndex);
       });
     });
 
-    // Nächstes Modul Button
-    btnNextMod.addEventListener('click', () => {
-      playSound('click');
-      currentIdx = (currentIdx + 1) % stations.length;
-      renderStation(currentIdx);
+    // Station umschalten
+    btnCycleMod.addEventListener('click', () => {
+      currentModuleIndex = (currentModuleIndex + 1) % plantModules.length;
+      updateHmiView(currentModuleIndex);
     });
 
-    // Störung simulieren Button
-    btnSimAlert.addEventListener('click', () => {
-      isFaultActive = !isFaultActive;
-      if (isFaultActive) {
-        playSound('alert');
-        btnSimAlert.textContent = "🔄 Störung beheben";
-        btnSimAlert.style.background = "rgba(239, 68, 68, 0.4)";
-        // Modul 3 auswählen (Druckabfall-Demo)
-        currentIdx = 2;
-        stations[2].k1.val = 2.85; // Kritischer Druck
-        stations[2].k1.bar = 22;
-        stations[2].nodes[0].val = "2.85 bar (CRITICAL)";
+    // Störung simulieren / beheben
+    btnToggleFault.addEventListener('click', () => {
+      isFaultSimulated = !isFaultSimulated;
+      if (isFaultSimulated) {
+        btnToggleFault.textContent = "Störung quittieren";
+        btnToggleFault.style.background = "#7f1d1d";
+        btnToggleFault.style.color = "#fecaca";
+        currentModuleIndex = 2; // Verschlussstation
+        plantModules[2].m1.val = 2.80; // Druck fällt ab
+        plantModules[2].m1.bar = 20;
+        plantModules[2].tags[0].val = "2.80 bar (FAULT)";
       } else {
-        playSound('click');
-        btnSimAlert.textContent = "⚡ Störung simulieren";
-        btnSimAlert.style.background = "rgba(239, 68, 68, 0.12)";
-        stations[2].k1.val = 5.22;
-        stations[2].k1.bar = 70;
-        stations[2].nodes[0].val = "5.22 bar";
+        btnToggleFault.textContent = "Störung simulieren";
+        btnToggleFault.style.background = "var(--hmi-card-bg)";
+        btnToggleFault.style.color = "#fca5a5";
+        plantModules[2].m1.val = 5.22;
+        plantModules[2].m1.bar = 72;
+        plantModules[2].tags[0].val = "5.22 bar";
       }
-      renderStation(currentIdx);
+      updateHmiView(currentModuleIndex);
     });
 
-    // Audio Mute Umschalter
-    chipAudio.addEventListener('click', () => {
-      isAudioEnabled = !isAudioEnabled;
-      chipAudio.textContent = isAudioEnabled ? "🔊 Sound" : "🔇 Stumm";
-      if (isAudioEnabled) playSound('click');
-    });
-
-    // OPC UA Nodes Modal
-    chipOpc.addEventListener('click', () => {
-      playSound('click');
-      opcModal.style.display = 'flex';
-    });
-    btnCloseModal.addEventListener('click', () => {
-      opcModal.style.display = 'none';
-    });
-    opcModal.addEventListener('click', (e) => {
-      if (e.target === opcModal) opcModal.style.display = 'none';
-    });
-
-    // Desktop Testmodus (Simuliert Marker-Erkennung)
-    chipSim.addEventListener('click', () => {
-      playSound('click');
-      isSimulationForced = !isSimulationForced;
-      if (isSimulationForced) {
-        chipSim.style.borderColor = "var(--accent-cyan)";
-        chipSim.style.color = "#fff";
-        scannerReticle.style.opacity = '0';
-        dashboardPanel.style.display = 'block';
-        renderStation(currentIdx);
+    // Desktop Testmodus Umschalter
+    btnForceMarker.addEventListener('click', () => {
+      isForcedMode = !isForcedMode;
+      if (isForcedMode) {
+        btnForceMarker.textContent = "Sim: AN";
+        btnForceMarker.style.borderColor = "#3b82f6";
+        btnForceMarker.style.color = "#fff";
+        markerGuide.style.opacity = '0';
+        stationPanel.style.display = 'block';
+        updateHmiView(currentModuleIndex);
       } else {
-        chipSim.style.borderColor = "rgba(45, 75, 120, 0.5)";
-        chipSim.style.color = "var(--text-muted)";
-        if (!isMarkerDetected) {
-          scannerReticle.style.opacity = '1';
-          dashboardPanel.style.display = 'none';
+        btnForceMarker.textContent = "Sim: Kamera";
+        btnForceMarker.style.borderColor = "var(--hmi-border)";
+        btnForceMarker.style.color = "var(--text-muted)";
+        if (!isMarkerVisible) {
+          markerGuide.style.opacity = '1';
+          stationPanel.style.display = 'none';
         }
       }
     });
 
-    /* ====================================================================
-       7. AR.JS MARKER TRACKING EVENTS
-       ==================================================================== */
+    // OPC UA Modal
+    btnOpenOpc.addEventListener('click', () => modalOpc.style.display = 'flex');
+    btnCloseOpc.addEventListener('click', () => modalOpc.style.display = 'none');
+    modalOpc.addEventListener('click', (e) => {
+      if (e.target === modalOpc) modalOpc.style.display = 'none';
+    });
+
+    // AR.js Marker Ereignisse
     hiroMarker.addEventListener('markerFound', () => {
-      console.debug('[AR] Hiro-Marker erkannt');
-      isMarkerDetected = true;
-      playSound('lock');
-      scannerReticle.style.opacity = '0';
-      dashboardPanel.style.display = 'block';
-      renderStation(currentIdx);
+      console.debug('[AR] Marker erkannt');
+      isMarkerVisible = true;
+      markerGuide.style.opacity = '0';
+      stationPanel.style.display = 'block';
+      updateHmiView(currentModuleIndex);
     });
 
     hiroMarker.addEventListener('markerLost', () => {
-      console.debug('[AR] Hiro-Marker verloren');
-      isMarkerDetected = false;
-      if (!isSimulationForced) {
-        scannerReticle.style.opacity = '1';
-        dashboardPanel.style.display = 'none';
+      console.debug('[AR] Marker verloren');
+      isMarkerVisible = false;
+      if (!isForcedMode) {
+        markerGuide.style.opacity = '1';
+        stationPanel.style.display = 'none';
       }
     });
 
-    // Init
-    renderStation(currentIdx);
+    // Initialisierung
+    updateHmiView(currentModuleIndex);
 
-    /* Globale Debugger-Funktionen */
+    /* Globale Debug-Funktionen */
     window.fireEventMarkerFound = () => hiroMarker.dispatchEvent(new CustomEvent('markerFound'));
     window.fireEventMarkerLost = () => hiroMarker.dispatchEvent(new CustomEvent('markerLost'));
   </script>
