@@ -6,6 +6,7 @@
    ========================================================================== */
 
 :root {
+  --camera-zoom: 1;
   --bg-dark: #12141a;
   --panel-bg: rgba(22, 25, 32, 0.94);
   --card-bg: rgba(30, 34, 44, 0.85);
@@ -52,15 +53,15 @@ html, body {
 }
 
 /* ==========================================================================
-   TRUE FULLSCREEN KAMERA-STREAM (Neutralisiert AR.js 4:3 Letterboxing)
+   TRUE FULLSCREEN KAMERA-STREAM (Inkl. Hardware & CSS-Zoom Skalierung)
    ========================================================================== */
 #arjs-video, 
 video {
   position: fixed !important;
   top: 50% !important;
   left: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  -webkit-transform: translate(-50%, -50%) !important;
+  transform: translate(-50%, -50%) scale(var(--camera-zoom, 1)) !important;
+  -webkit-transform: translate(-50%, -50%) scale(var(--camera-zoom, 1)) !important;
   min-width: 100vw !important;
   min-height: 100vh !important;
   min-height: 100dvh !important;
@@ -253,6 +254,42 @@ a-scene canvas {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.station-sub {
+  font-size: 10px;
+  font-family: ui-monospace, "SF Mono", monospace;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-close-card {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.btn-close-card:active {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: var(--border-focus);
+  color: #fff;
 }
 
 .station-status-tag {

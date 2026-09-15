@@ -4,12 +4,13 @@
  */
 
 export class UIController {
-  constructor({ onNextStation, onToggleFault, onToggleSim, onZoomCycle }) {
+  constructor({ onNextStation, onToggleFault, onToggleSim, onZoomCycle, onCloseCard }) {
     // Callbacks
     this.onNextStation = onNextStation;
     this.onToggleFault = onToggleFault;
     this.onToggleSim = onToggleSim;
     this.onZoomCycle = onZoomCycle;
+    this.onCloseCard = onCloseCard;
 
     // DOM-Elemente
     this.viewfinder = document.getElementById("viewfinder");
@@ -17,7 +18,9 @@ export class UIController {
     this.statusDot = document.getElementById("status-dot");
     this.stName = document.getElementById("st-name");
     this.stTag = document.getElementById("st-tag");
+    this.stSub = document.getElementById("st-sub");
     this.alertStrip = document.getElementById("alert-strip");
+    this.btnCloseCard = document.getElementById("btn-close-card");
 
     // Werte-Spalten
     this.v1Lbl = document.getElementById("v1-lbl");
@@ -43,6 +46,12 @@ export class UIController {
   }
 
   bindEvents() {
+    if (this.btnCloseCard) {
+      this.btnCloseCard.addEventListener("click", () => {
+        if (this.onCloseCard) this.onCloseCard();
+      });
+    }
+
     if (this.btnNext) {
       this.btnNext.addEventListener("click", () => {
         if (this.onNextStation) this.onNextStation();

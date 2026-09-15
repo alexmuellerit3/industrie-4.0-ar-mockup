@@ -66,6 +66,19 @@ class TestARSceneConfiguration(unittest.TestCase):
             ar_content = f.read()
         self.assertIn("cycleZoom(", ar_content, "cycleZoom-Methode fehlt in ARController")
         self.assertIn("detectZoomCapabilities(", ar_content, "detectZoomCapabilities fehlt in ARController")
+        self.assertIn("--camera-zoom", ar_content, "--camera-zoom fehlt in ARController")
+
+    def test_close_card_and_persistence(self):
+        """Prüft, dass der Schließen-Button existiert und das Popup persistent bleibt."""
+        self.assertIn('id="btn-close-card"', self.html, "Schließen-Button #btn-close-card fehlt in index.html")
+        with open(os.path.join(BASE_DIR, "js", "app.js"), "r") as f:
+            app_content = f.read()
+        self.assertIn("handleCloseCard", app_content, "handleCloseCard fehlt in app.js")
+        self.assertNotIn("this.ui.hideStationCard()", app_content.split("handleMarkerLost()")[1].split("handleCloseCard()")[0],
+                         "handleMarkerLost darf die Karte nicht mehr automatisch schließen!")
+        with open(os.path.join(BASE_DIR, "js", "ui-controller.js"), "r") as f:
+            ui_content = f.read()
+        self.assertIn("onCloseCard", ui_content, "onCloseCard Callback fehlt in ui-controller.js")
 
 
 class TestConfigAndTelemetryService(unittest.TestCase):
@@ -91,3 +104,4 @@ class TestConfigAndTelemetryService(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

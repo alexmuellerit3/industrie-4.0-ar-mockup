@@ -116,23 +116,26 @@ export class ARController {
     const clamped = Math.max(this.minZoom, Math.min(this.maxZoom, +targetLevel.toFixed(1)));
     this.currentZoom = clamped;
 
-    // 1. Nativer WebRTC Hardware-Zoom
-    if (this.hasNativeZoom && this.activeVideoTrack) {
+    // 1. CSS Custom Property global setzen
+    document.documentElement.style.setProperty("--camera-zoom", this.currentZoom);
+
+    // 2. Direktes Transform-Fallback auf allen Video-Elementen
+    const videos = document.querySelectorAll("video");
+    videos.forEach((video) => {
+      video.style.setProperty("--camera-zoom", this.currentZoom);
+      video.style.setProperty("transform", `translate(-50%, -50%) scale(${this.currentZoom})`, "important");
+      video.style.setProperty("-webkit-transform", `translate(-50%, -50%) scale(${this.currentZoom})`, "important");
+    });
+
+    // 3. Nativer WebRTC Hardware-Zoom (falls vom Gerät & Browser unterstützt)
+    if (this.activeVideoTrack) {
       try {
         await this.activeVideoTrack.applyConstraints({
           advanced: [{ zoom: this.currentZoom }]
         });
       } catch (err) {
-        console.debug("[ARController] Hardware-Zoom applyConstraints fehlgeschlagen:", err);
+        // Fallback greift transparent über die CSS-Skalierung
       }
-    }
-
-    // 2. Optischer Viewport-Fallback (skaliert zusätzlich das Video-Element geschmeidig)
-    const video = document.querySelector("video") || document.getElementById("arjs-video");
-    if (video && (!this.hasNativeZoom || this.currentZoom > 1.0)) {
-      const scaleVal = this.hasNativeZoom ? 1 : this.currentZoom;
-      video.style.transform = `translate(-50%, -50%) scale(${scaleVal})`;
-      video.style.webkitTransform = `translate(-50%, -50%) scale(${scaleVal})`;
     }
 
     if (this.onZoomChange) {
@@ -184,6 +187,7 @@ export class ARController {
 
     document.addEventListener("touchstart", (e) => {
       if (e.touches.length === 2) {
+        e.preventDefault();
         isPinching = true;
         this.initialPinchDistance = getTouchDist(e);
         this.initialPinchZoom = this.currentZoom;

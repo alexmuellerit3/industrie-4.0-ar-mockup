@@ -24,7 +24,8 @@ class CandyArApp {
       onNextStation: () => this.telemetryService.nextStation(),
       onToggleFault: () => this.telemetryService.toggleFaultSimulation(),
       onToggleSim: () => this.toggleDesktopSimulation(),
-      onZoomCycle: () => this.ar.cycleZoom()
+      onZoomCycle: () => this.ar.cycleZoom(),
+      onCloseCard: () => this.handleCloseCard()
     });
 
     // 3. AR-Controller initialisieren (inkl. Kamera-Zoom)
@@ -50,9 +51,11 @@ class CandyArApp {
   }
 
   handleMarkerLost() {
-    if (!this.isDesktopSimActive) {
-      this.ui.hideStationCard();
-    }
+    // Popup bleibt persistent geöffnet: Schließt erst auf Nutzeraktion (✕) oder Scan eines neuen Markers
+  }
+
+  handleCloseCard() {
+    this.ui.hideStationCard();
   }
 
   toggleDesktopSimulation() {
@@ -62,8 +65,6 @@ class CandyArApp {
 
     if (this.isDesktopSimActive) {
       this.ui.showStationCard();
-    } else if (!this.ar.isMarkerVisible) {
-      this.ui.hideStationCard();
     }
   }
 }
