@@ -5,31 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0a0e17">
-  <title>CPS-i40 AR Sensor Mockup | Bonbon-Fertigung</title>
-
-  <!-- A-Frame & AR.js -->
+  <title>Industrie 4.0 AR Mockup - Testpage</title>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.min.js"></script>
-
   <style>
-    :root {
-      --bg-glass: rgba(10, 16, 26, 0.88);
-      --border-glass: rgba(0, 229, 255, 0.3);
-      --accent-cyan: #00e5ff;
-      --accent-green: #00e676;
-      --accent-warn: #ffd600;
-      --accent-alert: #ff1744;
-      --text-main: #ffffff;
-      --text-muted: #8fa3bf;
-      --safe-top: env(safe-area-inset-top, 16px);
-      --safe-bottom: env(safe-area-inset-bottom, 16px);
-    }
-
+    :root { color-scheme: dark; }
+    
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
-      user-select: none;
     }
 
     html, body {
@@ -40,11 +24,32 @@
       height: 100dvh;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #000;
-      color: var(--text-main);
+      touch-action: manipulation;
     }
 
-    /* Video & Canvas Anpassung für Vollbild auf Smartphones */
+    #overlay {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      -webkit-transform: translate(-50%, -50%);
+      z-index: 10;
+      min-width: 220px;
+      max-width: 90vw;
+      padding: 16px 20px;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      font-size: 16px;
+      text-align: center;
+      color: #fff;
+      pointer-events: auto;
+    }
+
+    /* Kamera-/Canvas-Darstellung auf Smartphones optimiert */
     video, canvas {
       position: fixed !important;
       top: 0 !important;
@@ -53,689 +58,51 @@
       height: 100vh !important;
       height: 100dvh !important;
       object-fit: cover !important;
-      z-index: 0 !important;
-    }
-
-    /* UI Overlay Layer */
-    .ar-ui-layer {
-      position: fixed;
-      inset: 0;
-      z-index: 10;
-      pointer-events: none;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: calc(var(--safe-top) + 8px) 14px calc(var(--safe-bottom) + 8px) 14px;
-    }
-
-    .interactive {
-      pointer-events: auto;
-    }
-
-    /* Header Bar */
-    .header-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      border-radius: 14px;
-      background: var(--bg-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--border-glass);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    }
-
-    .header-title {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .header-title h1 {
-      margin: 0;
-      font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      color: var(--accent-cyan);
-      text-transform: uppercase;
-    }
-
-    .header-title span {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .live-badge {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
-      border-radius: 20px;
-      background: rgba(0, 230, 118, 0.15);
-      border: 1px solid rgba(0, 230, 118, 0.4);
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--accent-green);
-    }
-
-    .live-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--accent-green);
-      box-shadow: 0 0 8px var(--accent-green);
-      animation: pulse 1.5s infinite;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
-    }
-
-    /* Scanner Reticle / Marker Guidance */
-    .scanner-guide {
-      align-self: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 12px;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-    }
-
-    .scanner-frame {
-      width: 170px;
-      height: 170px;
-      border: 2px dashed rgba(0, 229, 255, 0.45);
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      background: rgba(0, 229, 255, 0.03);
-    }
-
-    .scanner-frame::before {
-      content: "";
-      position: absolute;
-      width: 24px;
-      height: 24px;
-      border-top: 3px solid var(--accent-cyan);
-      border-left: 3px solid var(--accent-cyan);
-      top: -2px;
-      left: -2px;
-      border-top-left-radius: 16px;
-    }
-
-    .scanner-frame::after {
-      content: "";
-      position: absolute;
-      width: 24px;
-      height: 24px;
-      border-bottom: 3px solid var(--accent-cyan);
-      border-right: 3px solid var(--accent-cyan);
-      bottom: -2px;
-      right: -2px;
-      border-bottom-right-radius: 16px;
-    }
-
-    .scanner-laser {
-      position: absolute;
-      width: 100%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
-      box-shadow: 0 0 8px var(--accent-cyan);
-      animation: scan 2.2s ease-in-out infinite;
-    }
-
-    @keyframes scan {
-      0%, 100% { top: 10%; opacity: 0.2; }
-      50% { top: 90%; opacity: 1; }
-    }
-
-    .scanner-text {
-      background: rgba(0, 0, 0, 0.65);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 12px;
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    /* Sensor Dashboard Card */
-    .dashboard-card {
-      display: none;
-      border-radius: 18px;
-      background: var(--bg-glass);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border: 1px solid var(--border-glass);
-      padding: 14px;
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-      animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    @keyframes slideUp {
-      from { transform: translateY(30px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
-    }
-
-    /* Module Selector Pills */
-    .module-tabs {
-      display: flex;
-      gap: 6px;
-      overflow-x: auto;
-      padding-bottom: 8px;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-    }
-    .module-tabs::-webkit-scrollbar { display: none; }
-
-    .tab-btn {
-      flex: 0 0 auto;
-      padding: 6px 11px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .tab-btn.active {
-      background: rgba(0, 229, 255, 0.2);
-      border-color: var(--accent-cyan);
-      color: #fff;
-    }
-
-    /* Module Info Row */
-    .station-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 8px 0 12px 0;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .station-name {
-      font-size: 15px;
-      font-weight: 700;
-      color: #fff;
-    }
-
-    .station-status {
-      font-size: 10px;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 8px;
-      text-transform: uppercase;
-      background: rgba(0, 230, 118, 0.18);
-      color: var(--accent-green);
-      border: 1px solid rgba(0, 230, 118, 0.4);
-    }
-
-    .station-status.alert {
-      background: rgba(255, 23, 68, 0.2);
-      color: var(--accent-alert);
-      border-color: var(--accent-alert);
-    }
-
-    /* Metrics Grid */
-    .metrics-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 8px;
-    }
-
-    .metric-box {
-      background: rgba(255, 255, 255, 0.04);
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 12px;
-      padding: 9px 10px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .metric-label {
-      font-size: 10px;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      margin-bottom: 3px;
-    }
-
-    .metric-val {
-      font-size: 16px;
-      font-weight: 700;
-      color: #fff;
-      font-variant-numeric: tabular-nums;
-      display: flex;
-      align-items: baseline;
-      gap: 3px;
-    }
-
-    .metric-unit {
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--accent-cyan);
-    }
-
-    /* Progress bar */
-    .metric-bar-bg {
-      margin-top: 5px;
-      width: 100%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 2px;
-      overflow: hidden;
-    }
-
-    .metric-bar-fill {
-      height: 100%;
-      width: 75%;
-      background: var(--accent-cyan);
-      border-radius: 2px;
-      transition: width 0.4s ease;
-    }
-
-    /* Action Toolbar */
-    .card-actions {
-      display: flex;
-      gap: 8px;
-      margin-top: 12px;
-    }
-
-    .action-btn {
-      flex: 1;
-      padding: 9px 10px;
-      border-radius: 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      background: rgba(255, 255, 255, 0.07);
-      color: #fff;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      transition: background 0.2s;
-    }
-
-    .action-btn:active {
-      background: rgba(255, 255, 255, 0.2);
-    }
-
-    .btn-alert {
-      border-color: rgba(255, 23, 68, 0.5);
-      color: #ff8a80;
-    }
-
-    /* Floating Debug & Info Button */
-    .debug-pill {
-      position: fixed;
-      bottom: calc(var(--safe-bottom) + 10px);
-      right: 14px;
-      z-index: 20;
-      padding: 6px 10px;
-      background: rgba(0, 0, 0, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 20px;
-      font-size: 11px;
-      color: var(--text-muted);
-      cursor: pointer;
     }
   </style>
 </head>
 <body>
-
-  <!-- 3D AR Scene -->
   <a-scene
     vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true; antialias: true; alpha: true"
+    renderer="logarithmicDepthBuffer: true"
     embedded
     arjs="sourceType: webcam; facingMode: environment; sourceWidth: 1280; sourceHeight: 720; displayWidth: 1280; displayHeight: 720; debugUIEnabled: false;">
-    
-    <!-- Hiro Marker -->
-    <a-marker preset="hiro" id="hiro-marker" smooth="true" smoothCount="5">
-      <!-- 3D Holographic Cylinder (Bonbon-Dose) über dem Marker -->
-      <a-cylinder
-        id="ar-tin-model"
-        position="0 0.5 0"
-        radius="0.45"
-        height="0.65"
-        color="#00e5ff"
-        material="opacity: 0.65; transparent: true; wireframe: false; metalness: 0.7; roughness: 0.2"
-        animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
-      </a-cylinder>
-
-      <!-- Pulsierender Hologramm-Ring um die Dose -->
-      <a-ring
-        position="0 0.05 0"
-        rotation="-90 0 0"
-        radius-inner="0.6"
-        radius-outer="0.68"
-        color="#00e5ff"
-        material="opacity: 0.8; transparent: true; side: double"
-        animation="property: scale; from: 0.9 0.9 0.9; to: 1.15 1.15 1.15; dir: alternate; loop: true; dur: 1200; easing: easeInOutSine">
-      </a-ring>
-
-      <!-- 3D Marker Info Text -->
-      <a-text
-        id="ar-status-text"
-        value="CPS-i40: MODUL 2"
-        position="0 1.1 0"
-        align="center"
-        scale="0.75 0.75 0.75"
-        color="#ffffff"
-        look-at="[camera]">
-      </a-text>
-    </a-marker>
-
-    <!-- Kamera -->
+    <a-marker preset="hiro" id="hiro-marker"></a-marker>
     <a-entity camera></a-entity>
   </a-scene>
 
-  <!-- Smartphone UI HUD Layer -->
-  <div class="ar-ui-layer">
-    
-    <!-- Header -->
-    <header class="header-bar interactive">
-      <div class="header-title">
-        <h1>CPS-i40 Telemetrie</h1>
-        <span>Bonbon-Dosen Fertigung #LF7</span>
-      </div>
-      <div class="live-badge" id="hud-live-badge">
-        <span class="live-dot"></span>
-        <span id="hud-status-label">ONLINE</span>
-      </div>
-    </header>
-
-    <!-- Marker Finder / Reticle (Sichtbar wenn kein Marker getrackt wird) -->
-    <div class="scanner-guide interactive" id="scanner-guide">
-      <div class="scanner-frame">
-        <div class="scanner-laser"></div>
-      </div>
-      <div class="scanner-text" id="scanner-status">Kamera auf Hiro-Marker richten</div>
-    </div>
-
-    <!-- Live Telemetrie Dashboard Card (Sichtbar wenn Marker gefunden oder im Testmodus) -->
-    <main class="dashboard-card interactive" id="dashboard-card">
-      
-      <!-- Modul-Auswahl Reiter -->
-      <nav class="module-tabs" id="module-tabs">
-        <button class="tab-btn" data-module="0">1: Zuführung</button>
-        <button class="tab-btn active" data-module="1">2: Befüllung</button>
-        <button class="tab-btn" data-module="2">3: Bördelung</button>
-        <button class="tab-btn" data-module="3">4: QS & Waage</button>
-      </nav>
-
-      <!-- Modul Kopfzeile -->
-      <div class="station-header">
-        <div>
-          <div class="station-name" id="station-name">Modul 2: Dosier- & Befüllstation</div>
-          <small style="color: var(--text-muted); font-size: 10px;" id="station-id">SPS: S7-1500 / Node: 192.168.10.12</small>
-        </div>
-        <span class="station-status" id="station-status">NORMAL</span>
-      </div>
-
-      <!-- Sensor-Werte Grid -->
-      <div class="metrics-grid">
-        <div class="metric-box">
-          <span class="metric-label" id="m1-label">Füllgewicht (Ist)</span>
-          <span class="metric-val" id="m1-val">250.4 <span class="metric-unit" id="m1-unit">g</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m1-bar" style="width: 85%;"></div>
-          </div>
-        </div>
-
-        <div class="metric-box">
-          <span class="metric-label" id="m2-label">Durchfluss / Takt</span>
-          <span class="metric-val" id="m2-val">32.0 <span class="metric-unit" id="m2-unit">D/min</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m2-bar" style="width: 64%;"></div>
-          </div>
-        </div>
-
-        <div class="metric-box">
-          <span class="metric-label" id="m3-label">Temperatur Masse</span>
-          <span class="metric-val" id="m3-val">22.4 <span class="metric-unit" id="m3-unit">°C</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m3-bar" style="width: 50%;"></div>
-          </div>
-        </div>
-
-        <div class="metric-box">
-          <span class="metric-label" id="m4-label">Gesamt-OEE</span>
-          <span class="metric-val" id="m4-val">92.4 <span class="metric-unit" id="m4-unit">%</span></span>
-          <div class="metric-bar-bg">
-            <div class="metric-bar-fill" id="m4-bar" style="width: 92%;"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Interaktive Demo-Buttons fürs Meeting -->
-      <div class="card-actions">
-        <button class="action-btn" id="btn-toggle-demo">⚡ Test-Modus</button>
-        <button class="action-btn btn-alert" id="btn-toggle-alert">⚠️ Störung simulieren</button>
-      </div>
-    </main>
-
-  </div>
-
-  <!-- Kleiner Debug-Knopf für Desktop / Testen ohne Kamera-Drucker -->
-  <div class="debug-pill interactive" id="debug-toggle">
-    🛠️ Marker-Sim: <span id="debug-state">Kamera</span>
+  <div id="overlay">
+    <div id="marker-count">Times the Marker was found: 0</div>
   </div>
 
   <script>
-    // Module Demodaten (FiSi LF7 Bonbon-Dosen-Fertigung)
-    const modulesData = [
-      {
-        id: "Modul 1",
-        name: "Modul 1: Dosen-Zuführung",
-        plc: "SPS: S7-1500 / IP: 192.168.10.11",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Magazin Füllstand", val: 87.0, unit: "%", bar: 87, min: 85, max: 90 },
-        m2: { label: "Vereinzeler-Takt", val: 1.8, unit: "s", bar: 60, min: 1.7, max: 1.9 },
-        m3: { label: "Lichtschranke", val: 1, unit: "AKTIV", bar: 100, isDiscrete: true },
-        m4: { label: "Dosen gesamt", val: 1420, unit: "Stk", bar: 75, isCounter: true }
-      },
-      {
-        id: "Modul 2",
-        name: "Modul 2: Dosier- & Befüllstation",
-        plc: "SPS: S7-1500 / IP: 192.168.10.12",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Füllgewicht (Ist)", val: 250.4, unit: "g", bar: 85, min: 249.5, max: 250.8 },
-        m2: { label: "Durchfluss / Takt", val: 32.0, unit: "D/min", bar: 64, min: 31.0, max: 33.0 },
-        m3: { label: "Temperatur Masse", val: 22.4, unit: "°C", bar: 50, min: 22.0, max: 23.0 },
-        m4: { label: "Gesamt-OEE", val: 92.4, unit: "%", bar: 92, min: 91.5, max: 93.0 }
-      },
-      {
-        id: "Modul 3",
-        name: "Modul 3: Deckel- & Bördelstation",
-        plc: "SPS: S7-1500 / IP: 192.168.10.13",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Anpressdruck", val: 5.2, unit: "bar", bar: 70, min: 5.0, max: 5.4 },
-        m2: { label: "Drehmoment", val: 3.8, unit: "Nm", bar: 65, min: 3.6, max: 4.0 },
-        m3: { label: "Bördelprüfung", val: 100, unit: "% Gut", bar: 100, isDiscrete: true },
-        m4: { label: "Taktzeit", val: 1.9, unit: "s", bar: 65, min: 1.8, max: 2.0 }
-      },
-      {
-        id: "Modul 4",
-        name: "Modul 4: Qualitätskontrolle & Waage",
-        plc: "SPS: S7-1500 / IP: 192.168.10.14",
-        status: "NORMAL",
-        isAlert: false,
-        m1: { label: "Kontrollgewicht", val: 250.2, unit: "g", bar: 80, min: 249.8, max: 250.5 },
-        m2: { label: "Ausschussrate", val: 0.4, unit: "%", bar: 15, min: 0.3, max: 0.6 },
-        m3: { label: "Höhentoleranz", val: 0.12, unit: "mm", bar: 30, min: 0.1, max: 0.2 },
-        m4: { label: "Status Weiche", val: 1, unit: "GUTTEIL", bar: 100, isDiscrete: true }
-      }
-    ];
-
-    let currentModuleIndex = 1; // Standard: Modul 2 Befüllung
-    let isAlertSimulated = false;
-    let isMarkerVisible = false;
-    let isDebugForced = false;
-
-    // DOM Elements
+    const overlay = document.getElementById('overlay');
     const hiroMarker = document.getElementById('hiro-marker');
-    const scannerGuide = document.getElementById('scanner-guide');
-    const dashboardCard = document.getElementById('dashboard-card');
-    const debugToggle = document.getElementById('debug-toggle');
-    const debugState = document.getElementById('debug-state');
-    const arTinModel = document.getElementById('ar-tin-model');
-    const arStatusText = document.getElementById('ar-status-text');
+    const markerCount = document.getElementById('marker-count');
+    let markerFoundCount = 0;
 
-    const stationName = document.getElementById('station-name');
-    const stationId = document.getElementById('station-id');
-    const stationStatus = document.getElementById('station-status');
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    const btnToggleAlert = document.getElementById('btn-toggle-alert');
-    const btnToggleDemo = document.getElementById('btn-toggle-demo');
-
-    // UI View aktualisieren
-    function renderModule(index) {
-      const data = modulesData[index];
-      stationName.textContent = data.name;
-      stationId.textContent = data.plc;
-      
-      if (isAlertSimulated) {
-        stationStatus.textContent = "STÖRUNG: DRUCKABFALL";
-        stationStatus.className = "station-status alert";
-        if (arTinModel) arTinModel.setAttribute('color', '#ff1744');
-        if (arStatusText) arStatusText.setAttribute('value', 'STÖRUNG: DRUCK!');
-      } else {
-        stationStatus.textContent = data.status;
-        stationStatus.className = "station-status";
-        if (arTinModel) arTinModel.setAttribute('color', '#00e5ff');
-        if (arStatusText) arStatusText.setAttribute('value', `CPS: ${data.id}`);
-      }
-
-      // Render 4 metrics
-      renderMetric('m1', data.m1);
-      renderMetric('m2', data.m2);
-      renderMetric('m3', data.m3);
-      renderMetric('m4', data.m4);
-
-      // Tabs hervorheben
-      tabButtons.forEach((btn, i) => {
-        btn.classList.toggle('active', i === index);
-      });
-    }
-
-    function renderMetric(idPrefix, metric) {
-      document.getElementById(`${idPrefix}-label`).textContent = metric.label;
-      document.getElementById(`${idPrefix}-val`).innerHTML = `${metric.val} <span class="metric-unit" id="${idPrefix}-unit">${metric.unit}</span>`;
-      document.getElementById(`${idPrefix}-bar`).style.width = `${metric.bar}%`;
-      
-      if (isAlertSimulated && idPrefix === 'm1') {
-        document.getElementById(`${idPrefix}-val`).style.color = '#ff5252';
-        document.getElementById(`${idPrefix}-bar`).style.background = '#ff1744';
-      } else {
-        document.getElementById(`${idPrefix}-val`).style.color = '#ffffff';
-        document.getElementById(`${idPrefix}-bar`).style.background = '#00e5ff';
-      }
-    }
-
-    // Leichte Fluktuation der Messwerte (Live-Feeling für die Demo)
-    setInterval(() => {
-      if (!isMarkerVisible && !isDebugForced) return;
-
-      const mod = modulesData[currentModuleIndex];
-      ['m1', 'm2', 'm3', 'm4'].forEach(key => {
-        const m = mod[key];
-        if (!m.isDiscrete && !m.isCounter && !isAlertSimulated) {
-          const delta = (Math.random() - 0.5) * 0.2;
-          let newVal = +(m.val + delta).toFixed(1);
-          if (newVal >= m.min && newVal <= m.max) {
-            m.val = newVal;
-          }
-        }
-      });
-      renderModule(currentModuleIndex);
-    }, 1400);
-
-    // Tab Klick-Handling
-    tabButtons.forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        currentModuleIndex = parseInt(btn.getAttribute('data-module'), 10);
-        renderModule(currentModuleIndex);
-      });
-    });
-
-    // Störung simulieren Button
-    btnToggleAlert.addEventListener('click', () => {
-      isAlertSimulated = !isAlertSimulated;
-      if (isAlertSimulated) {
-        btnToggleAlert.textContent = "🔄 Störung beheben";
-        modulesData[currentModuleIndex].m1.val = 3.2; // Kritischer Druckabfall
-        modulesData[currentModuleIndex].m1.bar = 25;
-      } else {
-        btnToggleAlert.textContent = "⚠️ Störung simulieren";
-        modulesData[currentModuleIndex].m1.val = 5.2;
-        modulesData[currentModuleIndex].m1.bar = 70;
-      }
-      renderModule(currentModuleIndex);
-    });
-
-    // Testmodus Umschalter
-    btnToggleDemo.addEventListener('click', () => {
-      currentModuleIndex = (currentModuleIndex + 1) % modulesData.length;
-      renderModule(currentModuleIndex);
-    });
-
-    // AR.js Marker Event Listener
     hiroMarker.addEventListener('markerFound', () => {
-      console.debug('Hiro-Marker gefunden');
-      isMarkerVisible = true;
-      scannerGuide.style.opacity = '0';
-      dashboardCard.style.display = 'block';
-      renderModule(currentModuleIndex);
+      console.debug('Marker found');
+      markerFoundCount += 1;
+      markerCount.textContent = `Times the Marker was found: ${markerFoundCount}`;
+      overlay.style.display = 'block';
     });
 
     hiroMarker.addEventListener('markerLost', () => {
-      console.debug('Hiro-Marker verloren');
-      isMarkerVisible = false;
-      if (!isDebugForced) {
-        scannerGuide.style.opacity = '1';
-        dashboardCard.style.display = 'none';
-      }
+      console.debug('Marker lost');
+      overlay.style.display = 'none';
     });
 
-    // Debug Button: Erlaubt das Testen der Smartphone UI ohne gedruckten Marker
-    debugToggle.addEventListener('click', () => {
-      isDebugForced = !isDebugForced;
-      if (isDebugForced) {
-        debugState.textContent = "Erzwungen";
-        scannerGuide.style.opacity = '0';
-        dashboardCard.style.display = 'block';
-        renderModule(currentModuleIndex);
-      } else {
-        debugState.textContent = "Kamera";
-        if (!isMarkerVisible) {
-          scannerGuide.style.opacity = '1';
-          dashboardCard.style.display = 'none';
-        }
-      }
-    });
-
-    // Initialisierung
-    renderModule(currentModuleIndex);
-
-    /* Globale Debugging Helfer */
+    /* global functions for debugging */
     window.fireEventMarkerFound = () => {
-      hiroMarker.dispatchEvent(new CustomEvent('markerFound'));
-    };
+      const event = new CustomEvent('markerFound');
+      hiroMarker.dispatchEvent(event);
+    }
+
     window.fireEventMarkerLost = () => {
-      hiroMarker.dispatchEvent(new CustomEvent('markerLost'));
-    };
+      const event = new CustomEvent('markerLost');
+      hiroMarker.dispatchEvent(event);
+    }
   </script>
 </body>
 </html>
