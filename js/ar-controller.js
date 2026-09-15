@@ -71,6 +71,7 @@ export class ARController {
         if (tracks && tracks.length > 0) {
           this.activeVideoTrack = tracks[0];
           this.detectZoomCapabilities(this.activeVideoTrack);
+          this.setZoom(this.currentZoom);
           return true;
         }
       }
@@ -83,6 +84,10 @@ export class ARController {
       }, 300);
       window.addEventListener("load", bindTrack);
     }
+
+    window.addEventListener("resize", () => {
+      this.setZoom(this.currentZoom);
+    });
   }
 
   /**
@@ -116,22 +121,34 @@ export class ARController {
     const clamped = Math.max(this.minZoom, Math.min(this.maxZoom, +targetLevel.toFixed(1)));
     this.currentZoom = clamped;
 
-    // 1. CSS Custom Property global setzen
-    document.documentElement.style.setProperty("--camera-zoom", this.currentZoom);
+    const zoom = this.currentZoom;
+    const w = Math.round(window.innerWidth * zoom);
+    const h = Math.round(window.innerHeight * zoom);
 
-    // 2. Direktes Transform-Fallback auf allen Video-Elementen
+    // 1. CSS Custom Property global setzen
+    document.documentElement.style.setProperty("--camera-zoom", zoom);
+
+    // 2. Direkte Skalierung auf Video-Elementen (Funktioniert zu 100% in iOS Safari & WebKit)
     const videos = document.querySelectorAll("video");
     videos.forEach((video) => {
-      video.style.setProperty("--camera-zoom", this.currentZoom);
-      video.style.setProperty("transform", `translate(-50%, -50%) scale(${this.currentZoom})`, "important");
-      video.style.setProperty("-webkit-transform", `translate(-50%, -50%) scale(${this.currentZoom})`, "important");
+      video.style.setProperty("--camera-zoom", zoom);
+      video.style.setProperty("width", `${w}px`, "important");
+      video.style.setProperty("height", `${h}px`, "important");
+      video.style.setProperty("min-width", `${w}px`, "important");
+      video.style.setProperty("min-height", `${h}px`, "important");
+      video.style.setProperty("max-width", "none", "important");
+      video.style.setProperty("max-height", "none", "important");
+      video.style.setProperty("top", "50%", "important");
+      video.style.setProperty("left", "50%", "important");
+      video.style.setProperty("transform", "translate(-50%, -50%)", "important");
+      video.style.setProperty("-webkit-transform", "translate(-50%, -50%)", "important");
     });
 
     // 3. Nativer WebRTC Hardware-Zoom (falls vom Gerät & Browser unterstützt)
     if (this.activeVideoTrack) {
       try {
         await this.activeVideoTrack.applyConstraints({
-          advanced: [{ zoom: this.currentZoom }]
+          advanced: [{ zoom: zoom }]
         });
       } catch (err) {
         // Fallback greift transparent über die CSS-Skalierung
@@ -166,17 +183,29 @@ export class ARController {
    * und leitet die Geste exklusiv an den Hardware-Kamerazoom weiter.
    */
   initPinchToZoom() {
-    // 1. Safari WebKit Gesten-Zoom auf der Seite blockieren
-    const blockGesture = (e) => {
-      e.preventDefault();
-    };
-    document.addEventListener("gesturestart", blockGesture, { passive: false });
-    document.addEventListener("gesturechange", blockGesture, { passive: false });
-    document.addEventListener("gestureend", blockGesture, { passive: false });
+    // 1. Nativer iOS Safari Gesten-Handler (WebKit gesturestart / gesturechange)
+    let gestureBaseZoom = 1.0;
 
-    // 2. Touch-Berechnung für Kamerazoom
+    document.addEventListener("gesturestart", (e) => {
+      e.preventDefault();
+      gestureBaseZoom = this.currentZoom;
+    }, { passive: false });
+
+    document.addEventListener("gesturechange", (e) => {
+      e.preventDefault();
+      if (typeof e.scale === "number" && !isNaN(e.scale)) {
+        const target = gestureBaseZoom * e.scale;
+        this.setZoom(target);
+      }
+    }, { passive: false });
+
+    document.addEventListener("gestureend", (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
+    // 2. Touch-Berechnung für Android & Standard Touch-Browser
     const getTouchDist = (e) => {
-      if (e.touches.length < 2) return null;
+      if (!e.touches || e.touches.length < 2) return null;
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
       return Math.hypot(dx, dy);
@@ -186,7 +215,7 @@ export class ARController {
     let lastZoomTime = 0;
 
     document.addEventListener("touchstart", (e) => {
-      if (e.touches.length === 2) {
+      if (e.touches && e.touches.length === 2) {
         e.preventDefault();
         isPinching = true;
         this.initialPinchDistance = getTouchDist(e);
@@ -195,8 +224,7 @@ export class ARController {
     }, { passive: false });
 
     document.addEventListener("touchmove", (e) => {
-      if (e.touches.length === 2) {
-        // WICHTIG: Verhindert, dass der Browser die Seite zoomt/verzerrt!
+      if (e.touches && e.touches.length === 2) {
         e.preventDefault();
 
         if (isPinching && this.initialPinchDistance) {
@@ -205,7 +233,6 @@ export class ARController {
             const factor = currentDist / this.initialPinchDistance;
             const target = this.initialPinchZoom * factor;
 
-            // Throttling für flüssige Hardware-Kamera-Ansteuerung
             const now = performance.now();
             if (now - lastZoomTime > 30) {
               lastZoomTime = now;
@@ -217,7 +244,7 @@ export class ARController {
     }, { passive: false });
 
     const resetPinch = (e) => {
-      if (e.touches.length < 2) {
+      if (!e.touches || e.touches.length < 2) {
         isPinching = false;
         this.initialPinchDistance = null;
       }

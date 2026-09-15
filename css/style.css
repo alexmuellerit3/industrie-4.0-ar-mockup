@@ -53,23 +53,29 @@ html, body {
 }
 
 /* ==========================================================================
-   TRUE FULLSCREEN KAMERA-STREAM (Inkl. Hardware & CSS-Zoom Skalierung)
+   TRUE FULLSCREEN KAMERA-STREAM (Inkl. Hardware & iOS Safari Zoom Skalierung)
    ========================================================================== */
 #arjs-video, 
 video {
   position: fixed !important;
   top: 50% !important;
   left: 50% !important;
-  transform: translate(-50%, -50%) scale(var(--camera-zoom, 1)) !important;
-  -webkit-transform: translate(-50%, -50%) scale(var(--camera-zoom, 1)) !important;
-  min-width: 100vw !important;
-  min-height: 100vh !important;
-  min-height: 100dvh !important;
-  width: auto !important;
-  height: auto !important;
+  transform: translate(-50%, -50%) !important;
+  -webkit-transform: translate(-50%, -50%) !important;
+  transform-origin: center center !important;
+  -webkit-transform-origin: center center !important;
+  width: calc(100vw * var(--camera-zoom, 1)) !important;
+  height: calc(100vh * var(--camera-zoom, 1)) !important;
+  height: calc(100dvh * var(--camera-zoom, 1)) !important;
+  min-width: calc(100vw * var(--camera-zoom, 1)) !important;
+  min-height: calc(100vh * var(--camera-zoom, 1)) !important;
+  min-height: calc(100dvh * var(--camera-zoom, 1)) !important;
+  max-width: none !important;
+  max-height: none !important;
   margin: 0 !important;
   object-fit: cover !important;
   z-index: -1 !important;
+  transition: width 0.15s ease-out, height 0.15s ease-out;
 }
 
 .a-canvas, 

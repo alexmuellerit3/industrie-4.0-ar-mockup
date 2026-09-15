@@ -46,35 +46,39 @@ export class UIController {
   }
 
   bindEvents() {
-    if (this.btnCloseCard) {
-      this.btnCloseCard.addEventListener("click", () => {
-        if (this.onCloseCard) this.onCloseCard();
-      });
-    }
+    const bindTap = (elem, handler) => {
+      if (!elem) return;
+      let lastTime = 0;
+      const onAction = (e) => {
+        const now = Date.now();
+        if (now - lastTime < 300) return;
+        lastTime = now;
+        e.stopPropagation();
+        handler();
+      };
+      elem.addEventListener("click", onAction);
+      elem.addEventListener("touchend", onAction);
+    };
 
-    if (this.btnNext) {
-      this.btnNext.addEventListener("click", () => {
-        if (this.onNextStation) this.onNextStation();
-      });
-    }
+    bindTap(this.btnCloseCard, () => {
+      if (this.onCloseCard) this.onCloseCard();
+    });
 
-    if (this.btnFault) {
-      this.btnFault.addEventListener("click", () => {
-        if (this.onToggleFault) this.onToggleFault();
-      });
-    }
+    bindTap(this.btnNext, () => {
+      if (this.onNextStation) this.onNextStation();
+    });
 
-    if (this.btnSim) {
-      this.btnSim.addEventListener("click", () => {
-        if (this.onToggleSim) this.onToggleSim();
-      });
-    }
+    bindTap(this.btnFault, () => {
+      if (this.onToggleFault) this.onToggleFault();
+    });
 
-    if (this.btnZoom) {
-      this.btnZoom.addEventListener("click", () => {
-        if (this.onZoomCycle) this.onZoomCycle();
-      });
-    }
+    bindTap(this.btnSim, () => {
+      if (this.onToggleSim) this.onToggleSim();
+    });
+
+    bindTap(this.btnZoom, () => {
+      if (this.onZoomCycle) this.onZoomCycle();
+    });
   }
 
   /**
