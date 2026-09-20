@@ -16,6 +16,27 @@ export class TelemetryService {
     this.subscribers = new Set();
     this.timerId = null;
     this.wsConnection = null;
+
+    // Initialisiere Trend-Puffer (Historie) für alle Sensoren
+    this.initHistoryBuffers();
+  }
+
+  initHistoryBuffers() {
+    this.stations.forEach(st => {
+      ['v1', 'v2', 'v3'].forEach(k => {
+        const item = st[k];
+        if (item) {
+          const base = typeof item.val === "number" ? item.val : 0;
+          // Erzeuge 15 plausible historische Datenpunkte für saubere Sparklines
+          item.history = Array.from({ length: 15 }, (_, i) => {
+            if (item.isFixed || item.min === undefined) return base;
+            const variance = (Math.sin(i * 0.5) * 0.05);
+            return +(base + variance).toFixed(1);
+          });
+          item.trend = "stable"; // "up" | "down" | "stable"
+        }
+      });
+    });
   }
 
   /**
@@ -75,8 +96,16 @@ export class TelemetryService {
     const mod3 = this.stations[2];
     if (this.isFaultSimulated) {
       mod3.v1.val = 2.8; // Kritischer Einbruch unter 4.5 bar
+      mod3.v1.trend = "down";
+      if (!mod3.v1.history) mod3.v1.history = [];
+      mod3.v1.history.push(2.8);
+      if (mod3.v1.history.length > 20) mod3.v1.history.shift();
     } else {
       mod3.v1.val = 5.2; // Normalwert
+      mod3.v1.trend = "up";
+      if (!mod3.v1.history) mod3.v1.history = [];
+      mod3.v1.history.push(5.2);
+      if (mod3.v1.history.length > 20) mod3.v1.history.shift();
     }
 
     this.notify();
@@ -109,7 +138,7 @@ export class TelemetryService {
 
   /**
    * 1. MOCK-SIMULATION
-   * Erzeugt realistische kleine Prozessschwankungen
+   * Erzeugt realistische kleine Prozessschwankungen und pflegt Historie / Trends
    */
   startMockSimulation() {
     if (this.timerId) clearInterval(this.timerId);
@@ -120,11 +149,27 @@ export class TelemetryService {
       const current = this.getCurrentStation();
       ['v1', 'v2', 'v3'].forEach(key => {
         const item = current[key];
-        if (item && !item.isFixed && item.min !== undefined && item.max !== undefined) {
-          const delta = (Math.random() - 0.5) * 0.1;
-          let val = +(item.val + delta).toFixed(1);
-          if (val >= item.min && val <= item.max) {
-            item.val = val;
+        if (item) {
+          const prevVal = item.val;
+          if (!item.isFixed && item.min !== undefined && item.max !== undefined) {
+            const delta = (Math.random() - 0.5) * 0.1;
+            let val = +(item.val + delta).toFixed(1);
+            if (val >= item.min && val <= item.max) {
+              item.val = val;
+            }
+          }
+
+          if (!item.history) item.history = [];
+          item.history.push(item.val);
+          if (item.history.length > 20) item.history.shift();
+
+          // Trend-Kalkulation
+          if (item.val > prevVal + 0.04) {
+            item.trend = "up";
+          } else if (item.val < prevVal - 0.04) {
+            item.trend = "down";
+          } else {
+            item.trend = "stable";
           }
         }
       });

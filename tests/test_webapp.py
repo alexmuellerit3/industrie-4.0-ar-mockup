@@ -148,6 +148,42 @@ class TestBrowserARTestSuite(unittest.TestCase):
         self.assertGreater(os.path.getsize(hiro_path), 1000, "Asset tests/assets/hiro.png ist leer oder korrupt!")
 
 
+class TestTabletCockpitAndTrends(unittest.TestCase):
+    """Prüft die Tablet- und Großbildschirm-Erweiterung (Trends, Sparklines, Cockpit)."""
+
+    def setUp(self):
+        with open(os.path.join(BASE_DIR, "index.html"), "r") as f:
+            self.html = f.read()
+        with open(os.path.join(BASE_DIR, "css", "style.css"), "r") as f:
+            self.css = f.read()
+        with open(os.path.join(BASE_DIR, "js", "ui-controller.js"), "r") as f:
+            self.ui_code = f.read()
+        with open(os.path.join(BASE_DIR, "js", "services", "telemetry-service.js"), "r") as f:
+            self.serv_code = f.read()
+
+    def test_tablet_markup_elements(self):
+        """Prüft, ob Sparklines, Trend-Indikatoren und Tablet-Details im HTML vorhanden sind."""
+        self.assertIn('id="tablet-details"', self.html, "Tablet-Diagnose #tablet-details fehlt in index.html")
+        self.assertIn('id="v1-spark"', self.html, "Sparkline #v1-spark fehlt")
+        self.assertIn('id="v1-trend"', self.html, "Trend-Pfeil #v1-trend fehlt")
+        self.assertIn('id="tab-plc"', self.html, "SPS-IP #tab-plc fehlt")
+        self.assertIn('id="tab-node"', self.html, "NodeId #tab-node fehlt")
+
+    def test_tablet_responsive_css(self):
+        """Prüft, ob Media Query für Tablets (>= 768px) definiert ist."""
+        self.assertIn("@media (min-width: 768px)", self.css, "Tablet-Breakpoint @media (min-width: 768px) fehlt in style.css")
+        self.assertIn(".tablet-details", self.css)
+        self.assertIn(".sensor-sparkline", self.css)
+
+    def test_sparkline_and_trend_logic(self):
+        """Prüft, ob UIController und TelemetryService Trends und Sparklines unterstützen."""
+        self.assertIn("renderSparkline(", self.ui_code, "renderSparkline fehlt in UIController")
+        self.assertIn("renderTrendArrow(", self.ui_code, "renderTrendArrow fehlt in UIController")
+        self.assertIn("initHistoryBuffers(", self.serv_code, "initHistoryBuffers fehlt in TelemetryService")
+        self.assertIn("history.push(", self.serv_code, "Historien-Aktualisierung fehlt in TelemetryService")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 

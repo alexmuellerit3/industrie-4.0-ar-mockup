@@ -79,31 +79,105 @@
         </div>
       </div>
 
-      <!-- 3 Kernwerte -->
-      <div class="sensor-row">
-        <div class="sensor-item" id="cell-v1">
-          <span class="sensor-name" id="v1-lbl">Füllgewicht</span>
-          <div class="sensor-value"><span id="v1-val">250.3</span> <span class="sensor-unit" id="v1-unit">g</span></div>
-        </div>
-        <div class="sensor-item" id="cell-v2">
-          <span class="sensor-name" id="v2-lbl">Druck</span>
-          <div class="sensor-value"><span id="v2-val">5.2</span> <span class="sensor-unit" id="v2-unit">bar</span></div>
-        </div>
-        <div class="sensor-item" id="cell-v3">
-          <span class="sensor-name" id="v3-lbl">Takt</span>
-          <div class="sensor-value"><span id="v3-val">32</span> <span class="sensor-unit" id="v3-unit">D/min</span></div>
-        </div>
-      </div>
+      <!-- Stations-Inhalt: Auf Smartphone 1-spaltig, auf Tablets/Desktop als Cockpit -->
+      <div class="station-body">
+        
+        <!-- Haupt-Metriken (Kompakte Ansicht für Smartphone & Tablet) -->
+        <div class="main-metrics">
+          <div class="sensor-row">
+            
+            <div class="sensor-item" id="cell-v1">
+              <div class="sensor-top">
+                <span class="sensor-name" id="v1-lbl">Füllgewicht</span>
+                <span class="sensor-trend" id="v1-trend">→</span>
+              </div>
+              <div class="sensor-value"><span id="v1-val">250.3</span> <span class="sensor-unit" id="v1-unit">g</span></div>
+              <div class="sensor-sparkline-wrap">
+                <svg class="sensor-sparkline" id="v1-spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+                  <polyline points="" fill="none" stroke="currentColor" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
 
-      <!-- Störungsmeldung -->
-      <div class="alert-strip" id="alert-strip">
-        Störung: Pneumatik-Druckabfall (< 4.5 bar)
-      </div>
+            <div class="sensor-item" id="cell-v2">
+              <div class="sensor-top">
+                <span class="sensor-name" id="v2-lbl">Druck</span>
+                <span class="sensor-trend" id="v2-trend">→</span>
+              </div>
+              <div class="sensor-value"><span id="v2-val">5.2</span> <span class="sensor-unit" id="v2-unit">bar</span></div>
+              <div class="sensor-sparkline-wrap">
+                <svg class="sensor-sparkline" id="v2-spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+                  <polyline points="" fill="none" stroke="currentColor" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
 
-      <!-- Aktionen -->
-      <div class="card-actions">
-        <button class="btn-action" id="btn-next">Station wechseln</button>
-        <button class="btn-action btn-fault" id="btn-fault">Störung simulieren</button>
+            <div class="sensor-item" id="cell-v3">
+              <div class="sensor-top">
+                <span class="sensor-name" id="v3-lbl">Takt</span>
+                <span class="sensor-trend" id="v3-trend">→</span>
+              </div>
+              <div class="sensor-value"><span id="v3-val">32</span> <span class="sensor-unit" id="v3-unit">D/min</span></div>
+              <div class="sensor-sparkline-wrap">
+                <svg class="sensor-sparkline" id="v3-spark" viewBox="0 0 100 24" preserveAspectRatio="none">
+                  <polyline points="" fill="none" stroke="currentColor" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Störungsmeldung -->
+          <div class="alert-strip" id="alert-strip">
+            Störung: Pneumatik-Druckabfall (< 4.5 bar)
+          </div>
+
+          <!-- Aktionen -->
+          <div class="card-actions">
+            <button class="btn-action" id="btn-next">Station wechseln</button>
+            <button class="btn-action btn-fault" id="btn-fault">Störung simulieren</button>
+          </div>
+        </div>
+
+        <!-- Tablet-Erweiterung: Detaillierte Trend- und Schnittstellen-Diagnose (automatisch auf Tablets / Displays >= 768px) -->
+        <aside class="tablet-details" id="tablet-details">
+          <div class="detail-section-title">
+            <span>Industrie-Diagnose & Trends</span>
+            <span class="tablet-badge">TABLET COCKPIT</span>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-card">
+              <div class="detail-lbl">SPS / Edge-IP</div>
+              <div class="detail-val" id="tab-plc">192.168.10.12</div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-lbl">OPC UA Status</div>
+              <div class="detail-val text-ok" id="tab-opc">Verbunden (ns=2)</div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-lbl">Toleranzband (v1)</div>
+              <div class="detail-val" id="tab-tol1">249.7 - 250.6 g</div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-lbl">Toleranzband (v2)</div>
+              <div class="detail-val" id="tab-tol2">5.1 - 5.3 bar</div>
+            </div>
+          </div>
+
+          <!-- Node-ID Pfad der aktiven Messstelle -->
+          <div class="node-strip">
+            <span class="node-lbl">NodeId:</span>
+            <span class="node-id" id="tab-node">ns=2;s=Modul2.FillWeight_Actual</span>
+          </div>
+
+          <!-- Live Trend-Zustand -->
+          <div class="trend-summary" id="tab-trend-summary">
+            <span class="trend-indicator-dot" id="tab-trend-dot"></span>
+            <span id="tab-trend-text">Prozess im Soll • 30s Schwankungsbreite &lt; 0.2%</span>
+          </div>
+        </aside>
+
       </div>
 
     </main>
