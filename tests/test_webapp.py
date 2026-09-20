@@ -105,6 +105,49 @@ class TestConfigAndTelemetryService(unittest.TestCase):
         self.assertIn("connectWebSocket(", service_content)
         self.assertIn("startRestPolling(", service_content)
 
+class TestCleanUIResponsiveRules(unittest.TestCase):
+    """Prüft Clean UI Regeln: Industrie-Look, kein Blau, sauberes Ausblenden auf Touchscreens."""
+
+    def setUp(self):
+        with open(os.path.join(BASE_DIR, "css", "style.css"), "r") as f:
+            self.css = f.read()
+
+    def test_no_gamey_blue_in_hud(self):
+        """HUD darf kein blau/cyan verwenden, sondern funktionales Titan-/Graphit-Design."""
+        self.assertNotIn("#00ffff", self.css.lower())
+        self.assertNotIn("#0070f3", self.css.lower())
+        self.assertNotIn("cyan", self.css.lower())
+
+    def test_sim_toggle_hidden_on_touchscreens(self):
+        """Der Desktop-Sim-Schalter muss auf mobilen Touchscreens für ein cleanes UI ausgeblendet sein."""
+        self.assertIn("@media (hover: none) and (pointer: coarse)", self.css)
+        self.assertIn(".sim-toggle", self.css)
+        self.assertIn("display: none !important;", self.css)
+
+
+class TestBrowserARTestSuite(unittest.TestCase):
+    """Prüft die 6-Stufen In-Browser AR-Testsuite in tests/index.html."""
+
+    def setUp(self):
+        with open(os.path.join(BASE_DIR, "tests", "index.html"), "r") as f:
+            self.test_html = f.read()
+
+    def test_all_six_stages_present(self):
+        """Alle 6 Stufen der AR-Testsuite müssen in tests/index.html definiert sein."""
+        for stage_num in range(1, 7):
+            self.assertIn(f'id="card-stage{stage_num}"', self.test_html, f"Stufe {stage_num} fehlt in tests/index.html")
+            self.assertIn(f'id="badge-stage{stage_num}"', self.test_html, f"Badge {stage_num} fehlt in tests/index.html")
+
+    def test_canvas_stream_and_hiro_asset(self):
+        """Prüft, ob der synthetische Canvas-Stream und das lokale Hiro-Asset konfiguriert sind."""
+        self.assertIn('canvas.captureStream', self.test_html)
+        self.assertIn('assets/hiro.png', self.test_html)
+        self.assertIn('runAllStages', self.test_html)
+        hiro_path = os.path.join(BASE_DIR, "tests", "assets", "hiro.png")
+        self.assertTrue(os.path.isfile(hiro_path), "Lokales Asset tests/assets/hiro.png fehlt!")
+        self.assertGreater(os.path.getsize(hiro_path), 1000, "Asset tests/assets/hiro.png ist leer oder korrupt!")
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -422,20 +422,35 @@ a-scene canvas {
   background: rgba(239, 68, 68, 0.28);
 }
 
-/* Desktop-Test Schalter */
+/* Desktop-Test Schalter (Nur auf Desktop-Geräten mit Maus sichtbar) */
 .sim-toggle {
   position: fixed;
-  bottom: var(--safe-bottom);
-  right: var(--safe-right);
+  bottom: calc(var(--safe-bottom) + 8px);
+  right: calc(var(--safe-right) + 8px);
   z-index: 25;
   font-size: 10px;
-  font-family: ui-monospace, monospace;
-  color: var(--text-secondary);
-  background: rgba(18, 20, 26, 0.9);
+  font-family: ui-monospace, "SF Mono", monospace;
+  color: var(--text-dim);
+  background: rgba(18, 20, 26, 0.75);
   border: 1px solid var(--border-subtle);
   border-radius: 14px;
   padding: 4px 10px;
   cursor: pointer;
+  transition: opacity 0.2s, background 0.2s, color 0.2s;
+  opacity: 0.6;
+}
+
+.sim-toggle:hover {
+  opacity: 1;
+  background: rgba(18, 20, 26, 0.95);
+  color: var(--text-secondary);
+}
+
+/* Auf mobilen Touchscreens standardmäßig ausblenden für ein 100% cleanes Interface */
+@media (hover: none) and (pointer: coarse) {
+  .sim-toggle {
+    display: none !important;
+  }
 }
 
 /* ==========================================================================
