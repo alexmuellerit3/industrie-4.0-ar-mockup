@@ -1,39 +1,49 @@
 /* ==========================================================================
-   CPS-i40 SCADA Gesamtanlagen-Übersicht (ohne Hiro-Code)
-   - Deutsches Industrie-Design (Graphit, Titan, Amber, Smaragdgrün, Signalrot)
+   CPS-i40 SCADA Gesamtanlagen-Übersicht
+   - Komplett neu gestaltet im HeroUI (NextUI) & SevDesk Dashboard-Stil
+   - Moderne Glasmorphismus-Layer, weiche Schatten & elegante Radien
+   - SevDesk KPI-Karten, Status-Chips & 5-Minuten Trend-Visualisierung
+   - Deutsches Industrie-Farbschema: Smaragdgrün, Rubinrot, Bernstein, Schiefer
    - Strikt KEIN Blau oder Cyan
-   - Hochkontrast-Typografie mit tabellarischen Zahlen
-   - Vollständig responsive: Desktop-Leitstand, Großbildschirm & Tablet
    ========================================================================== */
 
 :root {
-  --bg-scada: #0f1117;
-  --bg-card: #181b24;
-  --bg-card-hover: #1f232f;
-  --bg-inset: #12141a;
-  --border-card: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(255, 255, 255, 0.28);
+  /* HeroUI & SevDesk Farbpalette */
+  --heroui-bg: #090b11;
+  --heroui-bg-radial: radial-gradient(circle at 50% 0%, rgba(24, 30, 46, 0.6) 0%, rgba(9, 11, 17, 1) 75%);
+  --heroui-content1: rgba(18, 22, 33, 0.78);
+  --heroui-content2: rgba(26, 32, 48, 0.65);
+  --heroui-content3: rgba(35, 43, 64, 0.85);
+  
+  --heroui-border: rgba(255, 255, 255, 0.08);
+  --heroui-border-focus: rgba(255, 255, 255, 0.22);
+  --heroui-divider: rgba(255, 255, 255, 0.06);
 
-  --text-main: #f9fafb;
-  --text-muted: #9ca3af;
-  --text-dim: #6b7280;
+  --text-main: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-dim: #52525b;
 
-  --status-ok: #22c55e;
-  --status-ok-bg: rgba(34, 197, 94, 0.15);
-  --status-ok-border: rgba(34, 197, 94, 0.45);
+  /* Statusfarben (SevDesk Smaragd & HeroUI Danger) */
+  --sevdesk-success: #10b981;
+  --sevdesk-success-subtle: rgba(16, 185, 129, 0.12);
+  --sevdesk-success-border: rgba(16, 185, 129, 0.35);
 
-  --status-warn: #f59e0b;
-  --status-warn-bg: rgba(245, 158, 11, 0.15);
+  --sevdesk-danger: #ef4444;
+  --sevdesk-danger-subtle: rgba(239, 68, 68, 0.15);
+  --sevdesk-danger-border: rgba(239, 68, 68, 0.45);
 
-  --status-fault: #ef4444;
-  --status-fault-bg: rgba(239, 68, 68, 0.18);
-  --status-fault-border: rgba(239, 68, 68, 0.55);
+  --sevdesk-warning: #f59e0b;
+  --sevdesk-warning-subtle: rgba(245, 158, 11, 0.12);
 
-  --chart-line: #22c55e;
-  --chart-area: rgba(34, 197, 94, 0.12);
-  --chart-grid: rgba(255, 255, 255, 0.08);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* HeroUI Shadow Levels */
+  --heroui-shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--heroui-border);
+  --heroui-shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
+  --heroui-shadow-lg: 0 16px 36px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--heroui-border);
+  --heroui-shadow-alert: 0 12px 32px -4px rgba(239, 68, 68, 0.25), 0 0 0 1px var(--sevdesk-danger-border);
 }
 
 * {
@@ -43,56 +53,75 @@
 }
 
 body.scada-body {
-  background-color: var(--bg-scada);
+  background: var(--heroui-bg);
+  background-image: var(--heroui-bg-radial);
+  background-attachment: fixed;
   color: var(--text-main);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.5;
   min-height: 100vh;
-  padding: 16px 24px 32px 24px;
+  padding: 20px 28px 40px 28px;
   overflow-x: hidden;
   touch-action: pan-y !important;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Header */
+/* ==========================================================================
+   1. HEROUI & SEVDESK NAVIGATION HEADER
+   ========================================================================== */
 .scada-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-card);
-  margin-bottom: 20px;
+  padding: 14px 20px;
+  background: var(--heroui-content1);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--heroui-border);
+  border-radius: 18px;
+  box-shadow: var(--heroui-shadow-md);
+  margin-bottom: 24px;
 }
 
 .scada-title-wrap {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
-.plant-logo-badge {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.05em;
+.heroui-avatar-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
+  border: 1px solid var(--heroui-border-focus);
   color: var(--text-main);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .scada-title-wrap h1 {
-  font-size: 1.35rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .scada-subtitle {
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  font-weight: 400;
 }
 
 .header-badges {
@@ -102,257 +131,383 @@ body.scada-body {
   flex-wrap: wrap;
 }
 
-.status-badge {
+/* HeroUI Chip Component */
+.heroui-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
   padding: 5px 12px;
   border-radius: 9999px;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
+  transition: all 0.2s ease;
 }
 
-.badge-dot {
-  width: 8px;
-  height: 8px;
+.heroui-chip-success {
+  background: var(--sevdesk-success-subtle);
+  border-color: var(--sevdesk-success-border);
+  color: #34d399;
+}
+
+.chip-dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--status-ok);
-  box-shadow: 0 0 6px var(--status-ok);
+  background: var(--sevdesk-success);
+  box-shadow: 0 0 8px var(--sevdesk-success);
 }
 
-.badge-dot.pulse {
-  animation: pulse-ring 2s infinite;
+.chip-dot.pulse {
+  animation: heroui-pulse 2s infinite cubic-bezier(0.4, 0, 0.6, 1);
 }
 
-@keyframes pulse-ring {
-  0% { transform: scale(0.95); opacity: 0.8; }
-  50% { transform: scale(1.2); opacity: 1; }
-  100% { transform: scale(0.95); opacity: 0.8; }
+@keyframes heroui-pulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; box-shadow: 0 0 12px var(--sevdesk-success); }
+  100% { transform: scale(0.9); opacity: 0.8; }
 }
 
-.badge-dot.alert {
-  background: var(--status-fault);
-  box-shadow: 0 0 6px var(--status-fault);
+.chip-dot.alert {
+  background: var(--sevdesk-danger);
+  box-shadow: 0 0 8px var(--sevdesk-danger);
 }
 
-.btn-header-link {
+/* HeroUI Action Button */
+.heroui-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: #2a2e3d;
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  padding: 7px 16px;
-  border-radius: 6px;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
   font-size: 0.82rem;
   font-weight: 600;
+  font-family: var(--font-sans);
   text-decoration: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
+  user-select: none;
 }
 
-.btn-header-link:hover {
-  background: #373c4f;
-  border-color: rgba(255, 255, 255, 0.38);
+.heroui-btn:active {
+  transform: scale(0.97);
 }
 
-/* Synopsis Bar (KPIs) */
+.heroui-btn-primary {
+  background: var(--sevdesk-success);
+  color: #042f2e;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+.heroui-btn-primary:hover {
+  background: #34d399;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
+}
+
+.heroui-btn-flat {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  border-color: var(--heroui-border);
+}
+
+.heroui-btn-flat:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--heroui-border-focus);
+}
+
+/* ==========================================================================
+   2. SEVDESK DASHBOARD KPI SUMMARY TILES
+   ========================================================================== */
 .scada-synopsis-bar {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 14px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
 }
 
-.kpi-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: 8px;
-  padding: 12px 16px;
+.sevdesk-kpi-card {
+  background: var(--heroui-content1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--heroui-border);
+  border-radius: 16px;
+  padding: 16px 20px;
+  box-shadow: var(--heroui-shadow-sm);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  position: relative;
+  overflow: hidden;
 }
 
-.kpi-label {
+.sevdesk-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--heroui-shadow-md);
+  border-color: var(--heroui-border-focus);
+}
+
+.sevdesk-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sevdesk-kpi-lbl {
   font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
-  font-weight: 600;
 }
 
-.kpi-val-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.kpi-val {
-  font-size: 1.5rem;
+.sevdesk-kpi-tag {
+  font-size: 0.68rem;
   font-weight: 700;
   font-family: var(--font-mono);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+
+.sevdesk-kpi-val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 10px 0 4px 0;
+}
+
+.sevdesk-kpi-val {
+  font-size: 1.85rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: -0.03em;
+  color: var(--text-main);
   font-feature-settings: "tnum";
 }
 
-.kpi-unit {
-  font-size: 0.82rem;
+.sevdesk-kpi-unit {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sevdesk-kpi-sub {
+  font-size: 0.74rem;
   color: var(--text-muted);
+  font-weight: 400;
 }
 
-.kpi-sub {
-  font-size: 0.72rem;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
-
-/* Plant Stations Grid (All 4 modules) */
+/* ==========================================================================
+   3. HEROUI STATIONS CARDS (4 FERTIGUNGSMODULE)
+   ========================================================================== */
 .stations-scada-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  gap: 22px;
 }
 
-@media (max-width: 580px) {
+@media (max-width: 600px) {
   .stations-scada-grid {
     grid-template-columns: 1fr;
   }
 }
 
-.station-scada-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  border-radius: 10px;
-  padding: 18px;
+.heroui-station-card {
+  background: var(--heroui-content1);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--heroui-border);
+  border-radius: 20px;
+  padding: 20px 22px;
+  box-shadow: var(--heroui-shadow-md);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  transition: border-color 0.15s ease;
+  gap: 16px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
 }
 
-.station-scada-card.alert-state {
-  border-color: var(--status-fault-border);
-  box-shadow: 0 0 16px rgba(239, 68, 68, 0.15);
+.heroui-station-card:hover {
+  border-color: var(--heroui-border-focus);
 }
 
-.station-header-scada {
+.heroui-station-card.alert-state {
+  border-color: var(--sevdesk-danger-border);
+  box-shadow: var(--heroui-shadow-alert);
+}
+
+/* Station Card Header */
+.heroui-station-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  padding-bottom: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--heroui-divider);
 }
 
-.station-id-name {
+.station-title-group {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
 }
 
-.station-badge-id {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 700;
+.station-id-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
-  padding: 3px 8px;
-  border-radius: 4px;
-  letter-spacing: 0.04em;
+  border: 1px solid var(--heroui-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.76rem;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
 }
 
-.station-heading {
-  font-size: 1.05rem;
+.station-title-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.station-main-title {
+  font-size: 1.08rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-main);
 }
 
-.station-status-pill {
+.station-meta-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Status Chip */
+.heroui-status-chip {
+  padding: 4px 12px;
+  border-radius: 9999px;
   font-size: 0.72rem;
   font-weight: 700;
   font-family: var(--font-mono);
-  padding: 4px 10px;
-  border-radius: 4px;
-  background: var(--status-ok-bg);
-  color: var(--status-ok);
-  border: 1px solid var(--status-ok-border);
+  background: var(--sevdesk-success-subtle);
+  color: #34d399;
+  border: 1px solid var(--sevdesk-success-border);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   letter-spacing: 0.04em;
+  transition: all 0.2s ease;
 }
 
-.station-status-pill.alert {
-  background: var(--status-fault-bg);
-  color: var(--status-fault);
-  border-color: var(--status-fault-border);
-  animation: pulse-ring 1.5s infinite;
+.heroui-status-chip.alert {
+  background: var(--sevdesk-danger-subtle);
+  color: #f87171;
+  border-color: var(--sevdesk-danger-border);
+  animation: heroui-alert-glow 1.6s infinite;
 }
 
-/* 3 Metrics row */
+@keyframes heroui-alert-glow {
+  0% { transform: scale(0.98); box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.03); box-shadow: 0 0 16px rgba(239, 68, 68, 0.7); }
+  100% { transform: scale(0.98); box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+}
+
+/* ==========================================================================
+   4. SEVDESK METRIC CELLS (3 Spalten)
+   ========================================================================== */
 .metrics-scada-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  gap: 12px;
 }
 
-.metric-cell {
-  background: var(--bg-inset);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  padding: 10px 12px;
+.sevdesk-metric-cell {
+  background: var(--heroui-content2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  transition: all 0.2s ease;
 }
 
-.metric-cell.alert {
-  border-color: var(--status-fault-border);
-  background: rgba(239, 68, 68, 0.1);
+.sevdesk-metric-cell:hover {
+  background: var(--heroui-content3);
+  border-color: var(--heroui-border-focus);
+}
+
+.sevdesk-metric-cell.alert {
+  background: var(--sevdesk-danger-subtle);
+  border-color: var(--sevdesk-danger-border);
 }
 
 .metric-cell-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .metric-cell-lbl {
   font-size: 0.72rem;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-transform: uppercase;
   font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
-.metric-cell-trend {
-  font-size: 0.9rem;
+.metric-cell-trend-pill {
+  font-size: 0.75rem;
   font-weight: 700;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
 }
 
-.trend-up { color: var(--status-ok); }
-.trend-down { color: var(--status-warn); }
-.trend-stable { color: var(--text-dim); }
+.trend-up { color: #34d399; }
+.trend-down { color: #f59e0b; }
+.trend-stable { color: var(--text-muted); }
 
 .metric-cell-val {
   font-family: var(--font-mono);
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   font-feature-settings: "tnum";
+  color: var(--text-main);
 }
 
 .metric-cell-unit {
-  font-size: 0.75rem;
-  color: var(--text-dim);
-  font-weight: normal;
-  margin-left: 2px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-left: 3px;
 }
 
-/* 5-Min History Section */
-.history-section-scada {
-  background: var(--bg-inset);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 12px 14px;
+/* ==========================================================================
+   5. 5-MINUTEN TIME-SERIES CHART & STATS (HEROUI SVG)
+   ========================================================================== */
+.history-section-heroui {
+  background: var(--heroui-content2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 16px;
+  padding: 14px 16px;
 }
 
 .history-header {
@@ -363,31 +518,31 @@ body.scada-body {
 }
 
 .history-title {
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: 0.76rem;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
-.history-ttl-tag {
+.history-ttl-pill {
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  background: rgba(255, 255, 255, 0.07);
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: var(--text-dim);
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: var(--text-secondary);
 }
 
-/* SVG Chart Box */
 .chart-container-scada {
   width: 100%;
-  height: 90px;
+  height: 94px;
   position: relative;
-  margin: 6px 0 10px 0;
+  margin: 6px 0 12px 0;
 }
 
 .scada-chart-svg {
@@ -396,13 +551,13 @@ body.scada-body {
   overflow: visible;
 }
 
-/* 5-Min Statistical Evaluation Summary Box */
-.eval-grid-scada {
+/* SevDesk 5-Minuten Statistical Ledger */
+.sevdesk-eval-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+  border-top: 1px solid var(--heroui-divider);
 }
 
 .eval-col {
@@ -411,73 +566,89 @@ body.scada-body {
 }
 
 .eval-lbl {
-  font-size: 0.65rem;
-  color: var(--text-dim);
+  font-size: 0.66rem;
+  color: var(--text-muted);
   text-transform: uppercase;
   font-weight: 600;
+  letter-spacing: 0.03em;
 }
 
 .eval-num {
   font-family: var(--font-mono);
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: var(--text-main);
   margin-top: 2px;
 }
 
-/* Station Card Footer Actions */
-.station-footer-scada {
+/* ==========================================================================
+   6. CARD FOOTER & HEROUI BUTTONS
+   ========================================================================== */
+.heroui-station-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 4px;
+  padding-top: 4px;
 }
 
-.plc-meta-tag {
+.station-node-tag {
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  color: var(--text-dim);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.btn-scada-fault {
-  background: transparent;
-  color: #e5e7eb;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 6px 14px;
-  border-radius: 5px;
+.btn-heroui-fault {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  border: 1px solid var(--heroui-border);
+  padding: 7px 16px;
+  border-radius: 10px;
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.12s ease;
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
-.btn-scada-fault:hover {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: var(--status-fault);
-  color: var(--status-fault);
+.btn-heroui-fault:hover {
+  background: var(--sevdesk-danger-subtle);
+  border-color: var(--sevdesk-danger-border);
+  color: #f87171;
 }
 
-.btn-scada-fault.active-fault {
-  background: var(--status-fault);
-  border-color: var(--status-fault);
+.btn-heroui-fault:active {
+  transform: scale(0.97);
+}
+
+.btn-heroui-fault.active-fault {
+  background: var(--sevdesk-danger);
+  border-color: var(--sevdesk-danger);
   color: #ffffff;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
 }
 
-.btn-scada-fault.active-fault:hover {
+.btn-heroui-fault.active-fault:hover {
   background: #dc2626;
 }
 
-/* Footer Info */
+/* ==========================================================================
+   7. SEVDESK FOOTER
+   ========================================================================== */
 .scada-page-footer {
-  margin-top: 36px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border-card);
+  margin-top: 40px;
+  padding: 16px 20px;
+  background: var(--heroui-content1);
+  border: 1px solid var(--heroui-border);
+  border-radius: 16px;
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   font-size: 0.78rem;
-  color: var(--text-dim);
+  color: var(--text-muted);
   gap: 12px;
 }

@@ -183,6 +183,43 @@ class TestTabletCockpitAndTrends(unittest.TestCase):
         self.assertIn("history.push(", self.serv_code, "Historien-Aktualisierung fehlt in TelemetryService")
 
 
+class TestHeroUiAndSevDeskStyle(unittest.TestCase):
+    """Prüft die visuelle Transformation in das HeroUI & SevDesk Design-System."""
+
+    def setUp(self):
+        with open(os.path.join(BASE_DIR, "index.html"), "r") as f:
+            self.index_html = f.read()
+        with open(os.path.join(BASE_DIR, "overview.html"), "r") as f:
+            self.overview_html = f.read()
+        with open(os.path.join(BASE_DIR, "css", "style.css"), "r") as f:
+            self.ar_css = f.read()
+        with open(os.path.join(BASE_DIR, "css", "overview.css"), "r") as f:
+            self.overview_css = f.read()
+
+    def test_heroui_tokens_and_elements_in_css(self):
+        """Prüft, dass HeroUI Farb-Tokens, Glasmorphismus und Komponenten in beiden Stylesheets definiert sind."""
+        self.assertIn("--heroui-surface", self.ar_css)
+        self.assertIn("--heroui-card", self.ar_css)
+        self.assertIn("--heroui-content1", self.overview_css)
+        self.assertIn("heroui-chip", self.overview_css)
+        self.assertIn("heroui-btn", self.overview_css)
+
+    def test_sevdesk_kpi_and_metric_cards(self):
+        """Prüft das SevDesk Dashboard-Layout (KPI-Karten und Metrik-Kacheln)."""
+        self.assertIn("sevdesk-kpi-card", self.overview_html)
+        self.assertIn("sevdesk-kpi-card", self.overview_css)
+        self.assertIn("sevdesk-metric-cell", self.overview_css)
+        self.assertIn("sevdesk-eval-grid", self.overview_css)
+
+    def test_ar_webapp_heroui_adaptations(self):
+        """Prüft die Anpassung der AR WebApp an den HeroUI/SevDesk Stil."""
+        self.assertIn("header-ctrl-group", self.index_html)
+        self.assertIn("overview-nav-btn", self.index_html)
+        self.assertIn("detail-5m-grid", self.index_html)
+        self.assertIn("zoom-pill", self.ar_css)
+        self.assertIn("overview-nav-btn", self.ar_css)
+
+
 if __name__ == "__main__":
     unittest.main()
 

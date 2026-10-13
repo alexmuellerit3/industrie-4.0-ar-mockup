@@ -1,35 +1,44 @@
 /* ==========================================================================
-   CPS-i40 Mobile AR WebApp - Industrial Responsive Stylesheet
-   - 100% Fullscreen Kamera ohne Balken / Letterboxing (iOS Safari & Android)
-   - Vollständig responsive HMI-Bedienoberfläche nach Apple HIG & Industrie-Standards
-   - Monochromes Titan-/Graphit-Design (Kein Blau)
+   CPS-i40 Mobile AR WebApp - HeroUI & SevDesk Responsive Stylesheet
+   - 100% Fullscreen Kamera ohne Balken (iOS Safari & Android)
+   - Komplett neu gestaltet im HeroUI (NextUI) & SevDesk Design-System
+   - Glasmorphismus mit weichen Schatten, 18px-24px Radien & haptischem Feedback
+   - Deutsches Industrie-Farbschema: Smaragdgrün, Rubinrot, Bernstein, Schiefer
+   - Strikt kein Blau im Interface
    ========================================================================== */
 
 :root {
   --camera-zoom: 1;
-  --bg-dark: #12141a;
-  --panel-bg: rgba(22, 25, 32, 0.94);
-  --card-bg: rgba(30, 34, 44, 0.85);
-  --border-subtle: rgba(255, 255, 255, 0.14);
-  --border-focus: rgba(255, 255, 255, 0.35);
-  
-  --text-white: #ffffff;
-  --text-primary: #f3f4f6;
-  --text-secondary: #9ca3af;
-  --text-dim: #6b7280;
 
-  --status-ok: #22c55e;
-  --status-ok-bg: rgba(34, 197, 94, 0.14);
-  --status-ok-border: rgba(34, 197, 94, 0.4);
+  /* HeroUI & SevDesk Tokens */
+  --heroui-surface: rgba(18, 22, 33, 0.82);
+  --heroui-card: rgba(27, 33, 49, 0.72);
+  --heroui-card-hover: rgba(35, 43, 64, 0.85);
+  --heroui-border: rgba(255, 255, 255, 0.1);
+  --heroui-border-focus: rgba(255, 255, 255, 0.28);
+  --heroui-divider: rgba(255, 255, 255, 0.08);
+
+  --text-white: #ffffff;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-dim: #71717a;
+
+  /* Statusfarben: SevDesk Smaragd & HeroUI Ruby Danger */
+  --status-ok: #10b981;
+  --status-ok-bg: rgba(16, 185, 129, 0.14);
+  --status-ok-border: rgba(16, 185, 129, 0.4);
 
   --status-fault: #ef4444;
   --status-fault-bg: rgba(239, 68, 68, 0.16);
-  --status-fault-border: rgba(239, 68, 68, 0.5);
+  --status-fault-border: rgba(239, 68, 68, 0.45);
 
-  --safe-top: max(env(safe-area-inset-top, 0px), 12px);
-  --safe-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
-  --safe-left: max(env(safe-area-inset-left, 0px), 12px);
-  --safe-right: max(env(safe-area-inset-right, 0px), 12px);
+  --safe-top: max(env(safe-area-inset-top, 0px), 14px);
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), 14px);
+  --safe-left: max(env(safe-area-inset-left, 0px), 14px);
+  --safe-right: max(env(safe-area-inset-right, 0px), 14px);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
 }
 
 * {
@@ -45,11 +54,12 @@ html, body {
   height: 100%;
   height: 100dvh;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-sans);
   background: transparent !important;
   background-color: transparent !important;
   color: var(--text-primary);
   touch-action: none !important;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* ==========================================================================
@@ -96,7 +106,7 @@ a-scene canvas {
 }
 
 /* ==========================================================================
-   RESPONSIVES UI FRAMEWORK
+   HEROUI & SEVDESK AR FRAMEWORK
    ========================================================================== */
 .ar-frame {
   position: fixed;
@@ -113,15 +123,15 @@ a-scene canvas {
   pointer-events: auto;
 }
 
-/* 1. Header: Schlanker Status-Indikator & Zoom-Button */
+/* 1. Header: HeroUI Floating Glassmorphic Pill */
 .top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  max-width: min(440px, 100%);
+  max-width: min(480px, 100%);
   margin: 0 auto;
-  gap: 8px;
+  gap: 10px;
 }
 
 .top-indicator {
@@ -129,41 +139,30 @@ a-scene canvas {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-subtle);
-  border-radius: 24px;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  border-radius: 9999px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   font-size: clamp(10px, 2.8vw, 12px);
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   color: var(--text-secondary);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
 }
 
-.zoom-pill {
-  padding: 6px 14px;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-subtle);
-  border-radius: 20px;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  font-family: ui-monospace, "SF Mono", monospace;
-  font-size: clamp(10px, 2.8vw, 12px);
-  font-weight: 700;
+.top-indicator strong {
   color: var(--text-white);
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  transition: background 0.15s, border-color 0.15s;
+  font-weight: 700;
 }
 
-.zoom-pill:active {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: var(--border-focus);
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-ok);
+  box-shadow: 0 0 8px var(--status-ok);
+  transition: background-color 0.2s, box-shadow 0.2s;
+  flex-shrink: 0;
 }
 
 .header-ctrl-group {
@@ -172,125 +171,148 @@ a-scene canvas {
   gap: 8px;
 }
 
-.overview-nav-btn {
-  padding: 6px 12px;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-subtle);
-  border-radius: 20px;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  font-family: ui-monospace, "SF Mono", monospace;
+/* HeroUI Pill Button für Zoom */
+.zoom-pill {
+  padding: 6px 14px;
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  border-radius: 9999px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  font-family: var(--font-mono);
   font-size: clamp(10px, 2.8vw, 12px);
-  font-weight: 600;
-  color: var(--text-primary);
-  text-decoration: none;
+  font-weight: 700;
+  color: var(--text-white);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 34px;
-  transition: all 0.15s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.overview-nav-btn:hover,
-.overview-nav-btn:active {
-  background: rgba(45, 52, 68, 0.95);
-  border-color: var(--border-focus);
+.zoom-pill:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--heroui-border-focus);
 }
 
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--status-ok);
-  transition: background-color 0.2s;
-  flex-shrink: 0;
-}
-
-.top-indicator strong {
-  color: var(--text-white);
+/* HeroUI SevDesk Leitstand Nav Button */
+.overview-nav-btn {
+  padding: 6px 14px;
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  border-radius: 9999px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  font-family: var(--font-sans);
+  font-size: clamp(10px, 2.8vw, 12px);
   font-weight: 600;
+  color: #34d399;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 2. Zielsucher (Skaliert flüssig auf jeder Bildschirmbreite) */
+.overview-nav-btn:hover {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: var(--status-ok-border);
+}
+
+.overview-nav-btn:active {
+  transform: scale(0.95);
+}
+
+/* 2. Zielsucher (HeroUI Refined HUD) */
 .viewfinder {
   align-self: center;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   transition: opacity 0.25s ease;
 }
 
 .viewfinder-box {
   width: clamp(210px, 62vw, 300px);
   height: clamp(210px, 62vw, 300px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 12px;
-  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.14);
   position: relative;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.3);
 }
 
 .viewfinder-corner {
   position: absolute;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-color: #ffffff;
   border-style: solid;
 }
-.c-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 8px; }
-.c-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 8px; }
-.c-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 8px; }
-.c-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 8px; }
+.c-tl { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-top-left-radius: 12px; }
+.c-tr { top: -2px; right: -2px; border-width: 3px 3px 0 0; border-top-right-radius: 12px; }
+.c-bl { bottom: -2px; left: -2px; border-width: 0 0 3px 3px; border-bottom-left-radius: 12px; }
+.c-br { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-bottom-right-radius: 12px; }
 
 .viewfinder-label {
-  background: rgba(18, 20, 26, 0.88);
-  border: 1px solid var(--border-subtle);
-  padding: 6px 14px;
-  border-radius: 6px;
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 6px 16px;
+  border-radius: 9999px;
   font-size: clamp(10px, 2.8vw, 12px);
-  font-family: ui-monospace, "SF Mono", monospace;
+  font-family: var(--font-mono);
   color: var(--text-secondary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
-/* 3. Bottom-Panel: Telemetrie-Karte (Vollständig responsiv) */
+/* ==========================================================================
+   3. BOTTOM-PANEL: HEROUI & SEVDESK TELEMETRIE-KARTE
+   ========================================================================== */
 .station-card {
   display: none;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: clamp(10px, 3vw, 16px);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.65);
-  max-width: min(440px, 100%);
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  border-radius: 22px;
+  padding: clamp(12px, 3.2vw, 18px);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  box-shadow: 0 20px 48px -8px rgba(0, 0, 0, 0.7), 0 0 0 1px var(--heroui-border);
+  max-width: min(480px, 100%);
   width: 100%;
   align-self: center;
-  animation: cardAppear 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: herouiCardAppear 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes cardAppear {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes herouiCardAppear {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .station-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 10px;
-  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--heroui-divider);
+  margin-bottom: 12px;
+  gap: 10px;
 }
 
 .station-title {
-  font-size: clamp(12px, 3.4vw, 14px);
+  font-size: clamp(13px, 3.6vw, 15px);
   font-weight: 700;
   color: var(--text-white);
-  letter-spacing: 0.2px;
+  letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -298,7 +320,7 @@ a-scene canvas {
 
 .station-sub {
   font-size: 10px;
-  font-family: ui-monospace, "SF Mono", monospace;
+  font-family: var(--font-mono);
   color: var(--text-dim);
   margin-top: 2px;
 }
@@ -310,11 +332,12 @@ a-scene canvas {
   flex-shrink: 0;
 }
 
+/* HeroUI Close Button */
 .btn-close-card {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--heroui-border);
   background: rgba(255, 255, 255, 0.08);
   color: var(--text-secondary);
   font-size: 12px;
@@ -323,23 +346,28 @@ a-scene canvas {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition: all 0.15s ease;
+}
+
+.btn-close-card:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  border-color: var(--heroui-border-focus);
 }
 
 .btn-close-card:active {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: var(--border-focus);
-  color: #fff;
+  transform: scale(0.92);
 }
 
+/* HeroUI Status Chip */
 .station-status-tag {
-  font-family: ui-monospace, "SF Mono", monospace;
+  font-family: var(--font-mono);
   font-size: clamp(9px, 2.4vw, 11px);
   font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 9999px;
   background: var(--status-ok-bg);
-  color: #86efac;
+  color: #34d399;
   border: 1px solid var(--status-ok-border);
   letter-spacing: 0.4px;
   flex-shrink: 0;
@@ -347,32 +375,47 @@ a-scene canvas {
 
 .station-status-tag.alert-state {
   background: var(--status-fault-bg) !important;
-  color: #fca5a5 !important;
+  color: #f87171 !important;
   border-color: var(--status-fault-border) !important;
+  animation: heroui-alert-glow 1.6s infinite;
 }
 
-/* 3 Messwert-Spalten (Responsives Grid) */
+/* 4. SevDesk Sensor Tiles (3 Spalten) */
 .sensor-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: clamp(4px, 1.5vw, 8px);
+  gap: clamp(6px, 1.8vw, 10px);
 }
 
 .sensor-item {
-  background: var(--card-bg);
-  border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: clamp(6px, 2vw, 10px) clamp(4px, 1.5vw, 8px);
+  background: var(--heroui-card);
+  border: 1px solid var(--heroui-border);
+  border-radius: 14px;
+  padding: clamp(8px, 2.2vw, 12px) clamp(6px, 1.8vw, 10px);
   text-align: center;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  min-height: 52px;
+  justify-content: space-between;
+  min-height: 60px;
+  transition: all 0.2s ease;
+}
+
+.sensor-item:hover {
+  background: var(--heroui-card-hover);
+  border-color: var(--heroui-border-focus);
 }
 
 .sensor-item.alert-active {
   border-color: var(--status-fault);
-  background: rgba(239, 68, 68, 0.18);
+  background: var(--status-fault-bg);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.25);
+}
+
+.sensor-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3px;
 }
 
 .sensor-name {
@@ -380,23 +423,35 @@ a-scene canvas {
   font-size: clamp(8px, 2.2vw, 10px);
   color: var(--text-secondary);
   text-transform: uppercase;
+  font-weight: 600;
   letter-spacing: 0.4px;
-  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.sensor-value {
-  font-family: ui-monospace, "SF Mono", monospace;
-  font-size: clamp(13px, 4vw, 16px);
+.sensor-trend {
+  font-family: var(--font-mono);
+  font-size: 11px;
   font-weight: 700;
+  color: var(--text-dim);
+  transition: color 0.2s;
+}
+
+.sensor-trend.trend-up { color: #34d399; }
+.sensor-trend.trend-down { color: #f59e0b; }
+
+.sensor-value {
+  font-family: var(--font-mono);
+  font-size: clamp(14px, 4.2vw, 18px);
+  font-weight: 800;
   color: var(--text-white);
-  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  font-feature-settings: "tnum";
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 2px;
+  gap: 3px;
 }
 
 .sensor-unit {
@@ -405,111 +460,8 @@ a-scene canvas {
   color: var(--text-secondary);
 }
 
-/* Störungshinweis */
-.alert-strip {
-  display: none;
-  margin-top: 8px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: var(--status-fault-bg);
-  border: 1px solid var(--status-fault-border);
-  font-size: clamp(10px, 2.6vw, 11px);
-  color: #fca5a5;
-  text-align: center;
-}
-
-/* Schaltflächen (Mindestens 44px Höhe für Touch-Bedienung nach Apple HIG) */
-.card-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.btn-action {
-  min-height: 44px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text-primary);
-  font-size: clamp(11px, 3vw, 12px);
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.btn-action:active {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: var(--border-focus);
-}
-
-.btn-fault {
-  color: #fca5a5;
-  border-color: rgba(239, 68, 68, 0.4);
-}
-.btn-fault:active {
-  background: rgba(239, 68, 68, 0.28);
-}
-
-/* Desktop-Test Schalter (Nur auf Desktop-Geräten mit Maus sichtbar) */
-.sim-toggle {
-  position: fixed;
-  bottom: calc(var(--safe-bottom) + 8px);
-  right: calc(var(--safe-right) + 8px);
-  z-index: 25;
-  font-size: 10px;
-  font-family: ui-monospace, "SF Mono", monospace;
-  color: var(--text-dim);
-  background: rgba(18, 20, 26, 0.75);
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: opacity 0.2s, background 0.2s, color 0.2s;
-  opacity: 0.6;
-}
-
-.sim-toggle:hover {
-  opacity: 1;
-  background: rgba(18, 20, 26, 0.95);
-  color: var(--text-secondary);
-}
-
-/* Auf mobilen Touchscreens standardmäßig ausblenden für ein 100% cleanes Interface */
-@media (hover: none) and (pointer: coarse) {
-  .sim-toggle {
-    display: none !important;
-  }
-}
-
-/* ==========================================================================
-   TREND-SPARKLINES & SENSOR-TOP ERWEITERUNG
-   ========================================================================== */
-.sensor-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2px;
-}
-
-.sensor-trend {
-  font-family: ui-monospace, "SF Mono", monospace;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-dim);
-  transition: color 0.2s;
-}
-
-.sensor-trend.trend-up { color: #86efac; }
-.sensor-trend.trend-down { color: #fca5a5; }
-
 .sensor-sparkline-wrap {
-  display: none; /* Auf Smartphones ausgeblendet für minimale Kachelhöhe */
+  display: none;
   height: 20px;
   width: 100%;
   margin-top: 4px;
@@ -526,6 +478,7 @@ a-scene canvas {
 .sensor-sparkline polyline {
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-width: 2.2;
   transition: stroke 0.2s;
 }
 
@@ -533,100 +486,201 @@ a-scene canvas {
   color: var(--status-fault);
 }
 
-/* Tablet Detail Bereich (Standardmäßig auf Smartphones ausgeblendet) */
+/* HeroUI Alert Banner */
+.alert-strip {
+  display: none;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--status-fault-bg);
+  border: 1px solid var(--status-fault-border);
+  font-size: clamp(10px, 2.6vw, 11px);
+  font-weight: 600;
+  color: #f87171;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.2);
+}
+
+/* HeroUI Buttons */
+.card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.btn-action {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--heroui-border);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-primary);
+  font-size: clamp(11px, 3vw, 12px);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.btn-action:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: var(--heroui-border-focus);
+}
+
+.btn-action:active {
+  transform: scale(0.97);
+}
+
+.btn-fault {
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.btn-fault:hover {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: var(--status-fault);
+}
+
+.btn-fault:active {
+  background: rgba(239, 68, 68, 0.3);
+  transform: scale(0.97);
+}
+
+/* Desktop-Test Schalter */
+.sim-toggle {
+  position: fixed;
+  bottom: calc(var(--safe-bottom) + 8px);
+  right: calc(var(--safe-right) + 8px);
+  z-index: 25;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  border-radius: 9999px;
+  backdrop-filter: blur(16px);
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.sim-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: var(--heroui-border-focus);
+  color: #fff;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .sim-toggle {
+    display: none !important;
+  }
+}
+
+/* ==========================================================================
+   5. TABLET & GROSSBILDSCHIRM COCKPIT (>= 768px)
+   ========================================================================== */
 .tablet-details {
   display: none;
 }
 
-/* ==========================================================================
-   TABLET & GROSSBILDSCHIRM COCKPIT (>= 768px)
-   ========================================================================== */
 @media (min-width: 768px) {
   .station-card {
-    max-width: min(880px, 92vw);
-    padding: 16px 20px;
+    max-width: min(920px, 94vw);
+    padding: 18px 24px;
+    border-radius: 24px;
   }
 
   .station-body {
     display: grid;
     grid-template-columns: 1.15fr 1fr;
-    gap: 16px;
+    gap: 18px;
     align-items: start;
   }
 
   .sensor-sparkline-wrap {
-    display: block; /* Auf Tablets & größeren Screens sichtbar */
+    display: block;
   }
 
   .sensor-item {
-    padding: 10px 8px;
-    min-height: 74px;
+    padding: 12px 10px;
+    min-height: 80px;
   }
 
   .tablet-details {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    background: rgba(18, 20, 26, 0.6);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    padding: 10px 12px;
+    gap: 10px;
+    background: var(--heroui-card);
+    border: 1px solid var(--heroui-border);
+    border-radius: 16px;
+    padding: 14px 16px;
   }
 
   .detail-section-title {
     font-size: 10px;
     font-weight: 700;
-    font-family: ui-monospace, "SF Mono", monospace;
+    font-family: var(--font-mono);
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--heroui-divider);
   }
 
   .tablet-badge {
     font-size: 9px;
+    font-weight: 700;
     background: rgba(255, 255, 255, 0.08);
-    border: 1px solid var(--border-subtle);
-    border-radius: 4px;
-    padding: 2px 6px;
+    border: 1px solid var(--heroui-border);
+    border-radius: 6px;
+    padding: 2px 7px;
     color: var(--text-dim);
   }
 
   .detail-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 6px;
+    gap: 8px;
   }
 
   .detail-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border-subtle);
-    border-radius: 6px;
-    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--heroui-border);
+    border-radius: 10px;
+    padding: 8px 10px;
   }
 
   .detail-lbl {
     font-size: 9px;
     color: var(--text-dim);
     text-transform: uppercase;
-    font-family: ui-monospace, monospace;
+    font-weight: 600;
+    font-family: var(--font-mono);
   }
 
   .detail-val {
-    font-size: 11px;
-    font-weight: 600;
-    font-family: ui-monospace, "SF Mono", monospace;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: var(--font-mono);
     color: var(--text-white);
     margin-top: 2px;
   }
 
-  .detail-val.text-ok { color: #86efac; }
-  .detail-val.text-fault { color: #fca5a5; }
+  .detail-val.text-ok { color: #34d399; }
+  .detail-val.text-fault { color: #f87171; }
 
+  /* 5-Minuten SevDesk KPI Ledger */
   .detail-5m-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -634,9 +688,9 @@ a-scene canvas {
   }
 
   .detail-5m-card {
-    background: var(--card-bg);
-    border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--heroui-border);
+    border-radius: 10px;
     padding: 6px 8px;
   }
 
@@ -644,18 +698,18 @@ a-scene canvas {
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--border-subtle);
-    border-radius: 4px;
-    padding: 4px 8px;
-    font-family: ui-monospace, "SF Mono", monospace;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--heroui-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: var(--font-mono);
     font-size: 10px;
     overflow: hidden;
   }
 
   .node-lbl {
     color: var(--text-dim);
-    font-weight: 600;
+    font-weight: 700;
     flex-shrink: 0;
   }
 
@@ -669,22 +723,24 @@ a-scene canvas {
   .trend-summary {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-family: ui-monospace, "SF Mono", monospace;
+    gap: 8px;
+    font-family: var(--font-mono);
     font-size: 10px;
     color: var(--text-secondary);
     padding-top: 2px;
   }
 
   .trend-indicator-dot {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--status-ok);
+    box-shadow: 0 0 8px var(--status-ok);
     flex-shrink: 0;
   }
   .trend-indicator-dot.alert-active {
     background: var(--status-fault);
+    box-shadow: 0 0 8px var(--status-fault);
   }
 }
 
@@ -696,16 +752,17 @@ a-scene canvas {
     padding: 8px var(--safe-right) 8px var(--safe-left);
   }
   .viewfinder-box {
-    width: 100px;
-    height: 100px;
+    width: 110px;
+    height: 110px;
   }
   .station-card {
-    padding: 8px 12px;
+    padding: 10px 14px;
+    border-radius: 16px;
   }
   .card-actions {
-    margin-top: 6px;
+    margin-top: 8px;
   }
   .btn-action {
-    min-height: 36px;
+    min-height: 38px;
   }
 }

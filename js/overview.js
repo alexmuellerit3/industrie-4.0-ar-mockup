@@ -1,18 +1,19 @@
 /**
  * CPS-i40 SCADA Gesamtanlagen-Übersicht Controller
+ * Neu strukturiert im HeroUI (NextUI) & SevDesk Dashboard-Stil
  * 
  * Verwaltet:
  * 1. WebSocket-Verbindung zu /ws/telemetry (mit auto-reconnect & REST-Fallback)
- * 2. Visualisierung aller 4 Stationen der Bonbon-Linie
- * 3. 5-Minuten Zeitreihen & SVG-Sparkline/Area-Charts (TTL 300s)
- * 4. Statistische Auswertungen (Min, Max, Avg, Trend, Störungsrate)
+ * 2. Visualisierung aller 4 Fertigungsmodule der Bonbon-Linie
+ * 3. 5-Minuten Zeitreihen & HeroUI SVG-Glow-Area-Charts (TTL 300s)
+ * 4. SevDesk Statistische Auswertungen (Min, Max, Avg, Trend, Störrate)
  * 5. Interaktive Störungs-Simulation & Quittierung
  */
 
 const STATIONS_DEFAULT = [
   {
     id: "ST-010",
-    name: "Dosen-Zuführung",
+    name: "Modul 1: Dosen-Zuführung",
     plcIp: "192.168.10.11",
     v1: { label: "Magazin", unit: "%", val: 84 },
     v2: { label: "Vakuum", unit: "bar", val: -0.8 },
@@ -20,7 +21,7 @@ const STATIONS_DEFAULT = [
   },
   {
     id: "ST-020",
-    name: "Dosierung & Befüllung",
+    name: "Modul 2: Dosierung & Befüllung",
     plcIp: "192.168.10.12",
     v1: { label: "Füllgewicht", unit: "g", val: 250.3 },
     v2: { label: "Druck", unit: "bar", val: 5.2 },
@@ -28,7 +29,7 @@ const STATIONS_DEFAULT = [
   },
   {
     id: "ST-030",
-    name: "Verschluss & Bördelung",
+    name: "Modul 3: Verschluss & Bördelung",
     plcIp: "192.168.10.13",
     v1: { label: "Anpressdruck", unit: "bar", val: 5.2 },
     v2: { label: "Drehmoment", unit: "Nm", val: 3.9 },
@@ -36,7 +37,7 @@ const STATIONS_DEFAULT = [
   },
   {
     id: "ST-040",
-    name: "Qualitätskontrolle & Waage",
+    name: "Modul 4: Qualitätskontrolle & Waage",
     plcIp: "192.168.10.14",
     v1: { label: "Kontrollgewicht", unit: "g", val: 250.1 },
     v2: { label: "Ausschuss", unit: "%", val: 0.4 },
@@ -47,12 +48,11 @@ const STATIONS_DEFAULT = [
 class ScadaOverviewApp {
   constructor() {
     this.stations = JSON.parse(JSON.stringify(STATIONS_DEFAULT));
-    this.historyMap = new Map(); // stationId -> Array<{ timestamp, v1, v2, v3, isFault }>
+    this.historyMap = new Map();
     this.summaryMap = new Map();
     this.ws = null;
     this.reconnectTimer = null;
     this.restFallbackTimer = null;
-    this.totalSamples = 0;
 
     // DOM Caches
     this.dom = {
@@ -64,6 +64,7 @@ class ScadaOverviewApp {
       kpiOee: document.getElementById("kpi-oee"),
       kpiTakt: document.getElementById("kpi-takt"),
       kpiAlarms: document.getElementById("kpi-alarms"),
+      kpiAlarmsTag: document.getElementById("kpi-alarms-tag"),
       kpiSamples: document.getElementById("kpi-samples"),
       stationsContainer: document.getElementById("stations-scada-container")
     };
@@ -74,7 +75,7 @@ class ScadaOverviewApp {
   }
 
   /**
-   * Erzeugt das DOM-Gerüst für alle 4 Stationen
+   * Erzeugt das HeroUI & SevDesk DOM-Gerüst für alle 4 Stationen
    */
   initStationsLayout() {
     if (!this.dom.stationsContainer) return;
@@ -82,66 +83,80 @@ class ScadaOverviewApp {
 
     this.stations.forEach(st => {
       const card = document.createElement("article");
-      card.className = "station-scada-card";
+      card.className = "heroui-station-card";
       card.id = `card-${st.id}`;
 
       card.innerHTML = `
-        <div class="station-header-scada">
-          <div class="station-id-name">
-            <span class="station-badge-id">${st.id}</span>
-            <span class="station-heading">${st.name}</span>
+        <div class="heroui-station-header">
+          <div class="station-title-group">
+            <div class="station-id-avatar">${st.id.replace("ST-", "M")}</div>
+            <div class="station-title-text">
+              <span class="station-main-title">${st.name}</span>
+              <span class="station-meta-sub">SPS: ${st.plcIp} • OPC UA ns=2</span>
+            </div>
           </div>
-          <span class="station-status-pill" id="pill-${st.id}">NORMAL</span>
+          <span class="heroui-status-chip" id="pill-${st.id}">
+            <span class="chip-dot"></span>
+            <span id="pill-text-${st.id}">NORMAL</span>
+          </span>
         </div>
 
         <div class="metrics-scada-row">
-          <div class="metric-cell" id="cell-${st.id}-v1">
+          <div class="sevdesk-metric-cell" id="cell-${st.id}-v1">
             <div class="metric-cell-top">
               <span class="metric-cell-lbl" id="lbl-${st.id}-v1">${st.v1.label}</span>
-              <span class="metric-cell-trend trend-stable" id="trend-${st.id}-v1">→</span>
+              <span class="metric-cell-trend-pill trend-stable" id="trend-${st.id}-v1">→</span>
             </div>
             <div class="metric-cell-val"><span id="val-${st.id}-v1">${st.v1.val}</span><span class="metric-cell-unit">${st.v1.unit}</span></div>
           </div>
 
-          <div class="metric-cell" id="cell-${st.id}-v2">
+          <div class="sevdesk-metric-cell" id="cell-${st.id}-v2">
             <div class="metric-cell-top">
               <span class="metric-cell-lbl" id="lbl-${st.id}-v2">${st.v2.label}</span>
-              <span class="metric-cell-trend trend-stable" id="trend-${st.id}-v2">→</span>
+              <span class="metric-cell-trend-pill trend-stable" id="trend-${st.id}-v2">→</span>
             </div>
             <div class="metric-cell-val"><span id="val-${st.id}-v2">${st.v2.val}</span><span class="metric-cell-unit">${st.v2.unit}</span></div>
           </div>
 
-          <div class="metric-cell" id="cell-${st.id}-v3">
+          <div class="sevdesk-metric-cell" id="cell-${st.id}-v3">
             <div class="metric-cell-top">
               <span class="metric-cell-lbl" id="lbl-${st.id}-v3">${st.v3.label}</span>
-              <span class="metric-cell-trend trend-stable" id="trend-${st.id}-v3">→</span>
+              <span class="metric-cell-trend-pill trend-stable" id="trend-${st.id}-v3">→</span>
             </div>
             <div class="metric-cell-val"><span id="val-${st.id}-v3">${st.v3.val}</span><span class="metric-cell-unit">${st.v3.unit}</span></div>
           </div>
         </div>
 
-        <div class="history-section-scada">
+        <div class="history-section-heroui">
           <div class="history-header">
             <div class="history-title">
               <span>5-Minuten Trendkurve (${st.v1.label})</span>
-              <span class="history-ttl-tag">TTL: 300s</span>
+              <span class="history-ttl-pill">TTL: 300s</span>
             </div>
-            <span style="font-size:0.7rem; font-family:var(--font-mono); color:var(--text-dim);" id="pts-${st.id}">0 Datenpunkte</span>
+            <span style="font-size:0.7rem; font-family:var(--font-mono); color:var(--text-muted);" id="pts-${st.id}">0 Datenpunkte</span>
           </div>
 
           <div class="chart-container-scada">
             <svg class="scada-chart-svg" id="chart-${st.id}" viewBox="0 0 300 70" preserveAspectRatio="none">
-              <!-- Gitterlinien -->
-              <line x1="0" y1="18" x2="300" y2="18" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
-              <line x1="0" y1="36" x2="300" y2="36" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
-              <line x1="0" y1="54" x2="300" y2="54" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
-              <!-- Flachen-Polygon & Linien-Pfad -->
-              <polygon points="" fill="var(--chart-area)" id="poly-area-${st.id}" />
-              <polyline points="" fill="none" stroke="var(--chart-line)" stroke-width="2" id="poly-line-${st.id}" />
+              <defs>
+                <linearGradient id="grad-${st.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#10b981" stop-opacity="0.32" />
+                  <stop offset="100%" stop-color="#10b981" stop-opacity="0.0" />
+                </linearGradient>
+                <linearGradient id="grad-alert-${st.id}" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#ef4444" stop-opacity="0.38" />
+                  <stop offset="100%" stop-color="#ef4444" stop-opacity="0.0" />
+                </linearGradient>
+              </defs>
+              <line x1="0" y1="18" x2="300" y2="18" stroke="rgba(255,255,255,0.05)" stroke-dasharray="2,2" />
+              <line x1="0" y1="36" x2="300" y2="36" stroke="rgba(255,255,255,0.05)" stroke-dasharray="2,2" />
+              <line x1="0" y1="54" x2="300" y2="54" stroke="rgba(255,255,255,0.05)" stroke-dasharray="2,2" />
+              <polygon points="" fill="url(#grad-${st.id})" id="poly-area-${st.id}" />
+              <polyline points="" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="poly-line-${st.id}" />
             </svg>
           </div>
 
-          <div class="eval-grid-scada">
+          <div class="sevdesk-eval-grid">
             <div class="eval-col">
               <span class="eval-lbl">Min (5m)</span>
               <span class="eval-num" id="min-${st.id}">-</span>
@@ -161,15 +176,14 @@ class ScadaOverviewApp {
           </div>
         </div>
 
-        <div class="station-footer-scada">
-          <span class="plc-meta-tag">SPS: ${st.plcIp} • Node-RED</span>
-          <button class="btn-scada-fault" id="btn-fault-${st.id}">Störung simulieren</button>
+        <div class="heroui-station-footer">
+          <span class="station-node-tag">SPS-Kanal: ${st.plcIp}</span>
+          <button class="btn-heroui-fault" id="btn-fault-${st.id}">Störung simulieren</button>
         </div>
       `;
 
       this.dom.stationsContainer.appendChild(card);
 
-      // Fault-Button Handler
       const btnFault = card.querySelector(`#btn-fault-${st.id}`);
       btnFault.addEventListener("click", () => this.toggleFault(st.id));
     });
@@ -282,7 +296,6 @@ class ScadaOverviewApp {
       const list = this.historyMap.get(stationId);
       list.push(sample);
       
-      // 5-Minuten Cutoff im Client (300.000 ms)
       const cutoff = Date.now() - 300000;
       while (list.length > 0 && list[0].timestamp < cutoff) {
         list.shift();
@@ -358,39 +371,47 @@ class ScadaOverviewApp {
     const pointsStr = coords.join(" ");
     polyLine.setAttribute("points", pointsStr);
 
-    // Area-Polygon schließt unten bei y = H ab
     const areaPointsStr = `0,${H} ${pointsStr} ${W},${H}`;
     polyArea.setAttribute("points", areaPointsStr);
 
     const isFault = history.some(h => h.isFault && (Date.now() - h.timestamp < 15000));
-    polyLine.setAttribute("stroke", isFault ? "var(--status-fault)" : "var(--chart-line)");
+    if (isFault) {
+      polyLine.setAttribute("stroke", "#ef4444");
+      polyArea.setAttribute("fill", `url(#grad-alert-${stationId})`);
+    } else {
+      polyLine.setAttribute("stroke", "#10b981");
+      polyArea.setAttribute("fill", `url(#grad-${stationId})`);
+    }
   }
 
   renderTrendArrow(el, trend) {
     if (!el) return;
     if (trend === "up") {
       el.textContent = "↗";
-      el.className = "metric-cell-trend trend-up";
+      el.className = "metric-cell-trend-pill trend-up";
     } else if (trend === "down") {
       el.textContent = "↘";
-      el.className = "metric-cell-trend trend-down";
+      el.className = "metric-cell-trend-pill trend-down";
     } else {
       el.textContent = "→";
-      el.className = "metric-cell-trend trend-stable";
+      el.className = "metric-cell-trend-pill trend-stable";
     }
   }
 
   setCardFaultState(stationId, isFault) {
     const card = document.getElementById(`card-${stationId}`);
     const pill = document.getElementById(`pill-${stationId}`);
+    const pillText = document.getElementById(`pill-text-${stationId}`);
     const btn = document.getElementById(`btn-fault-${stationId}`);
     const cellV2 = document.getElementById(`cell-${stationId}-v2`);
 
     if (isFault) {
       if (card) card.classList.add("alert-state");
       if (pill) {
-        pill.textContent = "STÖRUNG";
-        pill.className = "station-status-pill alert";
+        pill.className = "heroui-status-chip alert";
+      }
+      if (pillText) {
+        pillText.textContent = "STÖRUNG";
       }
       if (btn) {
         btn.textContent = "Störung quittieren";
@@ -400,8 +421,10 @@ class ScadaOverviewApp {
     } else {
       if (card) card.classList.remove("alert-state");
       if (pill) {
-        pill.textContent = "NORMAL";
-        pill.className = "station-status-pill";
+        pill.className = "heroui-status-chip";
+      }
+      if (pillText) {
+        pillText.textContent = "NORMAL";
       }
       if (btn) {
         btn.textContent = "Störung simulieren";
@@ -416,7 +439,6 @@ class ScadaOverviewApp {
     const isCurrentlyFault = card ? card.classList.contains("alert-state") : false;
     const targetState = !isCurrentlyFault;
 
-    // 1. WebSocket senden falls online
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({
         type: "toggle_fault",
@@ -425,14 +447,12 @@ class ScadaOverviewApp {
       }));
     }
 
-    // 2. Auch REST POST als redundanten Rückkanal senden
     fetch("/api/fault", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ stationId, isFault: targetState })
     }).catch(() => {});
 
-    // Lokale visuelle Aktualisierung
     this.setCardFaultState(stationId, targetState);
     this.updateKpis();
   }
@@ -462,7 +482,12 @@ class ScadaOverviewApp {
 
     if (this.dom.kpiAlarms) {
       this.dom.kpiAlarms.textContent = activeAlarms;
-      this.dom.kpiAlarms.style.color = activeAlarms > 0 ? "var(--status-fault)" : "var(--status-ok)";
+      this.dom.kpiAlarms.style.color = activeAlarms > 0 ? "#f87171" : "#34d399";
+    }
+
+    if (this.dom.kpiAlarmsTag) {
+      this.dom.kpiAlarmsTag.textContent = activeAlarms > 0 ? "WARNUNG" : "BEREIT";
+      this.dom.kpiAlarmsTag.style.color = activeAlarms > 0 ? "#f87171" : "#34d399";
     }
 
     if (this.dom.kpiSamples) {
@@ -475,7 +500,7 @@ class ScadaOverviewApp {
 
   updateWsBadge(online, text) {
     if (this.dom.wsBadgeDot) {
-      this.dom.wsBadgeDot.className = online ? "badge-dot pulse" : "badge-dot alert";
+      this.dom.wsBadgeDot.className = online ? "chip-dot pulse" : "chip-dot alert";
     }
     if (this.dom.wsBadgeText) {
       this.dom.wsBadgeText.textContent = `WS: ${text}`;
@@ -484,7 +509,7 @@ class ScadaOverviewApp {
 
   updateMqttBadge(connected, simulated) {
     if (this.dom.mqttBadgeDot) {
-      this.dom.mqttBadgeDot.className = (connected || simulated) ? "badge-dot" : "badge-dot alert";
+      this.dom.mqttBadgeDot.className = (connected || simulated) ? "chip-dot" : "chip-dot alert";
     }
     if (this.dom.mqttBadgeText) {
       this.dom.mqttBadgeText.textContent = connected
