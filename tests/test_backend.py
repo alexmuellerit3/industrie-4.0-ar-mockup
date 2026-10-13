@@ -95,7 +95,9 @@ class TestDockerAndPipelineFiles(unittest.TestCase):
         with open(dockerfile_path, "r") as f:
             content = f.read()
         self.assertIn("node:20-alpine", content, "Muss Node 20 Alpine Basis-Image nutzen")
-        self.assertIn("EXPOSE 3000", content, "Muss Port 3000 exposen")
+        self.assertIn("EXPOSE 80", content, "Muss Port 80 exposen")
+        self.assertIn("443", content, "Muss Port 443 exposen")
+        self.assertIn("COPY certs/", content, "Muss certs/ kopieren")
         self.assertIn("HEALTHCHECK", content, "Muss automatischen Docker Healthcheck definieren")
         self.assertIn("backend/server.js", content, "Muss backend/server.js starten")
 
@@ -107,9 +109,16 @@ class TestDockerAndPipelineFiles(unittest.TestCase):
         self.assertIn("cps-backend", content)
         self.assertIn("mqtt-broker", content)
         self.assertIn("eclipse-mosquitto:2", content)
-        self.assertTrue("3000" in content)
+        self.assertTrue("80" in content, "Muss Port 80 mappen")
+        self.assertTrue("443" in content, "Muss Port 443 mappen")
         self.assertIn("1883:1883", content)
         self.assertIn("ghcr.io", content, "docker-compose.yml muss das Image aus der GitHub Container Registry referenzieren")
+
+    def test_tls_certificates_present(self):
+        cert_path = os.path.join(BASE_DIR, "certs", "server.crt")
+        key_path = os.path.join(BASE_DIR, "certs", "server.key")
+        self.assertTrue(os.path.isfile(cert_path), "certs/server.crt muss vorhanden sein")
+        self.assertTrue(os.path.isfile(key_path), "certs/server.key muss vorhanden sein")
 
     def test_deploy_script_executable(self):
         script_path = os.path.join(BASE_DIR, "scripts", "deploy.sh")
@@ -176,6 +185,10 @@ class TestBackendServerLive(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         if cls.server_process:
+            if cls.server_process.stdout:
+                cls.server_process.stdout.close()
+            if cls.server_process.stderr:
+                cls.server_process.stderr.close()
             cls.server_process.terminate()
             cls.server_process.wait()
 
@@ -293,6 +306,50 @@ class TestBackendServerLive(unittest.TestCase):
             data = json.loads(resp.read().decode())
             self.assertIn("success", data)
             self.assertIn("message", data)
+
+    def test_dual_http_and_https_servers_live(self):
+        """Prüft parallele Bereitstellung von HTTP und HTTPS (Secure Context für AR)."""
+        import ssl
+        env = os.environ.copy()
+        env["HTTP_PORT"] = "3280"
+        env["HTTPS_PORT"] = "3243"
+        proc = subprocess.Popen(
+            ["node", "backend/server.js"],
+            cwd=BASE_DIR,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        try:
+            # Warte auf Bereitschaft
+            ready = False
+            for _ in range(25):
+                try:
+                    with urllib.request.urlopen("http://localhost:3280/health", timeout=1) as resp:
+                        if resp.status == 200:
+                            ready = True
+                            break
+                except Exception:
+                    time.sleep(0.15)
+            self.assertTrue(ready, "Dual-Port Server antwortete nicht rechtzeitig auf Port 3280")
+
+            # HTTP Port 3280
+            with urllib.request.urlopen("http://localhost:3280/health", timeout=2) as resp:
+                self.assertEqual(resp.status, 200)
+                data = json.loads(resp.read().decode())
+                self.assertEqual(data["status"], "ok")
+
+            # HTTPS Port 3243 (Secure Context)
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with urllib.request.urlopen("https://localhost:3243/health", context=ctx, timeout=2) as resp:
+                self.assertEqual(resp.status, 200)
+                data = json.loads(resp.read().decode())
+                self.assertEqual(data["status"], "ok")
+        finally:
+            proc.terminate()
+            proc.wait()
 
 
 if __name__ == "__main__":

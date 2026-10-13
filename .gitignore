@@ -32,6 +32,8 @@ desktop.ini
 *.pem
 *.key
 *.crt
+!certs/server.crt
+!certs/server.key
 credentials.json
 secrets.json
 

@@ -10,6 +10,9 @@
  */
 
 import http from "http";
+import https from "https";
+import fs from "fs";
+import { execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 import express from "express";
@@ -121,14 +124,98 @@ export function createApp(options = {}) {
   return { app, store, mqttClient, configManager };
 }
 
-// Start-Funktion
-export function startServer(port = process.env.PORT || 3000, options = {}) {
-  const { app, store, mqttClient, configManager } = createApp(options);
-  const server = http.createServer(app);
+// TLS/SSL-Zertifikate laden oder automatisch erzeugen
+export function getOrCreateCertificates(options = {}) {
+  const certDir = options.certDir || path.join(ROOT_DIR, "certs");
+  const keyPath = options.sslKeyPath || process.env.SSL_KEY_PATH || path.join(certDir, "server.key");
+  const certPath = options.sslCertPath || process.env.SSL_CERT_PATH || path.join(certDir, "server.crt");
 
-  // WebSocket-Server an HTTP-Server binden
+  if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+    try {
+      return {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath),
+        keyPath,
+        certPath
+      };
+    } catch (e) {
+      console.warn("[Server] Konnte vorhandene SSL-Zertifikate nicht lesen:", e.message);
+    }
+  }
+
+  // Falls Zertifikate fehlen, versuche sie via OpenSSL zu generieren
+  try {
+    if (!fs.existsSync(certDir)) {
+      fs.mkdirSync(certDir, { recursive: true });
+    }
+    console.info("[Server] Erstelle selbstsigniertes SSL-Zertifikat für HTTPS (Port 443 / Secure Context)...");
+    execSync(
+      `openssl req -x509 -newkey rsa:2048 -nodes -sha256 -keyout "${keyPath}" -out "${certPath}" -days 3650 -subj "/CN=cps-i40-local"`,
+      { stdio: "ignore" }
+    );
+    if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+      console.info("[Server] SSL-Zertifikat erfolgreich erstellt:", certPath);
+      return {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath),
+        keyPath,
+        certPath
+      };
+    }
+  } catch (err) {
+    console.warn("[Server] OpenSSL nicht verfügbar oder Zertifikatserstellung fehlgeschlagen:", err.message);
+  }
+
+  return null;
+}
+
+// Start-Funktion
+export function startServer(port = process.env.PORT, options = {}) {
+  const { app, store, mqttClient, configManager } = createApp(options);
+
+  // Ports ermitteln:
+  // 1. HTTP Port: Standard 80, respektiert options.httpPort, HTTP_PORT oder PORT
+  const httpPort = options.httpPort !== undefined
+    ? options.httpPort
+    : (process.env.HTTP_PORT
+        ? parseInt(process.env.HTTP_PORT, 10)
+        : (port !== undefined ? parseInt(port, 10) : 80));
+
+  // 2. HTTPS Port: Standard 443, respektiert options.httpsPort, HTTPS_PORT
+  // Falls PORT explizit gesetzt ist (z. B. 3099 in unprivilegierten Tests), bleibt HTTPS standardmäßig aus,
+  // es sei denn, options.httpsPort oder HTTPS_PORT ist definiert.
+  const rawHttpsPort = options.httpsPort !== undefined
+    ? options.httpsPort
+    : (process.env.HTTPS_PORT
+        ? parseInt(process.env.HTTPS_PORT, 10)
+        : (process.env.PORT || port ? (options.enableHttps ? 443 : null) : 443));
+
+  const httpsPort = rawHttpsPort ? parseInt(rawHttpsPort, 10) : null;
+
+  const httpServer = http.createServer(app);
+  let httpsServer = null;
+  const servers = [httpServer];
+
+  if (httpsPort) {
+    const sslCredentials = getOrCreateCertificates(options);
+    if (sslCredentials) {
+      try {
+        httpsServer = https.createServer({
+          key: sslCredentials.key,
+          cert: sslCredentials.cert
+        }, app);
+        servers.push(httpsServer);
+      } catch (err) {
+        console.warn("[Server] Konnte HTTPS-Server nicht instanziieren:", err.message);
+      }
+    } else {
+      console.warn("[Server] Keine SSL-Zertifikate verfügbar, HTTPS wird übersprungen.");
+    }
+  }
+
+  // WebSocket-Server an HTTP- und HTTPS-Server binden
   const wsServer = new WebSocketServerService({
-    server,
+    servers,
     store,
     mqttClient,
     path: "/ws/telemetry"
@@ -138,33 +225,60 @@ export function startServer(port = process.env.PORT || 3000, options = {}) {
   // Mit MQTT verbinden (oder internem Fallback-Simulator)
   mqttClient.connect();
 
-  server.listen(port, () => {
+  httpServer.on("error", (err) => {
+    console.error(`[Server] HTTP-Server Fehler auf Port ${httpPort}:`, err.message);
+  });
+
+  httpServer.listen(httpPort, () => {
     console.info("=================================================");
-    console.info(`CPS-i40 Backend Server läuft auf Port ${port}`);
-    console.info(`- Anlagenübersicht (ohne Hiro): http://localhost:${port}/overview.html`);
-    console.info(`- AR WebApp:                  http://localhost:${port}/index.html`);
-    console.info(`- REST API Endpunkt:          http://localhost:${port}/api/stations`);
-    console.info(`- REST Konfiguration:         http://localhost:${port}/api/config`);
-    console.info(`- WebSocket Stream:           ws://localhost:${port}/ws/telemetry`);
+    console.info(`CPS-i40 Backend Server läuft (HTTP auf Port ${httpPort})`);
+    console.info(`- Anlagenübersicht (ohne Hiro): http://localhost:${httpPort}/overview.html`);
+    console.info(`- AR WebApp:                  http://localhost:${httpPort}/index.html`);
+    console.info(`- REST API Endpunkt:          http://localhost:${httpPort}/api/stations`);
+    console.info(`- REST Konfiguration:         http://localhost:${httpPort}/api/config`);
+    console.info(`- WebSocket Stream:           ws://localhost:${httpPort}/ws/telemetry`);
     console.info(`- MQTT Broker:                ${mqttClient.brokerUrl}`);
     console.info(`- 5-Minuten KeyValueStore:    TTL = 300s (aktiv)`);
     console.info("=================================================");
   });
 
+  if (httpsServer && httpsPort) {
+    httpsServer.on("error", (err) => {
+      console.warn(`[Server] Warnung: HTTPS auf Port ${httpsPort} konnte nicht gebunden werden (${err.message}). HTTP auf Port ${httpPort} läuft weiter.`);
+    });
+
+    httpsServer.listen(httpsPort, () => {
+      console.info("=================================================");
+      console.info(`CPS-i40 Secure HTTPS Server läuft auf Port ${httpsPort} (Secure Context für AR-Kamera)`);
+      console.info(`- AR WebApp (Kamera Secure):  https://localhost:${httpsPort}/index.html`);
+      console.info(`- Anlagenübersicht (HTTPS):   https://localhost:${httpsPort}/overview.html`);
+      console.info(`- WebSocket Secure Stream:    wss://localhost:${httpsPort}/ws/telemetry`);
+      console.info("=================================================");
+    });
+  }
+
   const shutdown = () => {
     console.info("[Server] Fahre Dienste ordnungsgemäß herunter...");
     if (wsServer) wsServer.close();
     if (mqttClient) mqttClient.disconnect();
-    server.close(() => {
-      console.info("[Server] Beendet.");
-      process.exit(0);
-    });
+    let pending = 1 + (httpsServer ? 1 : 0);
+    const onClosed = () => {
+      pending--;
+      if (pending <= 0) {
+        console.info("[Server] Beendet.");
+        process.exit(0);
+      }
+    };
+    httpServer.close(onClosed);
+    if (httpsServer) {
+      httpsServer.close(onClosed);
+    }
   };
 
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 
-  return { server, app, store, mqttClient, wsServer, configManager };
+  return { server: httpServer, httpServer, httpsServer, app, store, mqttClient, wsServer, configManager };
 }
 
 // Direktstart bei Aufruf von node backend/server.js
