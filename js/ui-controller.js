@@ -4,6 +4,7 @@
  */
 
 import { authService } from "./services/auth-service.js";
+import { APP_CONFIG } from "./config.js";
 
 export class UIController {
   constructor({ onNextStation, onToggleFault, onToggleSim, onZoomCycle, onCloseCard }) {
@@ -369,13 +370,42 @@ export class UIController {
     if (this.feedbackMsg) this.feedbackMsg.textContent = "";
     if (this.testResult) this.testResult.style.display = "none";
 
+    let loadedConfig = null;
+    let mqttStatus = null;
+
     try {
       const res = await fetch("/api/config");
-      if (res.ok) {
+      const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+      if (res.ok && ct.includes("application/json")) {
         const data = await res.json();
-        this.populateConfigForm(data.config, data.mqttStatus);
+        loadedConfig = data.config;
+        mqttStatus = data.mqttStatus;
       }
     } catch (_) {}
+
+    // Standalone / GitHub Pages Fallback
+    if (!loadedConfig) {
+      try {
+        const saved = localStorage.getItem("cps_saved_config");
+        if (saved) {
+          loadedConfig = JSON.parse(saved);
+        }
+      } catch (_) {}
+    }
+
+    if (!loadedConfig) {
+      loadedConfig = {
+        mqtt: { brokerUrl: "mqtt://localhost:1883", clientId: "cps-ar-hmi" },
+        api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
+        stations: APP_CONFIG.stations
+      };
+    }
+
+    if (!mqttStatus) {
+      mqttStatus = { connected: false, simulated: true };
+    }
+
+    this.populateConfigForm(loadedConfig, mqttStatus);
   }
 
   closeConfigModal() {
@@ -443,27 +473,37 @@ export class UIController {
     if (!url) return;
     if (this.btnTestMqtt) this.btnTestMqtt.textContent = "Prüfe...";
 
+    let testDone = false;
     try {
       const res = await fetch("/api/config/test-mqtt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brokerUrl: url, timeoutMs: 3500 })
       });
-      const data = await res.json();
+      const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+      if (res.ok && ct.includes("application/json")) {
+        const data = await res.json();
+        if (this.testResult) {
+          this.testResult.style.display = "block";
+          this.testResult.className = `test-feedback-badge ${data.success ? "success" : "error"}`;
+          this.testResult.textContent = `${data.success ? "✓" : "✕"} ${data.message}`;
+        }
+        testDone = true;
+      }
+    } catch (_) {}
+
+    if (!testDone) {
+      const isFormatOk = /^mqtt(s)?:\/\/.+:\d+/.test(url);
       if (this.testResult) {
         this.testResult.style.display = "block";
-        this.testResult.className = `test-feedback-badge ${data.success ? "success" : "error"}`;
-        this.testResult.textContent = `${data.success ? "✓" : "✕"} ${data.message}`;
+        this.testResult.className = `test-feedback-badge ${isFormatOk ? "success" : "error"}`;
+        this.testResult.textContent = isFormatOk
+          ? "✓ URL-Format syntaktisch gültig (Lokaler Modus / GitHub Pages)"
+          : "✕ Ungültiges URL-Format (z. B. mqtt://192.168.10.1:1883)";
       }
-    } catch (err) {
-      if (this.testResult) {
-        this.testResult.style.display = "block";
-        this.testResult.className = "test-feedback-badge error";
-        this.testResult.textContent = `✕ Fehler: ${err.message}`;
-      }
-    } finally {
-      if (this.btnTestMqtt) this.btnTestMqtt.textContent = "Testen";
     }
+
+    if (this.btnTestMqtt) this.btnTestMqtt.textContent = "Testen";
   }
 
   async saveConfig() {
@@ -489,53 +529,64 @@ export class UIController {
       });
     });
 
+    const payload = {
+      mqtt: { brokerUrl },
+      api: { historyTtlMs: historyTtlSec * 1000, pollIntervalMs },
+      stations: updatedStations
+    };
+
+    let savedRemote = false;
     try {
       const res = await fetch("/api/config", {
         method: "POST",
         headers: authService.getAuthHeaders(),
-        body: JSON.stringify({
-          mqtt: { brokerUrl },
-          api: { historyTtlMs: historyTtlSec * 1000, pollIntervalMs },
-          stations: updatedStations
-        })
+        body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        if (this.feedbackMsg) {
-          this.feedbackMsg.textContent = "✓ Gespeichert!";
-          this.feedbackMsg.className = "modal-feedback-msg success";
-        }
-        setTimeout(() => this.closeConfigModal(), 1000);
-      } else {
-        if (this.feedbackMsg) {
-          this.feedbackMsg.textContent = `✕ ${data.error || "Fehler"}`;
-          this.feedbackMsg.className = "modal-feedback-msg error";
-        }
+      const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+      if (res.ok && ct.includes("application/json")) {
+        const data = await res.json();
+        if (data.success) savedRemote = true;
       }
-    } catch (err) {
-      if (this.feedbackMsg) {
-        this.feedbackMsg.textContent = `✕ ${err.message}`;
-        this.feedbackMsg.className = "modal-feedback-msg error";
-      }
+    } catch (_) {}
+
+    // Standalone & Offline-Sicherung
+    try {
+      localStorage.setItem("cps_saved_config", JSON.stringify(payload));
+    } catch (_) {}
+
+    // Benachrichtige lokale Telemetrie-Instanz falls verfügbar
+    if (typeof window !== "undefined" && window.__candyArApp?.telemetryService) {
+      window.__candyArApp.telemetryService.updateStationsConfig(updatedStations);
     }
+
+    if (this.feedbackMsg) {
+      this.feedbackMsg.textContent = savedRemote ? "✓ Gespeichert & synchronisiert!" : "✓ Gespeichert (lokaler Modus)!";
+      this.feedbackMsg.className = "modal-feedback-msg success";
+    }
+    setTimeout(() => this.closeConfigModal(), 1000);
   }
 
   async resetDefaults() {
     if (!confirm("Auf Standardwerte zurücksetzen?")) return;
     try {
-      const res = await fetch("/api/config/reset", {
+      localStorage.removeItem("cps_saved_config");
+      await fetch("/api/config/reset", {
         method: "POST",
         headers: authService.getAuthHeaders()
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        this.populateConfigForm(data.config, { connected: false, simulated: true });
-        if (this.feedbackMsg) {
-          this.feedbackMsg.textContent = "✓ Zurückgesetzt!";
-          this.feedbackMsg.className = "modal-feedback-msg success";
-        }
-      }
     } catch (_) {}
+    this.populateConfigForm({
+      mqtt: { brokerUrl: "mqtt://localhost:1883" },
+      api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
+      stations: APP_CONFIG.stations
+    }, { connected: false, simulated: true });
+    if (typeof window !== "undefined" && window.__candyArApp?.telemetryService) {
+      window.__candyArApp.telemetryService.updateStationsConfig(APP_CONFIG.stations);
+    }
+    if (this.feedbackMsg) {
+      this.feedbackMsg.textContent = "✓ Zurückgesetzt!";
+      this.feedbackMsg.className = "modal-feedback-msg success";
+    }
   }
 
   // =========================================================================

@@ -8,6 +8,26 @@
   <meta name="theme-color" content="#12141a">
   <title>CPS-i40 AR Telemetrie</title>
 
+  <!-- Intelligentes Client-Routing für GitHub Pages & statische Hosts:
+       Desktop/Laptop-Geräte automatisch zum SCADA-Leitstand (overview.html) weiterleiten,
+       sofern nicht explizit AR-Modus angefordert wurde (?view=ar oder ?mode=camera). -->
+  <script>
+    (function() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("view") === "ar" || params.get("mode") === "camera" || window.location.hash === "#ar") {
+          return;
+        }
+        const ua = navigator.userAgent || "";
+        const isMobileOrTablet = /(Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobile|Silk)/i.test(ua)
+          || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /Macintosh/.test(ua));
+        if (!isMobileOrTablet && window.innerWidth >= 992) {
+          window.location.replace("overview.html");
+        }
+      } catch (_) {}
+    })();
+  </script>
+
   <!-- Modular Stylesheet -->
   <link rel="stylesheet" href="css/style.css">
 

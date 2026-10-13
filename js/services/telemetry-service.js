@@ -19,6 +19,19 @@ export class TelemetryService {
 
     // Initialisiere Trend-Puffer (Historie) für alle Sensoren
     this.initHistoryBuffers();
+
+    // Standalone / Offline-Persistenz: Prüfe auf zuvor gespeicherte Konfiguration im Browser
+    try {
+      if (typeof localStorage !== "undefined") {
+        const saved = localStorage.getItem("cps_saved_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.stations)) {
+            this.updateStationsConfig(parsed.stations);
+          }
+        }
+      }
+    } catch (_) {}
   }
 
   initHistoryBuffers() {
@@ -143,7 +156,18 @@ export class TelemetryService {
     } else if (this.config.api.mode === "rest") {
       this.startRestPolling(this.config.api.restEndpoint);
     } else {
-      // Auto-Erkennung: Falls über HTTP/S geladen, mit integriertem Backend verbinden
+      // Auto-Erkennung: Falls auf GitHub Pages oder file: -> direkt Mock-Simulation (kein Backend vorhanden)
+      const isGitHubPages = typeof window !== "undefined" && window.location && (
+        window.location.hostname.endsWith("github.io") || window.location.protocol === "file:"
+      );
+
+      if (isGitHubPages) {
+        console.info("[TelemetryService] GitHub Pages / Statischer Host erkannt: Starte lokale SPS-Simulation.");
+        this.startMockSimulation();
+        return;
+      }
+
+      // Falls über Node.js / Docker Server geladen, mit integriertem Backend verbinden
       if (typeof window !== "undefined" && window.location && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
         const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
         const internalWs = `${proto}//${window.location.host}/ws/telemetry`;

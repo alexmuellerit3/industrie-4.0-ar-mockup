@@ -52,9 +52,25 @@ class ScadaOverviewApp {
     this.stations = JSON.parse(JSON.stringify(STATIONS_DEFAULT));
     this.historyMap = new Map();
     this.summaryMap = new Map();
+    this.faultMap = new Map();
     this.ws = null;
     this.reconnectTimer = null;
     this.restFallbackTimer = null;
+    this.standaloneTimer = null;
+    this.isStandaloneSim = false;
+
+    // Standalone / Offline-Persistenz: Prüfe auf zuvor gespeicherte Konfiguration
+    try {
+      if (typeof localStorage !== "undefined") {
+        const saved = localStorage.getItem("cps_saved_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.stations)) {
+            this.mergeSavedStationsConfig(parsed.stations);
+          }
+        }
+      }
+    } catch (_) {}
 
     // DOM Caches
     this.dom = {
@@ -77,6 +93,26 @@ class ScadaOverviewApp {
     this.initConfigModal();
     this.initAuth();
     this.initInterpreter();
+  }
+
+  mergeSavedStationsConfig(savedStations) {
+    if (!Array.isArray(savedStations)) return;
+    savedStations.forEach(newSt => {
+      const target = this.stations.find(s => s.id === newSt.id);
+      if (target) {
+        if (newSt.name) target.name = newSt.name;
+        if (newSt.plcIp) target.plcIp = newSt.plcIp;
+        ['v1', 'v2', 'v3'].forEach(k => {
+          if (newSt[k] && target[k]) {
+            if (newSt[k].min !== undefined) target[k].min = newSt[k].min;
+            if (newSt[k].max !== undefined) target[k].max = newSt[k].max;
+            if (newSt[k].label) target[k].label = newSt[k].label;
+            if (newSt[k].unit) target[k].unit = newSt[k].unit;
+            if (newSt[k].defaultVal !== undefined) target[k].val = newSt[k].defaultVal;
+          }
+        });
+      }
+    });
   }
 
   /**
@@ -195,11 +231,21 @@ class ScadaOverviewApp {
   }
 
   /**
-   * Verbindet mit dem WebSocket-Server
+   * Verbindet mit dem WebSocket-Server (mit automatischem Fallback auf autarke Simulation auf GitHub Pages oder bei Offline-Betrieb)
    */
   connectWebSocket() {
     if (this.ws) {
       try { this.ws.close(); } catch (_) {}
+    }
+
+    const isGitHubPages = typeof window !== "undefined" && window.location && (
+      window.location.hostname.endsWith("github.io") || window.location.protocol === "file:"
+    );
+
+    if (isGitHubPages) {
+      console.info("[SCADA] GitHub Pages / Statischer Host erkannt: Starte autarke SPS-Simulation.");
+      this.startStandaloneSimulation();
+      return;
     }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -246,6 +292,7 @@ class ScadaOverviewApp {
   }
 
   scheduleReconnect() {
+    if (this.isStandaloneSim) return;
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
@@ -254,6 +301,7 @@ class ScadaOverviewApp {
   }
 
   startRestFallback() {
+    if (this.isStandaloneSim) return;
     if (this.restFallbackTimer) return;
     this.fetchRestSnapshot();
     this.restFallbackTimer = setInterval(() => this.fetchRestSnapshot(), 2000);
@@ -262,7 +310,8 @@ class ScadaOverviewApp {
   async fetchRestSnapshot() {
     try {
       const res = await fetch("/api/history");
-      if (res.ok) {
+      const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+      if (res.ok && ct.includes("application/json")) {
         const json = await res.json();
         if (json.history) {
           for (const [stId, list] of Object.entries(json.history)) {
@@ -275,8 +324,155 @@ class ScadaOverviewApp {
           }
         }
         this.renderAll();
+        return;
       }
     } catch (_) {}
+
+    // Falls REST 404 zurückgibt (z.B. statischer Server) und kein WS verfügbar ist:
+    this.startStandaloneSimulation();
+  }
+
+  startStandaloneSimulation() {
+    if (this.isStandaloneSim) return;
+    this.isStandaloneSim = true;
+
+    if (this.ws) {
+      try { this.ws.close(); } catch (_) {}
+      this.ws = null;
+    }
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.restFallbackTimer) {
+      clearInterval(this.restFallbackTimer);
+      this.restFallbackTimer = null;
+    }
+
+    console.info("[SCADA] Autarker Client-SPS-Simulator aktiviert (GitHub Pages / Offline-Modus).");
+    const isGh = typeof window !== "undefined" && window.location && window.location.hostname.endsWith("github.io");
+    this.updateWsBadge(true, isGh ? "SPS-Sim (GitHub Pages)" : "SPS-Sim (Offline)");
+    this.updateMqttBadge(false, true);
+
+    this.initStandaloneHistory();
+
+    if (this.standaloneTimer) clearInterval(this.standaloneTimer);
+    this.standaloneTimer = setInterval(() => {
+      this.tickStandaloneSimulation();
+    }, 1500);
+
+    this.renderAll();
+  }
+
+  initStandaloneHistory() {
+    const now = Date.now();
+    const stepMs = 15000; // alle 15 Sekunden = 20 Punkte = 5 Minuten Zeitfenster
+    const ttlMs = 300000;
+
+    this.stations.forEach(st => {
+      const list = [];
+      const v1Def = typeof st.v1?.val === "number" ? st.v1.val : 250;
+      const v2Def = typeof st.v2?.val === "number" ? st.v2.val : 5.0;
+      const v3Def = typeof st.v3?.val === "number" ? st.v3.val : 30;
+
+      for (let i = 20; i >= 0; i--) {
+        const t = now - (i * stepMs);
+        const v1Delta = (Math.sin(i * 0.4) * 0.05);
+        const v2Delta = (Math.cos(i * 0.3) * 0.04);
+        list.push({
+          v1: +(v1Def + v1Delta).toFixed(1),
+          v2: +(v2Def + v2Delta).toFixed(1),
+          v3: v3Def,
+          timestamp: t,
+          isFault: false
+        });
+      }
+      this.historyMap.set(st.id, list);
+      this.calculateStationSummary(st.id);
+    });
+  }
+
+  tickStandaloneSimulation() {
+    const now = Date.now();
+    const ttlMs = 300000;
+
+    this.stations.forEach(st => {
+      let list = this.historyMap.get(st.id) || [];
+      const isFault = Boolean(this.faultMap?.get(st.id));
+
+      let v1 = st.v1?.val ?? 250;
+      let v2 = st.v2?.val ?? 5.0;
+      let v3 = st.v3?.val ?? 30;
+
+      if (isFault) {
+        if (st.id === "ST-020" || st.id === "ST-030") {
+          v1 = +(2.8 + (Math.random() - 0.5) * 0.2).toFixed(1);
+        } else if (st.id === "ST-010") {
+          v1 = 12.0;
+        } else {
+          v2 = 8.5;
+        }
+      } else {
+        const delta1 = (Math.random() - 0.5) * 0.1;
+        const delta2 = (Math.random() - 0.5) * 0.08;
+        v1 = +(v1 + delta1).toFixed(1);
+        v2 = +(v2 + delta2).toFixed(1);
+
+        if (st.v1?.min !== undefined && st.v1?.max !== undefined) {
+          if (v1 < st.v1.min) v1 = st.v1.min;
+          if (v1 > st.v1.max) v1 = st.v1.max;
+        }
+        if (st.v2?.min !== undefined && st.v2?.max !== undefined) {
+          if (v2 < st.v2.min) v2 = st.v2.min;
+          if (v2 > st.v2.max) v2 = st.v2.max;
+        }
+      }
+
+      st.v1.val = v1;
+      st.v2.val = v2;
+      st.v3.val = v3;
+
+      list.push({
+        v1,
+        v2,
+        v3,
+        timestamp: now,
+        isFault
+      });
+
+      list = list.filter(entry => (now - entry.timestamp) <= ttlMs);
+      this.historyMap.set(st.id, list);
+      this.calculateStationSummary(st.id);
+    });
+
+    this.renderAll();
+  }
+
+  calculateStationSummary(stationId) {
+    const list = this.historyMap.get(stationId) || [];
+    if (list.length === 0) return;
+    const v1Values = list.map(e => e.v1);
+    const min = Math.min(...v1Values);
+    const max = Math.max(...v1Values);
+    const avg = +(v1Values.reduce((a, b) => a + b, 0) / v1Values.length).toFixed(1);
+    const current = v1Values[v1Values.length - 1];
+
+    let trend = "stable";
+    if (v1Values.length >= 2) {
+      const prev = v1Values[v1Values.length - 2];
+      if (current > prev + 0.04) trend = "up";
+      else if (current < prev - 0.04) trend = "down";
+    }
+
+    const faultCount = list.filter(e => e.isFault).length;
+    const faultRatePercent = +((faultCount / list.length) * 100).toFixed(1);
+
+    this.summaryMap.set(stationId, {
+      stationId,
+      windowSeconds: 300,
+      v1: { min, max, avg, current, trend },
+      faultRatePercent
+    });
   }
 
   handleSocketMessage(msg) {
@@ -451,26 +647,37 @@ class ScadaOverviewApp {
   }
 
   toggleFault(stationId) {
+    if (!this.faultMap) this.faultMap = new Map();
     const card = document.getElementById(`card-${stationId}`);
-    const isCurrentlyFault = card ? card.classList.contains("alert-state") : false;
+    const isCurrentlyFault = card ? card.classList.contains("alert-state") : Boolean(this.faultMap.get(stationId));
     const targetState = !isCurrentlyFault;
+    this.faultMap.set(stationId, targetState);
 
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({
-        type: "toggle_fault",
-        stationId,
-        isFault: targetState
-      }));
+      try {
+        this.ws.send(JSON.stringify({
+          type: "toggle_fault",
+          stationId,
+          isFault: targetState
+        }));
+      } catch (_) {}
     }
 
-    fetch("/api/fault", {
-      method: "POST",
-      headers: authService.getAuthHeaders(),
-      body: JSON.stringify({ stationId, isFault: targetState })
-    }).catch(() => {});
+    if (!this.isStandaloneSim) {
+      fetch("/api/fault", {
+        method: "POST",
+        headers: authService.getAuthHeaders(),
+        body: JSON.stringify({ stationId, isFault: targetState })
+      }).catch(() => {});
+    }
 
     this.setCardFaultState(stationId, targetState);
-    this.updateKpis();
+
+    if (this.isStandaloneSim) {
+      this.tickStandaloneSimulation();
+    } else {
+      this.updateKpis();
+    }
   }
 
   renderAll() {
@@ -643,16 +850,43 @@ class ScadaOverviewApp {
     this.setModalFeedback("", "");
     if (this.modal.testResult) this.modal.testResult.style.display = "none";
 
-    try {
-      const res = await fetch("/api/config");
-      if (res.ok) {
-        const data = await res.json();
-        this.populateConfigForm(data.config, data.mqttStatus);
+    let loadedConfig = null;
+    let mqttStatus = null;
+
+    if (!this.isStandaloneSim) {
+      try {
+        const res = await fetch("/api/config");
+        const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+        if (res.ok && ct.includes("application/json")) {
+          const data = await res.json();
+          loadedConfig = data.config;
+          mqttStatus = data.mqttStatus;
+        }
+      } catch (err) {
+        console.warn("[ConfigModal] Fehler beim Laden:", err);
       }
-    } catch (err) {
-      console.warn("[ConfigModal] Fehler beim Laden:", err);
-      this.setModalFeedback("Konnte Konfiguration nicht vom Server laden", "error");
     }
+
+    if (!loadedConfig) {
+      try {
+        const saved = localStorage.getItem("cps_saved_config");
+        if (saved) loadedConfig = JSON.parse(saved);
+      } catch (_) {}
+    }
+
+    if (!loadedConfig) {
+      loadedConfig = {
+        mqtt: { brokerUrl: "mqtt://localhost:1883", clientId: "cps-scada-hmi" },
+        api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
+        stations: this.stations
+      };
+    }
+
+    if (!mqttStatus) {
+      mqttStatus = { connected: false, simulated: true };
+    }
+
+    this.populateConfigForm(loadedConfig, mqttStatus);
   }
 
   closeConfigModal() {
@@ -783,21 +1017,38 @@ class ScadaOverviewApp {
       this.modal.btnTestMqtt.textContent = "Teste...";
     }
 
-    try {
-      const res = await fetch("/api/config/test-mqtt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brokerUrl: url, timeoutMs: 3500 })
-      });
-      const data = await res.json();
-      this.showTestResult(data.success, data.message);
-    } catch (err) {
-      this.showTestResult(false, `Verbindungstest fehlgeschlagen: ${err.message}`);
-    } finally {
-      if (this.modal.btnTestMqtt) {
-        this.modal.btnTestMqtt.disabled = false;
-        this.modal.btnTestMqtt.textContent = "Verbindung testen";
+    let testedRemote = false;
+    if (!this.isStandaloneSim) {
+      try {
+        const res = await fetch("/api/config/test-mqtt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ brokerUrl: url, timeoutMs: 3500 })
+        });
+        const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+        if (res.ok && ct.includes("application/json")) {
+          const data = await res.json();
+          this.showTestResult(data.success, data.message);
+          testedRemote = true;
+        }
+      } catch (err) {
+        console.warn("[SCADA] Live MQTT Test nicht erreichbar:", err);
       }
+    }
+
+    if (!testedRemote) {
+      const isFormatOk = /^mqtt(s)?:\/\/.+:\d+/.test(url);
+      this.showTestResult(
+        isFormatOk,
+        isFormatOk
+          ? "URL-Format syntaktisch gültig (Lokaler Modus / GitHub Pages)"
+          : "Ungültiges URL-Format (erwartet z.B. mqtt://192.168.10.1:1883)"
+      );
+    }
+
+    if (this.modal.btnTestMqtt) {
+      this.modal.btnTestMqtt.disabled = false;
+      this.modal.btnTestMqtt.textContent = "Verbindung testen";
     }
   }
 
@@ -834,18 +1085,28 @@ class ScadaOverviewApp {
 
       updatedStations.push({
         id: sId,
+        name: original.name,
         plcIp,
         v1: {
+          label: original.v1?.label,
+          unit: original.v1?.unit,
           min: isNaN(v1Min) ? original.v1?.min : v1Min,
           max: isNaN(v1Max) ? original.v1?.max : v1Max,
+          val: isNaN(v1Def) ? original.v1?.val : v1Def,
           defaultVal: isNaN(v1Def) ? original.v1?.defaultVal : v1Def
         },
         v2: {
+          label: original.v2?.label,
+          unit: original.v2?.unit,
           min: isNaN(v2Min) ? original.v2?.min : v2Min,
           max: isNaN(v2Max) ? original.v2?.max : v2Max,
+          val: isNaN(v2Def) ? original.v2?.val : v2Def,
           defaultVal: isNaN(v2Def) ? original.v2?.defaultVal : v2Def
         },
         v3: {
+          label: original.v3?.label,
+          unit: original.v3?.unit,
+          val: isNaN(v3Def) ? original.v3?.val : v3Def,
           defaultVal: isNaN(v3Def) ? original.v3?.defaultVal : v3Def
         }
       });
@@ -863,33 +1124,43 @@ class ScadaOverviewApp {
     if (this.modal.btnSave) this.modal.btnSave.disabled = true;
     if (this.modal.spinner) this.modal.spinner.style.display = "inline";
 
-    try {
-      const res = await fetch("/api/config", {
-        method: "POST",
-        headers: authService.getAuthHeaders(),
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        this.setModalFeedback("✓ Konfiguration erfolgreich gespeichert & angewendet!", "success");
-        if (data.config?.stations) {
-          this.stations = data.config.stations;
-          this.initStationsLayout();
-          this.renderAll();
+    let savedRemote = false;
+    if (!this.isStandaloneSim) {
+      try {
+        const res = await fetch("/api/config", {
+          method: "POST",
+          headers: authService.getAuthHeaders(),
+          body: JSON.stringify(payload)
+        });
+        const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+        if (res.ok && ct.includes("application/json")) {
+          const data = await res.json();
+          if (data.success) savedRemote = true;
         }
-        if (this.modal.currentBrokerUrl) {
-          this.modal.currentBrokerUrl.textContent = brokerUrl;
-        }
-        setTimeout(() => this.closeConfigModal(), 1200);
-      } else {
-        this.setModalFeedback(`✕ ${data.error || "Fehler beim Speichern"}`, "error");
-      }
-    } catch (err) {
-      this.setModalFeedback(`✕ Netzwerkfehler: ${err.message}`, "error");
-    } finally {
-      if (this.modal.btnSave) this.modal.btnSave.disabled = false;
-      if (this.modal.spinner) this.modal.spinner.style.display = "none";
+      } catch (_) {}
     }
+
+    // Persistenz im localStorage für GitHub Pages & Offline-Betrieb
+    try {
+      localStorage.setItem("cps_saved_config", JSON.stringify(payload));
+    } catch (_) {}
+
+    this.mergeSavedStationsConfig(updatedStations);
+    this.initStationsLayout();
+    this.renderAll();
+
+    if (this.modal.currentBrokerUrl) {
+      this.modal.currentBrokerUrl.textContent = brokerUrl;
+    }
+
+    this.setModalFeedback(
+      savedRemote ? "✓ Konfiguration erfolgreich gespeichert & synchronisiert!" : "✓ Konfiguration lokal gespeichert & angewendet (GitHub Pages Modus)!",
+      "success"
+    );
+
+    if (this.modal.btnSave) this.modal.btnSave.disabled = false;
+    if (this.modal.spinner) this.modal.spinner.style.display = "none";
+    setTimeout(() => this.closeConfigModal(), 1200);
   }
 
   async resetConfigDefaults() {
@@ -898,25 +1169,24 @@ class ScadaOverviewApp {
     }
 
     try {
-      const res = await fetch("/api/config/reset", {
-        method: "POST",
-        headers: authService.getAuthHeaders()
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        this.setModalFeedback("✓ Auf Werkseinstellungen zurückgesetzt!", "success");
-        this.populateConfigForm(data.config, { connected: false, simulated: true });
-        if (data.config?.stations) {
-          this.stations = data.config.stations;
-          this.initStationsLayout();
-          this.renderAll();
-        }
-      } else {
-        this.setModalFeedback("Fehler beim Zurücksetzen", "error");
+      localStorage.removeItem("cps_saved_config");
+      if (!this.isStandaloneSim) {
+        await fetch("/api/config/reset", {
+          method: "POST",
+          headers: authService.getAuthHeaders()
+        });
       }
-    } catch (err) {
-      this.setModalFeedback(`Fehler: ${err.message}`, "error");
-    }
+    } catch (_) {}
+
+    this.stations = JSON.parse(JSON.stringify(STATIONS_DEFAULT));
+    this.initStationsLayout();
+    this.populateConfigForm({
+      mqtt: { brokerUrl: "mqtt://localhost:1883", clientId: "cps-scada-hmi" },
+      api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
+      stations: this.stations
+    }, { connected: false, simulated: true });
+    this.renderAll();
+    this.setModalFeedback("✓ Auf Werkseinstellungen zurückgesetzt!", "success");
   }
 
   updateConfigStatus(mqttConfig) {

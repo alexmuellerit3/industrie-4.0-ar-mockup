@@ -236,6 +236,54 @@ class TestHeroUiAndSevDeskStyle(unittest.TestCase):
         self.assertIn(".config-pill", self.ar_css, "config-pill CSS in style.css fehlt")
 
 
+class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
+    """Prüft die Funktionsfähigkeit und Fallbacks für GitHub Pages & statisches Hosting."""
+
+    def setUp(self):
+        with open(os.path.join(BASE_DIR, "index.html"), "r") as f:
+            self.index_html = f.read()
+        with open(os.path.join(BASE_DIR, "overview.html"), "r") as f:
+            self.overview_html = f.read()
+        with open(os.path.join(BASE_DIR, "js", "overview.js"), "r") as f:
+            self.overview_js = f.read()
+        with open(os.path.join(BASE_DIR, "js", "ui-controller.js"), "r") as f:
+            self.ui_controller_js = f.read()
+        with open(os.path.join(BASE_DIR, "js", "services", "telemetry-service.js"), "r") as f:
+            self.telemetry_js = f.read()
+
+    def test_client_device_routing_in_index_html(self):
+        """index.html muss Client-seitiges Routing besitzen (Desktop -> overview.html)."""
+        self.assertIn("overview.html", self.index_html)
+        self.assertIn("isMobileOrTablet", self.index_html)
+        self.assertIn("view=ar", self.index_html)
+        # overview.html muss mit view=ar zur AR-Ansicht verlinken
+        self.assertIn('href="index.html?view=ar"', self.overview_html)
+
+    def test_standalone_simulation_in_overview_js(self):
+        """overview.js muss autarken SPS-Simulator für GitHub Pages und Offline-Betrieb besitzen."""
+        self.assertIn("startStandaloneSimulation", self.overview_js)
+        self.assertIn("initStandaloneHistory", self.overview_js)
+        self.assertIn("tickStandaloneSimulation", self.overview_js)
+        self.assertIn("calculateStationSummary", self.overview_js)
+        self.assertIn("github.io", self.overview_js)
+        self.assertIn("cps_saved_config", self.overview_js)
+
+    def test_standalone_config_fallbacks(self):
+        """ui-controller.js und telemetry-service.js müssen localStorage Fallback für Konfiguration nutzen."""
+        self.assertIn("cps_saved_config", self.ui_controller_js)
+        self.assertIn("cps_saved_config", self.telemetry_js)
+        self.assertIn("github.io", self.telemetry_js)
+
+    def test_github_pages_workflow_exists(self):
+        """GitHub Actions Pages Workflow muss existieren und korrekt konfiguriert sein."""
+        pages_yml_path = os.path.join(BASE_DIR, ".github", "workflows", "pages.yml")
+        self.assertTrue(os.path.isfile(pages_yml_path), ".github/workflows/pages.yml existiert nicht!")
+        with open(pages_yml_path, "r") as f:
+            content = f.read()
+        self.assertIn("actions/deploy-pages", content)
+        self.assertIn("actions/upload-pages-artifact", content)
+
+
 if __name__ == "__main__":
     unittest.main()
 
