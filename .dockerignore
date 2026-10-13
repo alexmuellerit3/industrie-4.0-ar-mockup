@@ -1,0 +1,16 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.github
+*.md
+tests/__pycache__
+tests/*.pyc
+companion
+companion-next
+companion_vanilla_backup
+screenshot_*.png
+sc_companion.html
+Dockerfile*
+docker-compose*.yml
+.DS_Store

@@ -1,0 +1,40 @@
+services:
+  # 1. CPS-i40 Node.js Backend & WebApp
+  cps-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cps-i40-telemetry:latest
+    container_name: cps-i40-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
+    depends_on:
+      - mqtt-broker
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # 2. Eclipse Mosquitto MQTT Broker
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: cps-i40-mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:

@@ -51,7 +51,10 @@
         <span class="status-dot" id="status-dot"></span>
         <span>CPS-i40 • <strong>Bonbon-Fertigung</strong></span>
       </div>
-      <button class="zoom-pill interactive" id="btn-zoom" title="Kamera-Zoom umschalten">1.0×</button>
+      <div class="header-ctrl-group interactive">
+        <a href="overview.html" class="overview-nav-btn interactive" title="Gesamtanlage ohne Hiro-Marker ansehen">Leitstand ↗</a>
+        <button class="zoom-pill interactive" id="btn-zoom" title="Kamera-Zoom umschalten">1.0×</button>
+      </div>
     </header>
 
     <!-- Fadenkreuz / Großer Zielsucher-Bereich -->
@@ -162,6 +165,26 @@
             <div class="detail-card">
               <div class="detail-lbl">Toleranzband (v2)</div>
               <div class="detail-val" id="tab-tol2">5.1 - 5.3 bar</div>
+            </div>
+          </div>
+
+          <!-- 5-Minuten KeyValueStore Historie & Auswertung -->
+          <div class="detail-5m-grid" id="tab-5m-box">
+            <div class="detail-5m-card">
+              <div class="detail-lbl">Min (5m)</div>
+              <div class="detail-val" id="tab-5m-min">--</div>
+            </div>
+            <div class="detail-5m-card">
+              <div class="detail-lbl">Max (5m)</div>
+              <div class="detail-val" id="tab-5m-max">--</div>
+            </div>
+            <div class="detail-5m-card">
+              <div class="detail-lbl">Ø Avg (5m)</div>
+              <div class="detail-val" id="tab-5m-avg">--</div>
+            </div>
+            <div class="detail-5m-card">
+              <div class="detail-lbl">5m Störrate</div>
+              <div class="detail-val" id="tab-5m-rate">0.0%</div>
             </div>
           </div>
 

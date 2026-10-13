@@ -166,6 +166,40 @@ a-scene canvas {
   border-color: var(--border-focus);
 }
 
+.header-ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.overview-nav-btn {
+  padding: 6px 12px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  font-family: ui-monospace, "SF Mono", monospace;
+  font-size: clamp(10px, 2.8vw, 12px);
+  font-weight: 600;
+  color: var(--text-primary);
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  transition: all 0.15s ease;
+}
+
+.overview-nav-btn:hover,
+.overview-nav-btn:active {
+  background: rgba(45, 52, 68, 0.95);
+  border-color: var(--border-focus);
+}
+
 .status-dot {
   width: 7px;
   height: 7px;
@@ -592,6 +626,19 @@ a-scene canvas {
 
   .detail-val.text-ok { color: #86efac; }
   .detail-val.text-fault { color: #fca5a5; }
+
+  .detail-5m-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+
+  .detail-5m-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    padding: 6px 8px;
+  }
 
   .node-strip {
     display: flex;

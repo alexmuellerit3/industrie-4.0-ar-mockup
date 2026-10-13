@@ -37,16 +37,37 @@ export class TelemetryService {
         }
       });
     });
+    this.summaries = new Map();
+  }
+
+  getCurrentSummary() {
+    const current = this.getCurrentStation();
+    if (!current) return null;
+    const sId = current.id;
+    if (this.summaries && this.summaries.has(sId)) {
+      return this.summaries.get(sId);
+    }
+    const h = current.v1?.history || [];
+    if (h.length === 0) return null;
+    const min = Math.min(...h);
+    const max = Math.max(...h);
+    const avg = +(h.reduce((a, b) => a + b, 0) / h.length).toFixed(1);
+    return {
+      stationId: sId,
+      windowSeconds: 300,
+      v1: { min, max, avg, current: current.v1?.val ?? 0, trend: current.v1?.trend || "stable" },
+      faultRatePercent: this.isFaultSimulated ? 100 : 0
+    };
   }
 
   /**
    * Registriert einen Observer / Callback für Datenaktualisierungen
-   * @param {Function} callback - fn(stationData, isFault)
+   * @param {Function} callback - fn(stationData, isFault, summary)
    */
   subscribe(callback) {
     this.subscribers.add(callback);
     // Sofortiger initialer Aufruf mit aktuellem Stand
-    callback(this.getCurrentStation(), this.isFaultSimulated);
+    callback(this.getCurrentStation(), this.isFaultSimulated, this.getCurrentSummary());
     return () => this.subscribers.delete(callback);
   }
 
@@ -55,9 +76,10 @@ export class TelemetryService {
    */
   notify() {
     const current = this.getCurrentStation();
+    const summary = this.getCurrentSummary();
     for (const callback of this.subscribers) {
       try {
-        callback(current, this.isFaultSimulated);
+        callback(current, this.isFaultSimulated, summary);
       } catch (err) {
         console.error("[TelemetryService] Fehler in Subscriber-Callback:", err);
       }
@@ -121,7 +143,14 @@ export class TelemetryService {
     } else if (this.config.api.mode === "rest") {
       this.startRestPolling(this.config.api.restEndpoint);
     } else {
-      this.startMockSimulation();
+      // Auto-Erkennung: Falls über HTTP/S geladen, mit integriertem Backend verbinden
+      if (typeof window !== "undefined" && window.location && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
+        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const internalWs = `${proto}//${window.location.host}/ws/telemetry`;
+        this.connectWebSocket(internalWs);
+      } else {
+        this.startMockSimulation();
+      }
     }
   }
 
@@ -179,8 +208,8 @@ export class TelemetryService {
   }
 
   /**
-   * 2. WEBSOCKET SCHNITTSTELLE (Für spätere Edge-Gateway Anbindung)
-   * Protokollbeispiel: JSON-Stream von Node-RED / OPC UA Gateway
+   * 2. WEBSOCKET SCHNITTSTELLE (Für Edge-Gateway & CPS-Backend Anbindung)
+   * Protokoll: JSON-Stream von Node-RED / CPS Backend
    */
   connectWebSocket(url) {
     console.info(`[TelemetryService] Verbinde mit WebSocket: ${url}`);
@@ -189,12 +218,51 @@ export class TelemetryService {
       
       this.wsConnection.onopen = () => {
         console.info("[TelemetryService] WebSocket-Verbindung hergestellt.");
+        if (this.timerId) {
+          clearInterval(this.timerId);
+          this.timerId = null;
+        }
       };
 
       this.wsConnection.onmessage = (event) => {
         try {
-          const incomingData = JSON.parse(event.data);
-          this.applyExternalData(incomingData);
+          const incoming = JSON.parse(event.data);
+          if (incoming.type === "init") {
+            if (incoming.summaries) {
+              for (const [stId, s] of Object.entries(incoming.summaries)) {
+                this.summaries.set(stId, s);
+              }
+            }
+            if (incoming.history) {
+              for (const [stId, list] of Object.entries(incoming.history)) {
+                const target = this.stations.find(s => s.id === stId);
+                if (target && list.length > 0) {
+                  const last = list[list.length - 1];
+                  target.v1.val = last.v1;
+                  target.v2.val = last.v2;
+                  target.v3.val = last.v3;
+                  target.v1.history = list.map(item => item.v1);
+                  target.v2.history = list.map(item => item.v2);
+                  target.v3.history = list.map(item => item.v3);
+                }
+              }
+            }
+            this.notify();
+          } else if (incoming.type === "telemetry") {
+            const data = incoming.sample ? { stationId: incoming.stationId, ...incoming.sample } : incoming;
+            if (incoming.summary) {
+              this.summaries.set(incoming.stationId, incoming.summary);
+            }
+            this.applyExternalData(data);
+          } else if (incoming.type === "fault_change") {
+            const current = this.getCurrentStation();
+            if (current && incoming.stationId === current.id) {
+              this.isFaultSimulated = incoming.isFault;
+              this.notify();
+            }
+          } else {
+            this.applyExternalData(incoming);
+          }
         } catch (e) {
           console.warn("[TelemetryService] Ungültiges Telemetrie-Paket:", e);
         }
@@ -202,6 +270,11 @@ export class TelemetryService {
 
       this.wsConnection.onerror = (err) => {
         console.warn("[TelemetryService] WebSocket-Fehler, wechsle auf Fallback-Simulation:", err);
+        this.startMockSimulation();
+      };
+
+      this.wsConnection.onclose = () => {
+        console.info("[TelemetryService] WebSocket geschlossen, starte Fallback-Simulation.");
         this.startMockSimulation();
       };
     } catch (e) {
@@ -235,9 +308,28 @@ export class TelemetryService {
     if (!data || !data.stationId) return;
     const target = this.stations.find(s => s.id === data.stationId);
     if (target) {
-      if (data.v1 !== undefined) target.v1.val = data.v1;
-      if (data.v2 !== undefined) target.v2.val = data.v2;
+      if (data.v1 !== undefined) {
+        const prev1 = target.v1.val;
+        target.v1.val = data.v1;
+        if (!target.v1.history) target.v1.history = [];
+        target.v1.history.push(data.v1);
+        if (target.v1.history.length > 20) target.v1.history.shift();
+        if (data.v1 > prev1 + 0.04) target.v1.trend = "up";
+        else if (data.v1 < prev1 - 0.04) target.v1.trend = "down";
+        else target.v1.trend = "stable";
+      }
+      if (data.v2 !== undefined) {
+        const prev2 = target.v2.val;
+        target.v2.val = data.v2;
+        if (!target.v2.history) target.v2.history = [];
+        target.v2.history.push(data.v2);
+        if (target.v2.history.length > 20) target.v2.history.shift();
+        if (data.v2 > prev2 + 0.04) target.v2.trend = "up";
+        else if (data.v2 < prev2 - 0.04) target.v2.trend = "down";
+        else target.v2.trend = "stable";
+      }
       if (data.v3 !== undefined) target.v3.val = data.v3;
+      if (data.isFault !== undefined) this.isFaultSimulated = data.isFault;
       this.notify();
     }
   }

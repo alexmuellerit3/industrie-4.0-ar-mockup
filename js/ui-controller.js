@@ -50,6 +50,10 @@ export class UIController {
     this.tabNode = document.getElementById("tab-node");
     this.tabTrendText = document.getElementById("tab-trend-text");
     this.tabTrendDot = document.getElementById("tab-trend-dot");
+    this.tab5mMin = document.getElementById("tab-5m-min");
+    this.tab5mMax = document.getElementById("tab-5m-max");
+    this.tab5mAvg = document.getElementById("tab-5m-avg");
+    this.tab5mRate = document.getElementById("tab-5m-rate");
 
     // Buttons
     this.btnNext = document.getElementById("btn-next");
@@ -174,6 +178,14 @@ export class UIController {
         this.tabTrendText.textContent = "Prozess im Soll • 30s Schwankungsbreite < 0.2%";
         this.tabTrendDot.className = "trend-indicator-dot";
       }
+    }
+
+    // 5-Minuten KeyValueStore Aggregationen im Panel darstellen
+    if (summary && summary.v1) {
+      if (this.tab5mMin) this.tab5mMin.textContent = summary.v1.min;
+      if (this.tab5mMax) this.tab5mMax.textContent = summary.v1.max;
+      if (this.tab5mAvg) this.tab5mAvg.textContent = summary.v1.avg;
+      if (this.tab5mRate) this.tab5mRate.textContent = `${summary.faultRatePercent}%`;
     }
   }
 

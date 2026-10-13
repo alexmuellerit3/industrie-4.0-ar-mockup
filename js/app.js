@@ -36,8 +36,8 @@ class CandyArApp {
     });
 
     // 4. Observer-Verbindung herstellen
-    this.telemetryService.subscribe((stationData, isFault) => {
-      this.ui.render(stationData, isFault);
+    this.telemetryService.subscribe((stationData, isFault, summary) => {
+      this.ui.render(stationData, isFault, summary);
     });
 
     // 5. Telemetrie-Stream starten

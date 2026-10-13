@@ -1,0 +1,63 @@
+name: CPS-i40 CI/CD & Docker Pipeline
+
+on:
+  push:
+    branches: [ "main", "experimental" ]
+  pull_request:
+    branches: [ "main", "experimental" ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install NPM Dependencies
+        run: npm ci || npm install
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Run Test Suite
+        run: python3 -m unittest discover tests -v
+
+  docker-build:
+    name: Build & Verify Docker Container
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: actions/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          load: true
+          tags: cps-i40-telemetry:ci
+
+      - name: Test Container Health
+        run: |
+          docker run -d --name test-cps -p 3000:3000 -e PORT=3000 cps-i40-telemetry:ci
+          sleep 5
+          docker ps
+          curl -fail http://localhost:3000/health || exit 1
+          curl -fail http://localhost:3000/api/stations || exit 1
+          docker stop test-cps
+          docker rm test-cps

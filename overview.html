@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f1117">
+  <title>CPS-i40 • SCADA Gesamtanlagen-Übersicht (CPR-01)</title>
+
+  <!-- Deutsches Industrie SCADA Stylesheet (Graphit/Titan, kein Blau) -->
+  <link rel="stylesheet" href="css/overview.css">
+</head>
+<body class="scada-body">
+
+  <!-- ========================================================================
+       SCADA LEITSTAND KOPFZEILE
+       ======================================================================== -->
+  <header class="scada-header">
+    <div class="scada-title-wrap">
+      <div class="plant-logo-badge">CPS-i40 • CPR-01</div>
+      <div>
+        <h1>Gesamtanlagen-Leitstand</h1>
+        <div class="scada-subtitle">Industrie 4.0 Bonbon-Dosenlinie • Vollständige Prozessübersicht ohne Marker</div>
+      </div>
+    </div>
+
+    <div class="header-badges">
+      <!-- WebSocket Live Badge -->
+      <div class="status-badge" title="Echtzeit-Push über WebSocket">
+        <span class="badge-dot pulse" id="ws-badge-dot"></span>
+        <span id="ws-badge-text">WS: Verbinde...</span>
+      </div>
+
+      <!-- MQTT Broker Badge -->
+      <div class="status-badge" title="MQTT Anbindung an SPS / IOT2050">
+        <span class="badge-dot" id="mqtt-badge-dot"></span>
+        <span id="mqtt-badge-text">MQTT: SPS-Sim</span>
+      </div>
+
+      <!-- 5-Minuten KeyValueStore Status -->
+      <div class="status-badge" title="Strikt rollierender 5-Minuten In-Memory Ringspeicher">
+        <span style="color:var(--text-dim); font-size:0.75rem;">5m Puffer:</span>
+        <span id="store-sample-count">Initialisiere...</span>
+      </div>
+
+      <!-- Uhrzeit -->
+      <div class="status-badge" style="color:var(--text-muted);" id="scada-clock">--:--:--</div>
+
+      <!-- Umschalter zum mobilen AR-Modus -->
+      <a href="index.html" class="btn-header-link" title="Wechselt zur Smartphone AR-Kameraansicht mit Hiro-Marker">
+        <span>Kamera AR-HUD</span>
+        <span>↗</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       KPI SYNOPSIS BAR (Gesamtanlagen-Kennzahlen)
+       ======================================================================== -->
+  <section class="scada-synopsis-bar">
+    <div class="kpi-card">
+      <span class="kpi-label">Linien-Takt (Soll: 32 D/min)</span>
+      <div class="kpi-val-row">
+        <span class="kpi-val" id="kpi-takt">32.0</span>
+        <span class="kpi-unit">Dosen/min</span>
+      </div>
+      <span class="kpi-sub">Modul 2 Master-Taktung</span>
+    </div>
+
+    <div class="kpi-card">
+      <span class="kpi-label">Gesamtanlageneffektivität (OEE)</span>
+      <div class="kpi-val-row">
+        <span class="kpi-val" id="kpi-oee" style="color:var(--status-ok);">93.0</span>
+        <span class="kpi-unit">%</span>
+      </div>
+      <span class="kpi-sub">Verfügbarkeit 98% • Leistung 96%</span>
+    </div>
+
+    <div class="kpi-card">
+      <span class="kpi-label">Aktive Alarme / Störungen</span>
+      <div class="kpi-val-row">
+        <span class="kpi-val" id="kpi-alarms" style="color:var(--status-ok);">0</span>
+        <span class="kpi-unit">Stationen</span>
+      </div>
+      <span class="kpi-sub">Pneumatik & Drehmomentüberwachung</span>
+    </div>
+
+    <div class="kpi-card">
+      <span class="kpi-label">5-Minuten Zeitreihen-Store</span>
+      <div class="kpi-val-row">
+        <span class="kpi-val" id="kpi-samples">0</span>
+        <span class="kpi-unit">Messpunkte</span>
+      </div>
+      <span class="kpi-sub">Rolling Window: 300 Sekunden (TTL)</span>
+    </div>
+  </section>
+
+  <!-- ========================================================================
+       STATIONS-GRID (Alle 4 Module im Überblick mit 5-Minuten Trendkurven)
+       ======================================================================== -->
+  <main class="stations-scada-grid" id="stations-scada-container">
+    <!-- Wird dynamisch durch js/overview.js aufgebaut -->
+  </main>
+
+  <!-- ========================================================================
+       FUSSZEILE MIT SYSTEMINFOS
+       ======================================================================== -->
+  <footer class="scada-page-footer">
+    <div>
+      <strong>CPS-i40 Industrie 4.0 Backend</strong> • Node.js v20 • Express REST API • MQTT v5 • WebSockets RFC 6455
+    </div>
+    <div>
+      Lernfeld 7: Cyber-Physische Systeme • Berufsschule FiSi • Candy-Linie CPR-01
+    </div>
+  </footer>
+
+  <!-- Controller Script -->
+  <script type="module" src="js/overview.js"></script>
+
+</body>
+</html>
