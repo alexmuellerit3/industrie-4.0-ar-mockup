@@ -44,12 +44,43 @@
   --heroui-shadow-md: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
   --heroui-shadow-lg: 0 16px 36px -8px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--heroui-border);
   --heroui-shadow-alert: 0 12px 32px -4px rgba(239, 68, 68, 0.25), 0 0 0 1px var(--sevdesk-danger-border);
+
+  /* SevDesk & HeroUI Primär-Akzentfarben & Radien */
+  --primary: #10b981;
+  --primary-hover: #059669;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) rgba(0, 0, 0, 0.25);
+}
+
+/* Elegante HeroUI Scrollbars (verhindert unschöne OS-Graubalken mit Pfeilen) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 body.scada-body {
@@ -71,11 +102,9 @@ body.scada-body {
    ========================================================================== */
 .scada-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 14px 20px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 22px;
   background: var(--heroui-content1);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
@@ -83,6 +112,14 @@ body.scada-body {
   border-radius: 18px;
   box-shadow: var(--heroui-shadow-md);
   margin-bottom: 24px;
+}
+
+.scada-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .scada-title-wrap {
@@ -124,11 +161,32 @@ body.scada-body {
   font-weight: 400;
 }
 
-.header-badges {
+.scada-actions-group {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.scada-header-status-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--heroui-divider);
+  flex-wrap: wrap;
+}
+
+.header-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.scada-clock-chip {
+  margin-left: auto;
 }
 
 /* HeroUI Chip Component */
@@ -683,8 +741,8 @@ body.scada-body {
   border-radius: 22px;
   box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--heroui-border-focus);
   width: 100%;
-  max-width: 820px;
-  max-height: 90vh;
+  max-width: 920px;
+  max-height: min(90vh, 860px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -755,27 +813,36 @@ body.scada-body {
   color: var(--text-main);
 }
 
-/* Tab Bar */
+/* Tab Bar - Sauberes horizontales Scrollen ohne hässliche OS-Scrollbars */
 .heroui-tabs-bar {
   display: flex;
-  padding: 8px 24px;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.25);
+  align-items: center;
+  padding: 8px 20px;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.32);
   border-bottom: 1px solid var(--heroui-divider);
   overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.heroui-tabs-bar::-webkit-scrollbar {
+  display: none;
 }
 
 .heroui-tab-btn {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-secondary);
-  padding: 8px 16px;
+  padding: 7px 14px;
   border-radius: 10px;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .heroui-tab-btn:hover {
@@ -791,12 +858,13 @@ body.scada-body {
 
 /* Modal Body */
 .heroui-modal-body {
-  padding: 24px;
+  padding: 22px 24px;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 18px;
 }
 
 .tab-pane {

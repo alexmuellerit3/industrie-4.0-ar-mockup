@@ -15,57 +15,64 @@
        HEROUI & SEVDESK NAVIGATION HEADER
        ======================================================================== -->
   <header class="scada-header">
-    <div class="scada-title-wrap">
-      <div class="heroui-avatar-badge">CPR</div>
-      <div>
-        <h1>Gesamtanlagen-Leitstand</h1>
-        <div class="scada-subtitle">Industrie 4.0 Bonbon-Dosenlinie • Vollständige Prozessübersicht ohne Marker</div>
+    <div class="scada-header-top">
+      <div class="scada-title-wrap">
+        <div class="heroui-avatar-badge">CPR</div>
+        <div>
+          <h1>Gesamtanlagen-Leitstand</h1>
+          <div class="scada-subtitle">Industrie 4.0 Bonbon-Dosenlinie • Vollständige Prozessübersicht ohne Marker</div>
+        </div>
+      </div>
+
+      <div class="scada-actions-group">
+        <!-- Benutzer & Login Button -->
+        <button type="button" class="heroui-btn heroui-btn-flat" id="btn-auth-user" title="Benutzeranmeldung & Rechte">
+          <span id="auth-status-icon">👤</span>
+          <span id="auth-user-name">Anmelden</span>
+        </button>
+
+        <!-- Konfigurationspanel Button -->
+        <button type="button" class="heroui-btn heroui-btn-flat" id="btn-open-config" title="Anlagen- und MQTT-Konfiguration öffnen">
+          <span>⚙️ Konfiguration</span>
+        </button>
+
+        <!-- HeroUI Umschalter zur mobilen AR-Ansicht -->
+        <a href="index.html?view=ar" class="heroui-btn heroui-btn-primary" title="Wechselt zur Smartphone AR-Kameraansicht mit Hiro-Marker">
+          <span>Kamera AR-HUD</span>
+          <span>↗</span>
+        </a>
       </div>
     </div>
 
-      <!-- Aktive Datenquelle Badge -->
-      <div class="heroui-chip" id="source-badge" title="Aktive Datenquelle (WebSocket / MQTT / Simulator)">
-        <span style="color:var(--text-muted);">Quelle:</span>
-        <span id="source-badge-text" style="color:var(--primary); font-weight:700;">WebSocket</span>
-      </div>
+    <div class="scada-header-status-strip">
+      <div class="header-badges">
+        <!-- Aktive Datenquelle Badge -->
+        <div class="heroui-chip" id="source-badge" title="Aktive Datenquelle (WebSocket / MQTT / Simulator)">
+          <span style="color:var(--text-muted);">Quelle:</span>
+          <span id="source-badge-text" style="color:var(--primary); font-weight:700;">WebSocket</span>
+        </div>
 
-      <!-- WebSocket Live Badge -->
-      <div class="heroui-chip heroui-chip-success" id="ws-badge-container" title="Echtzeit-Push über WebSocket">
-        <span class="chip-dot pulse" id="ws-badge-dot"></span>
-        <span id="ws-badge-text">WS: Verbinde...</span>
-      </div>
+        <!-- WebSocket Live Badge -->
+        <div class="heroui-chip heroui-chip-success" id="ws-badge-container" title="Echtzeit-Push über WebSocket">
+          <span class="chip-dot pulse" id="ws-badge-dot"></span>
+          <span id="ws-badge-text">WS: Verbinde...</span>
+        </div>
 
-      <!-- MQTT Broker Badge -->
-      <div class="heroui-chip" id="mqtt-badge-container" title="MQTT Anbindung an SPS / IOT2050">
-        <span class="chip-dot" id="mqtt-badge-dot"></span>
-        <span id="mqtt-badge-text">MQTT: SPS-Sim</span>
-      </div>
+        <!-- MQTT Broker Badge -->
+        <div class="heroui-chip" id="mqtt-badge-container" title="MQTT Anbindung an SPS / IOT2050">
+          <span class="chip-dot" id="mqtt-badge-dot"></span>
+          <span id="mqtt-badge-text">MQTT: SPS-Sim</span>
+        </div>
 
-      <!-- 5-Minuten KeyValueStore Status -->
-      <div class="heroui-chip" title="Strikt rollierender 5-Minuten In-Memory Ringspeicher">
-        <span style="color:var(--text-muted);">5m Puffer:</span>
-        <span id="store-sample-count" style="color:var(--text-main); font-weight:700;">Initialisiere...</span>
+        <!-- 5-Minuten KeyValueStore Status -->
+        <div class="heroui-chip" id="store-badge-container" title="Strikt rollierender 5-Minuten In-Memory Ringspeicher">
+          <span style="color:var(--text-muted);">5m Puffer:</span>
+          <span id="store-sample-count" style="color:var(--text-main); font-weight:700;">Initialisiere...</span>
+        </div>
       </div>
 
       <!-- Live Uhrzeit -->
-      <div class="heroui-chip" id="scada-clock">--:--:--</div>
-
-      <!-- Benutzer & Login Button -->
-      <button type="button" class="heroui-btn heroui-btn-flat" id="btn-auth-user" title="Benutzeranmeldung & Rechte">
-        <span id="auth-status-icon">👤</span>
-        <span id="auth-user-name">Anmelden</span>
-      </button>
-
-      <!-- Konfigurationspanel Button -->
-      <button type="button" class="heroui-btn heroui-btn-flat" id="btn-open-config" title="Anlagen- und MQTT-Konfiguration öffnen">
-        <span>⚙️ Konfiguration</span>
-      </button>
-
-      <!-- HeroUI Umschalter zur mobilen AR-Ansicht -->
-      <a href="index.html?view=ar" class="heroui-btn heroui-btn-primary" title="Wechselt zur Smartphone AR-Kameraansicht mit Hiro-Marker">
-        <span>Kamera AR-HUD</span>
-        <span>↗</span>
-      </a>
+      <div class="heroui-chip scada-clock-chip" id="scada-clock">--:--:--</div>
     </div>
   </header>
 
