@@ -45,6 +45,12 @@
       <!-- Live Uhrzeit -->
       <div class="heroui-chip" id="scada-clock">--:--:--</div>
 
+      <!-- Benutzer & Login Button -->
+      <button type="button" class="heroui-btn heroui-btn-flat" id="btn-auth-user" title="Benutzeranmeldung & Rechte">
+        <span id="auth-status-icon">👤</span>
+        <span id="auth-user-name">Anmelden</span>
+      </button>
+
       <!-- Konfigurationspanel Button -->
       <button type="button" class="heroui-btn heroui-btn-flat" id="btn-open-config" title="Anlagen- und MQTT-Konfiguration öffnen">
         <span>⚙️ Konfiguration</span>
@@ -153,6 +159,8 @@
         <button type="button" class="heroui-tab-btn active" data-tab="pane-tab-mqtt">🔌 MQTT & Broker</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-stations">🏭 Module & Toleranzen</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-system">⚙️ System & Puffer</button>
+        <button type="button" class="heroui-tab-btn" data-tab="pane-tab-auth">👥 Benutzer & Gruppen</button>
+        <button type="button" class="heroui-tab-btn" data-tab="pane-tab-interpreter">📡 JSON Interpreter</button>
       </div>
 
       <!-- Modal Body -->
@@ -234,6 +242,185 @@
           </div>
         </div>
 
+        <!-- Tab 4: Benutzer & Rechteverwaltung (RBAC) -->
+        <div class="tab-pane" id="pane-tab-auth">
+          <!-- Aktiver Benutzer & Status -->
+          <div class="form-section">
+            <label class="form-label">Angemeldeter Benutzer</label>
+            <div class="status-summary-box">
+              <div class="status-row">
+                <span class="status-lbl">Benutzer:</span>
+                <span class="status-val font-mono" id="auth-current-username">Nicht angemeldet (Gast)</span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">Gruppe / Rolle:</span>
+                <span class="status-val" id="auth-current-role"><span class="role-badge">viewer</span></span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">Rechte:</span>
+                <div class="permission-pills-list" id="auth-current-perms">
+                  <span class="perm-pill">view_overview</span>
+                  <span class="perm-pill">view_ar</span>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 10px; display: flex; gap: 8px;">
+              <button type="button" class="heroui-btn heroui-btn-primary" id="btn-tab-open-login">Anmelden / Benutzer wechseln</button>
+              <button type="button" class="heroui-btn heroui-btn-flat" id="btn-tab-logout" style="display:none;">Abmelden</button>
+            </div>
+          </div>
+
+          <!-- Gruppen & Rechteverwaltung -->
+          <div class="form-section">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label class="form-label" style="margin-bottom:0;">Benutzergruppen & Berechtigungen</label>
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="btn-refresh-groups" style="padding:4px 10px; font-size:0.75rem;">↻ Aktualisieren</button>
+            </div>
+            <div class="groups-list" id="auth-groups-list">
+              <!-- Dynamisch gerendert -->
+            </div>
+          </div>
+
+          <!-- Neue Gruppe anlegen -->
+          <div class="form-section" id="section-create-group">
+            <label class="form-label">Neue Gruppe anlegen (Rechteverwaltung)</label>
+            <div class="new-group-box">
+              <div class="form-grid-2">
+                <div class="form-section" style="margin-bottom:0;">
+                  <label class="form-sub-label">Gruppen-ID (z.B. techniker)</label>
+                  <input type="text" id="new-group-id" class="heroui-input font-mono" placeholder="z.B. techniker" autocomplete="off">
+                </div>
+                <div class="form-section" style="margin-bottom:0;">
+                  <label class="form-sub-label">Anzeigename</label>
+                  <input type="text" id="new-group-name" class="heroui-input" placeholder="z.B. Instandhaltung & Service" autocomplete="off">
+                </div>
+              </div>
+              <div class="form-section" style="margin-top:8px; margin-bottom:8px;">
+                <label class="form-sub-label">Beschreibung</label>
+                <input type="text" id="new-group-desc" class="heroui-input" placeholder="z.B. Wartungspersonal mit Störungsquittierung">
+              </div>
+              <label class="form-sub-label">Berechtigungen zuweisen:</label>
+              <div class="permissions-checkbox-grid" id="new-group-perms-grid">
+                <label class="perm-checkbox-item"><input type="checkbox" value="view_overview" checked> <span>view_overview (Leitstand)</span></label>
+                <label class="perm-checkbox-item"><input type="checkbox" value="view_ar" checked> <span>view_ar (AR-Modus)</span></label>
+                <label class="perm-checkbox-item"><input type="checkbox" value="control_faults"> <span>control_faults (Störungen)</span></label>
+                <label class="perm-checkbox-item"><input type="checkbox" value="edit_config"> <span>edit_config (Konfiguration)</span></label>
+                <label class="perm-checkbox-item"><input type="checkbox" value="ingest_telemetry"> <span>ingest_telemetry (Daten-Ingest)</span></label>
+                <label class="perm-checkbox-item"><input type="checkbox" value="manage_users"> <span>manage_users (Benutzer)</span></label>
+                <label class="perm-checkbox-item"><input type="checkbox" value="manage_groups"> <span>manage_groups (Gruppen)</span></label>
+              </div>
+              <div style="margin-top:12px; display:flex; justify-content:flex-end;">
+                <button type="button" class="heroui-btn heroui-btn-primary" id="btn-create-group">Gruppe erstellen</button>
+              </div>
+              <div id="new-group-feedback" class="test-feedback-badge" style="display:none; margin-top:8px;"></div>
+            </div>
+          </div>
+
+          <!-- Benutzerliste -->
+          <div class="form-section">
+            <label class="form-label">Registrierte Benutzer</label>
+            <div class="users-list-table-wrap">
+              <table class="heroui-mini-table" id="auth-users-table">
+                <thead>
+                  <tr>
+                    <th>Benutzername</th>
+                    <th>Anzeigename</th>
+                    <th>Gruppe / Rolle</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="auth-users-tbody">
+                  <!-- Dynamisch gerendert -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: Intelligenter JSON-Interpreter & Endpunkt-Extraktion -->
+        <div class="tab-pane" id="pane-tab-interpreter">
+          <div class="form-section">
+            <label class="form-label">JSON Datenpakete analysieren & einspeisen</label>
+            <p class="form-hint" style="margin-bottom:10px;">
+              Beliebige JSON-Formate (flache SPS-Telegramme, verschachtelte IoT-Gateway Payloads oder OPC UA Tag-Streams) werden automatisch analysiert, Stationen erkannt und in natürlicher deutscher Sprache interpretiert.
+            </p>
+
+            <label class="form-sub-label">Test-Presets (Beispielpakete):</label>
+            <div class="preset-pill-group" style="margin-bottom:12px;">
+              <button type="button" class="preset-pill interpreter-preset" data-preset="flat">1. Standard / Flach (ST-020)</button>
+              <button type="button" class="preset-pill interpreter-preset" data-preset="nested">2. IoT-Gateway (Verschachtelt)</button>
+              <button type="button" class="preset-pill interpreter-preset" data-preset="opcua">3. OPC UA Tag-Stream</button>
+              <button type="button" class="preset-pill interpreter-preset" data-preset="warning">4. Warn-Szenario (Hoher Druck)</button>
+              <button type="button" class="preset-pill interpreter-preset" data-preset="critical">5. Alarm-Szenario (Kritisch)</button>
+            </div>
+
+            <label class="form-sub-label" for="json-payload-input">Eingehendes JSON-Paket:</label>
+            <textarea id="json-payload-input" class="heroui-input font-mono json-code-area" rows="8" spellcheck="false"></textarea>
+
+            <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="btn-interpret-json">
+                <span>🔍 Nur analysieren</span>
+              </button>
+              <button type="button" class="heroui-btn heroui-btn-primary" id="btn-ingest-json">
+                <span>🚀 Interpretieren & in Leitstand einspeisen</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Ergebnis-Karte -->
+          <div class="form-section" id="interpreter-result-section" style="display:none;">
+            <label class="form-label">Analyse- & Interpretations-Ergebnis</label>
+            
+            <div class="interpreter-result-card" id="interpreter-result-card">
+              <div class="interpreter-card-head">
+                <div class="interpreter-st-info">
+                  <span class="station-id-avatar" id="interp-st-avatar">M2</span>
+                  <div>
+                    <div class="interp-st-name" id="interp-st-name">Modul 2: Dosierung & Befüllung</div>
+                    <div class="interp-st-sub" id="interp-st-id">Station ID: ST-020</div>
+                  </div>
+                </div>
+                <div class="heroui-status-chip" id="interp-status-chip">
+                  <span class="chip-dot"></span>
+                  <span id="interp-status-text">OPTIMAL</span>
+                </div>
+              </div>
+
+              <!-- Deutsche Klartext-Interpretation -->
+              <div class="interp-natural-text-box">
+                <div class="interp-text-label">Verständliche Interpretation:</div>
+                <p class="interp-text-content" id="interp-natural-text">
+                  Modul 2 (Dosierung & Befüllung): Alle Parameter im optimalen Sollbereich.
+                </p>
+              </div>
+
+              <!-- Mapped Values -->
+              <div class="interp-mapped-grid" id="interp-mapped-grid">
+                <!-- Dynamisch v1, v2, v3 mit Ampel -->
+              </div>
+
+              <!-- Extrahierte Endpunkte / Pfade -->
+              <div class="interp-endpoints-wrap">
+                <div class="interp-text-label">Extrahierte Daten-Endpunkte & Pfade (<span id="interp-endpoint-count">0</span>):</div>
+                <div class="interp-endpoints-table-wrap">
+                  <table class="heroui-mini-table">
+                    <thead>
+                      <tr>
+                        <th>Endpunkt / JSON-Pfad</th>
+                        <th>Typ</th>
+                        <th>Wert</th>
+                      </tr>
+                    </thead>
+                    <tbody id="interp-endpoints-tbody">
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <!-- Modal Footer -->
@@ -246,6 +433,83 @@
             <span>Speichern & Übernehmen</span>
           </button>
         </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       HEROUI LOGIN & AUTH MODAL DIALOG
+       ======================================================================== -->
+  <div class="heroui-modal-backdrop" id="auth-modal-backdrop" style="display:none;">
+    <div class="heroui-modal-dialog auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title">
+      
+      <!-- Modal Header -->
+      <div class="heroui-modal-header">
+        <div class="modal-title-group">
+          <div class="modal-avatar-badge">🔐</div>
+          <div>
+            <h2 id="auth-modal-title" class="modal-main-title">Benutzer-Anmeldung</h2>
+            <div class="modal-sub-title">Sicherer Zugriff mit rollenbasierter Rechteverwaltung (RBAC)</div>
+          </div>
+        </div>
+        <button type="button" class="heroui-modal-close" id="btn-close-auth-modal" title="Schließen">✕</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="heroui-modal-body" style="padding: 20px 24px;">
+        
+        <!-- Login Formular (wenn nicht angemeldet) -->
+        <div id="auth-form-container">
+          <div class="form-section">
+            <label class="form-label" for="login-username">Benutzername</label>
+            <input type="text" id="login-username" class="heroui-input" placeholder="admin, operator oder viewer" autocomplete="username">
+          </div>
+          
+          <div class="form-section">
+            <label class="form-label" for="login-password">Passwort</label>
+            <input type="password" id="login-password" class="heroui-input" placeholder="Passwort eingeben" autocomplete="current-password">
+          </div>
+
+          <div class="form-section">
+            <label class="form-sub-label">Schnellauswahl Test-Accounts:</label>
+            <div class="preset-pill-group">
+              <button type="button" class="preset-pill auth-preset-pill" data-user="admin" data-pass="admin123">👑 Administrator</button>
+              <button type="button" class="preset-pill auth-preset-pill" data-user="operator" data-pass="operator123">🏭 Anlagenbediener</button>
+              <button type="button" class="preset-pill auth-preset-pill" data-user="viewer" data-pass="viewer123">👁️ Beobachter (Gast)</button>
+            </div>
+          </div>
+
+          <div id="auth-login-feedback" class="test-feedback-badge" style="display:none;"></div>
+        </div>
+
+        <!-- Angemeldet-Ansicht (wenn bereits angemeldet) -->
+        <div id="auth-logged-in-container" style="display:none;">
+          <div class="status-summary-box">
+            <div class="status-row">
+              <span class="status-lbl">Angemeldet als:</span>
+              <span class="status-val font-mono" id="dialog-logged-in-name">admin</span>
+            </div>
+            <div class="status-row">
+              <span class="status-lbl">Gruppe:</span>
+              <span class="status-val" id="dialog-logged-in-group">Administrator</span>
+            </div>
+            <div class="status-row">
+              <span class="status-lbl">Berechtigungen:</span>
+              <div class="permission-pills-list" id="dialog-logged-in-perms"></div>
+            </div>
+          </div>
+          <div style="margin-top:16px;">
+            <button type="button" class="heroui-btn heroui-btn-danger" id="btn-dialog-logout" style="width:100%;">Abmelden</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="heroui-modal-footer">
+        <button type="button" class="heroui-btn heroui-btn-flat" id="btn-cancel-auth">Abbrechen</button>
+        <button type="button" class="heroui-btn heroui-btn-primary" id="btn-submit-login">Anmelden</button>
       </div>
 
     </div>

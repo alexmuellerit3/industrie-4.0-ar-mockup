@@ -1,13 +1,309 @@
 /**
  * API Routes - REST-Schnittstellen für CPS-i40 WebApp & Externe Systeme
+ * 
+ * Beinhaltet:
+ * 1. Stations- und Historiendaten (/api/stations, /api/history, /api/history/summaries)
+ * 2. Systemstatus & Störungsmanagement (/api/status, /api/fault)
+ * 3. Dynamische MQTT & Stations-Konfiguration (/api/config)
+ * 4. Benutzer- & Rechteverwaltung mit Gruppen (/api/auth/*)
+ * 5. Beliebige JSON-Telemetrie Ingestion & Automatische semantische Interpretation (/api/telemetry/*)
  */
 
 import express from "express";
-
 import { MqttClientService } from "../mqtt-client.js";
+import { AVAILABLE_PERMISSIONS } from "../auth-manager.js";
 
-export function createApiRouter({ store, mqttClient, wsServer, stationsConfig, configManager }) {
+export function createApiRouter({
+  store,
+  mqttClient,
+  wsServer,
+  stationsConfig,
+  configManager,
+  authManager,
+  telemetryInterpreter
+}) {
   const router = express.Router();
+
+  // Helper zum Extrahieren von Authentifizierungs-Tokens
+  const extractToken = (req) => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      return authHeader.substring(7).trim();
+    }
+    if (req.query && req.query.token) {
+      return String(req.query.token).trim();
+    }
+    return null;
+  };
+
+  // Auth Context Middleware: Ermittelt Benutzer falls Token vorhanden
+  router.use((req, res, next) => {
+    if (authManager) {
+      const token = extractToken(req);
+      if (token) {
+        const session = authManager.validateToken(token);
+        if (session) {
+          req.user = session;
+        }
+      }
+    }
+    next();
+  });
+
+  // Middleware zur Erzwingung von Berechtigungen
+  const requirePermission = (permission) => {
+    return (req, res, next) => {
+      if (!authManager) return next();
+
+      // Wenn kein Benutzer angemeldet ist
+      if (!req.user) {
+        return res.status(401).json({
+          error: "Authentifizierung erforderlich. Bitte melden Sie sich an.",
+          code: "AUTH_REQUIRED"
+        });
+      }
+
+      // Prüfe auf Berechtigung
+      if (permission && (!req.user.permissions || !req.user.permissions.includes(permission))) {
+        return res.status(403).json({
+          error: `Zugriff verweigert. Berechtigung '${permission}' erforderlich.`,
+          requiredPermission: permission,
+          userPermissions: req.user.permissions || []
+        });
+      }
+
+      next();
+    };
+  };
+
+  // ==========================================================================
+  // 1. AUTHENTIFIZIERUNG & RECHTEVERWALTUNG (RBAC)
+  // ==========================================================================
+
+  // Login
+  router.post("/auth/login", (req, res) => {
+    if (!authManager) {
+      return res.status(503).json({ error: "Authentifizierungsdienst nicht verfügbar." });
+    }
+    const { username, password } = req.body;
+    const clientIp = req.ip || req.socket?.remoteAddress || "127.0.0.1";
+    const result = authManager.login(username, password, clientIp);
+    if (!result.success) {
+      return res.status(result.status || 401).json(result);
+    }
+    res.json(result);
+  });
+
+  // Logout
+  router.post("/auth/logout", (req, res) => {
+    const token = extractToken(req);
+    if (authManager && token) {
+      authManager.logout(token);
+    }
+    res.json({ success: true, message: "Erfolgreich abgemeldet." });
+  });
+
+  // Eigene Benutzerdaten & Berechtigungen
+  router.get("/auth/me", (req, res) => {
+    if (!req.user) {
+      return res.json({
+        authenticated: false,
+        user: {
+          id: "guest",
+          username: "gast",
+          name: "Gast",
+          group: { id: "guest", name: "Gast" },
+          permissions: ["view_overview", "view_ar"]
+        }
+      });
+    }
+    res.json({
+      authenticated: true,
+      user: {
+        id: req.user.userId,
+        username: req.user.username,
+        name: req.user.name,
+        group: { id: req.user.groupId, name: req.user.groupName },
+        permissions: req.user.permissions
+      }
+    });
+  });
+
+  // Verfügbare Berechtigungsliste
+  router.get("/auth/permissions", (req, res) => {
+    res.json({ permissions: AVAILABLE_PERMISSIONS });
+  });
+
+  // Gruppen auflisten
+  router.get("/auth/groups", (req, res) => {
+    if (!authManager) return res.json({ groups: [] });
+    res.json({ groups: authManager.getGroups() });
+  });
+
+  // Gruppe anlegen (benötigt 'manage_groups')
+  router.post("/auth/groups", requirePermission("manage_groups"), (req, res) => {
+    try {
+      const { id, name, description, permissions } = req.body;
+      const group = authManager.createGroup({ id, name, description, permissions });
+      res.status(201).json({ success: true, message: `Gruppe '${group.name}' erfolgreich erstellt.`, group });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Gruppe bearbeiten
+  router.put("/auth/groups/:id", requirePermission("manage_groups"), (req, res) => {
+    try {
+      const group = authManager.updateGroup(req.params.id, req.body);
+      res.json({ success: true, message: `Gruppe '${group.name}' aktualisiert.`, group });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Gruppe löschen
+  router.delete("/auth/groups/:id", requirePermission("manage_groups"), (req, res) => {
+    try {
+      authManager.deleteGroup(req.params.id);
+      res.json({ success: true, message: `Gruppe '${req.params.id}' erfolgreich gelöscht.` });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Benutzer auflisten (benötigt 'manage_users')
+  router.get("/auth/users", requirePermission("manage_users"), (req, res) => {
+    if (!authManager) return res.json({ users: [] });
+    res.json({ users: authManager.getUsers() });
+  });
+
+  // Benutzer anlegen
+  router.post("/auth/users", requirePermission("manage_users"), (req, res) => {
+    try {
+      const user = authManager.createUser(req.body);
+      res.status(201).json({ success: true, message: `Benutzer '${user.username}' erstellt.`, user });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Benutzer bearbeiten
+  router.put("/auth/users/:id", requirePermission("manage_users"), (req, res) => {
+    try {
+      const user = authManager.updateUser(req.params.id, req.body);
+      res.json({ success: true, message: `Benutzer '${user.username}' aktualisiert.`, user });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // Benutzer löschen
+  router.delete("/auth/users/:id", requirePermission("manage_users"), (req, res) => {
+    try {
+      authManager.deleteUser(req.params.id);
+      res.json({ success: true, message: `Benutzer '${req.params.id}' gelöscht.` });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // ==========================================================================
+  // 2. TELEMETRIE INGESTION & INTERPRETER FÜR BELIEBIGE JSON-PAKETE
+  // ==========================================================================
+
+  // Beliebiges JSON-Paket einspeisen, interpretieren & speichern
+  router.post("/telemetry/ingest", (req, res) => {
+    if (!req.body || typeof req.body !== "object" || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ error: "Ein gültiges JSON-Objekt mit Messdaten ist erforderlich." });
+    }
+
+    if (!telemetryInterpreter) {
+      return res.status(503).json({ error: "TelemetryInterpreter nicht initialisiert." });
+    }
+
+    try {
+      const interpretation = telemetryInterpreter.interpret(req.body);
+      const { station, metrics, isFault } = interpretation;
+
+      // In 5-Minuten KeyValueStore einspeisen
+      const sample = {
+        v1: metrics.v1.value,
+        v2: metrics.v2.value,
+        v3: metrics.v3.value,
+        isFault: Boolean(isFault),
+        status: interpretation.overallStatus
+      };
+      const entry = store.push(station.id, sample);
+
+      // Störungs-Metadaten aktualisieren
+      if (isFault !== undefined) {
+        store.setMeta(`fault_${station.id}`, Boolean(isFault));
+      }
+
+      // Live-Push an alle verbundenen WebSockets (Leitstand & AR)
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "telemetry_interpreted",
+          stationId: station.id,
+          entry,
+          summary: store.getSummary(station.id),
+          interpretation,
+          timestamp: Date.now()
+        });
+      }
+
+      // Per MQTT publishen, falls verbunden
+      if (mqttClient && mqttClient.isConnected) {
+        mqttClient.publish(`cps-i40/${station.id}/telemetry`, entry);
+      }
+
+      res.json({
+        success: true,
+        message: "JSON-Paket erfolgreich analysiert, interpretiert und gespeichert.",
+        stationId: station.id,
+        entry,
+        interpretation
+      });
+    } catch (err) {
+      console.error("[API] Fehler bei JSON Ingestion:", err);
+      res.status(500).json({ error: "Fehler beim Interpretieren des JSON-Pakets: " + err.message });
+    }
+  });
+
+  // Nur Analyse/Vorschau eines JSON-Pakets ohne Speicherung
+  router.post("/telemetry/interpret", (req, res) => {
+    if (!req.body || typeof req.body !== "object" || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ error: "Ein gültiges JSON-Objekt ist erforderlich." });
+    }
+
+    if (!telemetryInterpreter) {
+      return res.status(503).json({ error: "TelemetryInterpreter nicht initialisiert." });
+    }
+
+    try {
+      const interpretation = telemetryInterpreter.interpret(req.body);
+      res.json({
+        success: true,
+        interpretation
+      });
+    } catch (err) {
+      res.status(400).json({ error: "Fehler bei der Interpretation: " + err.message });
+    }
+  });
+
+  // Bisher registrierte Endpoints abrufen
+  router.get("/telemetry/endpoints", (req, res) => {
+    if (!telemetryInterpreter) return res.json({ endpoints: [], totalCount: 0 });
+    const endpoints = telemetryInterpreter.getKnownEndpoints();
+    res.json({
+      endpoints,
+      totalCount: endpoints.length
+    });
+  });
+
+  // ==========================================================================
+  // 3. BESTEHENDE TELEMETRIE- & STATUS-ENDPUNKTE
+  // ==========================================================================
 
   // 1. Alle Stationen mit aktuellem Status abrufen
   router.get("/stations", (req, res) => {
@@ -55,7 +351,7 @@ export function createApiRouter({ store, mqttClient, wsServer, stationsConfig, c
   router.get("/status", (req, res) => {
     res.json({
       status: "operational",
-      version: "1.3.0",
+      version: "1.4.0",
       uptimeSeconds: Math.floor(process.uptime()),
       mqtt: {
         connected: mqttClient ? mqttClient.isConnected : false,
@@ -67,6 +363,14 @@ export function createApiRouter({ store, mqttClient, wsServer, stationsConfig, c
         endpoint: "/ws/telemetry"
       },
       store: store ? store.getStats() : {},
+      auth: {
+        activeSessions: authManager ? authManager.sessions.size : 0,
+        groupsCount: authManager ? authManager.data.groups.length : 0,
+        usersCount: authManager ? authManager.data.users.length : 0
+      },
+      interpreter: {
+        knownEndpointsCount: telemetryInterpreter ? telemetryInterpreter.knownEndpoints.size : 0
+      },
       timestamp: Date.now()
     });
   });
@@ -150,7 +454,7 @@ export function createApiRouter({ store, mqttClient, wsServer, stationsConfig, c
     });
   });
 
-  // 8. Konfiguration bearbeiten & sofort anwenden (inkl. MQTT Broker Reconnect)
+  // 8. Konfiguration bearbeiten & sofort anwenden
   router.post("/config", (req, res) => {
     try {
       const updates = req.body;
@@ -171,6 +475,10 @@ export function createApiRouter({ store, mqttClient, wsServer, stationsConfig, c
       let updatedConfig = updates;
       if (configManager) {
         updatedConfig = configManager.updateConfig(updates);
+      }
+
+      if (telemetryInterpreter && updatedConfig.stations) {
+        telemetryInterpreter.updateStations(updatedConfig.stations);
       }
 
       // Wenn MQTT Broker URL geändert wurde, Client sofort neu verbinden
@@ -209,6 +517,10 @@ export function createApiRouter({ store, mqttClient, wsServer, stationsConfig, c
       let resetCfg = {};
       if (configManager) {
         resetCfg = configManager.resetConfig();
+      }
+
+      if (telemetryInterpreter && resetCfg.stations) {
+        telemetryInterpreter.updateStations(resetCfg.stations);
       }
 
       if (mqttClient && resetCfg.mqtt && resetCfg.mqtt.brokerUrl) {

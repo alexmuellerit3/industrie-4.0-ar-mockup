@@ -14,6 +14,7 @@ import json
 import subprocess
 import urllib.request
 import urllib.parse
+import http.client
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -298,6 +299,229 @@ class TestBackendServerLive(unittest.TestCase):
             data = json.loads(resp.read().decode())
             self.assertIn("success", data)
             self.assertIn("message", data)
+
+    def test_security_headers_present(self):
+        """Backend setzt alle essenziellen Security Headers (X-Content-Type-Options, etc.)."""
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/health")
+        resp = conn.getresponse()
+        self.assertEqual(resp.getheader("X-Content-Type-Options"), "nosniff")
+        self.assertEqual(resp.getheader("X-Frame-Options"), "SAMEORIGIN")
+        self.assertIn("1; mode=block", resp.getheader("X-XSS-Protection", ""))
+        conn.close()
+
+    def test_device_detection_routing(self):
+        """Erkennt Smartphones/Tablets und routet automatisch zu AR (/index.html) oder SCADA (/overview.html)."""
+        # 1. iPhone -> /index.html
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/", headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 302)
+        self.assertEqual(resp.getheader("Location"), "/index.html")
+        conn.close()
+
+        # 2. iPad / Tablet -> /index.html
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/", headers={"User-Agent": "Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 302)
+        self.assertEqual(resp.getheader("Location"), "/index.html")
+        conn.close()
+
+        # 3. Android Tablet -> /index.html
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/", headers={"User-Agent": "Mozilla/5.0 (Linux; Android 12; SM-X900) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 302)
+        self.assertEqual(resp.getheader("Location"), "/index.html")
+        conn.close()
+
+        # 4. Desktop Windows -> /overview.html
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 302)
+        self.assertEqual(resp.getheader("Location"), "/overview.html")
+        conn.close()
+
+        # 5. Expliziter Override via Query-Param
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/?view=desktop", headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0)"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 302)
+        self.assertEqual(resp.getheader("Location"), "/overview.html")
+        conn.close()
+
+    def test_auth_login_sessions_and_rate_limiting(self):
+        """Prüft Login mit Token, Session-Validierung und Brute-Force Rate Limiting."""
+        # 1. Erfolgreicher Login
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        body = json.dumps({"username": "admin", "password": "admin123"})
+        conn.request("POST", "/api/auth/login", body=body, headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        data = json.loads(resp.read().decode())
+        self.assertTrue(data["success"])
+        self.assertIn("token", data)
+        self.assertEqual(data["user"]["username"], "admin")
+        self.assertEqual(data["user"]["group"]["id"], "admin")
+        self.assertIn("manage_groups", data["user"]["permissions"])
+        token = data["token"]
+        conn.close()
+
+        # 2. Session via /api/auth/me abfragen
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/api/auth/me", headers={"Authorization": f"Bearer {token}"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        me_data = json.loads(resp.read().decode())
+        self.assertEqual(me_data["user"]["username"], "admin")
+        conn.close()
+
+        # 3. Falsches Passwort
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        bad_body = json.dumps({"username": "operator", "password": "wrongpassword"})
+        conn.request("POST", "/api/auth/login", body=bad_body, headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 401)
+        conn.close()
+
+        # 4. Rate-Limiting nach 5 Fehlversuchen für Test-Benutzer
+        test_user = "brute_target_test"
+        for _ in range(5):
+            conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+            conn.request("POST", "/api/auth/login", body=json.dumps({"username": test_user, "password": "bad"}), headers={"Content-Type": "application/json"})
+            resp = conn.getresponse()
+            self.assertEqual(resp.status, 401)
+            conn.close()
+
+        # 6. Versuch muss mit 429 Too Many Requests abgewiesen werden
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("POST", "/api/auth/login", body=json.dumps({"username": test_user, "password": "bad"}), headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 429)
+        locked_data = json.loads(resp.read().decode())
+        self.assertIn("gesperrt", locked_data["error"])
+        conn.close()
+
+    def test_rbac_and_group_management(self):
+        """Prüft rollenbasierte Rechteverwaltung und dynamisches Anlegen von Gruppen."""
+        # 1. Gruppen abrufen
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/api/auth/groups")
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        groups_data = json.loads(resp.read().decode())
+        group_ids = [g["id"] for g in groups_data["groups"]]
+        self.assertIn("admin", group_ids)
+        self.assertIn("operator", group_ids)
+        self.assertIn("maintenance", group_ids)
+        self.assertIn("viewer", group_ids)
+        conn.close()
+
+        # 2. Neue Gruppe anlegen ohne Token -> 401
+        test_gid = f"grp_test_{int(time.time() * 1000)}"
+        new_group = {"id": test_gid, "name": "QA Techniker", "description": "Prüfpersonal", "permissions": ["view_overview", "control_faults"]}
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("POST", "/api/auth/groups", body=json.dumps(new_group), headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 401)
+        conn.close()
+
+        # 3. Login als Admin für Token
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("POST", "/api/auth/login", body=json.dumps({"username": "admin", "password": "admin123"}), headers={"Content-Type": "application/json"})
+        login_res = json.loads(conn.getresponse().read().decode())
+        token = login_res["token"]
+        conn.close()
+
+        # 4. Neue Gruppe anlegen mit Admin Token -> 201 Created
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("POST", "/api/auth/groups", body=json.dumps(new_group), headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 201)
+        create_res = json.loads(resp.read().decode())
+        self.assertTrue(create_res["success"])
+        self.assertEqual(create_res["group"]["id"], test_gid)
+        conn.close()
+
+        # 5. Prüfen, ob Gruppe jetzt vorhanden ist
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/api/auth/groups")
+        resp = conn.getresponse()
+        groups_data = json.loads(resp.read().decode())
+        group_ids = [g["id"] for g in groups_data["groups"]]
+        self.assertIn(test_gid, group_ids)
+        conn.close()
+
+        # 6. Aufräumen: Gruppe löschen via DELETE /api/auth/groups/:id
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("DELETE", f"/api/auth/groups/{test_gid}", headers={"Authorization": f"Bearer {token}"})
+        del_resp = conn.getresponse()
+        self.assertEqual(del_resp.status, 200)
+        conn.close()
+
+    def test_telemetry_interpretation_and_ingestion(self):
+        """Prüft intelligente Daten-Endpoint-Extraktion und verständliche deutsche Interpretation."""
+        # 1. Flaches Paket (ST-020)
+        flat_payload = {
+            "station_id": "ST-020",
+            "v1": 250.3,
+            "v2": 5.2,
+            "v3": 32
+        }
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("POST", "/api/telemetry/interpret", body=json.dumps(flat_payload), headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        res1 = json.loads(resp.read().decode())
+        self.assertTrue(res1["success"])
+        interp1 = res1["interpretation"]
+        self.assertEqual(interp1["stationId"], "ST-020")
+        self.assertEqual(interp1["status"], "OPTIMAL")
+        self.assertIn("optimal", interp1["summary"].lower())
+        self.assertGreaterEqual(len(interp1["extractedEndpoints"]), 3)
+        conn.close()
+
+        # 2. Verschachteltes IoT Gateway Paket mit Warn-Grenzwert
+        nested_payload = {
+            "device": { "type": "IOT2050", "module": "ST-020" },
+            "telemetry": {
+                "fill_weight_g": 250.2,
+                "pressure_bar": 6.8,  # > 6.5 -> Warnung
+                "cycle_rate_cpm": 32
+            }
+        }
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("POST", "/api/telemetry/interpret", body=json.dumps(nested_payload), headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        res2 = json.loads(resp.read().decode())
+        interp2 = res2["interpretation"]
+        self.assertEqual(interp2["stationId"], "ST-020")
+        self.assertEqual(interp2["status"], "WARNUNG")
+        self.assertIn("warnung", interp2["summary"].lower())
+        conn.close()
+
+        # 3. Paket in den Leitstand einspeisen (Ingest)
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("POST", "/api/telemetry/ingest", body=json.dumps(flat_payload), headers={"Content-Type": "application/json"})
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        ingest_res = json.loads(resp.read().decode())
+        self.assertTrue(ingest_res["success"])
+        self.assertEqual(ingest_res["interpretation"]["stationId"], "ST-020")
+        conn.close()
+
+        # 4. Endpunkte abfragen
+        conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)
+        conn.request("GET", "/api/telemetry/endpoints")
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 200)
+        ep_res = json.loads(resp.read().decode())
+        self.assertIn("endpoints", ep_res)
+        self.assertGreater(len(ep_res["endpoints"]), 0)
+        conn.close()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,82 @@
+{
+  "groups": [
+    {
+      "id": "admin",
+      "name": "Administratoren",
+      "description": "Voller Systemzugriff auf alle Funktionen und Konfigurationen",
+      "permissions": [
+        "view_overview",
+        "view_ar",
+        "control_faults",
+        "edit_config",
+        "ingest_telemetry",
+        "manage_users",
+        "manage_groups"
+      ],
+      "isSystem": true
+    },
+    {
+      "id": "operator",
+      "name": "Operatoren",
+      "description": "Anlagenbedienung, Überwachung und Störungsquittierung vor Ort",
+      "permissions": [
+        "view_overview",
+        "view_ar",
+        "control_faults",
+        "ingest_telemetry"
+      ],
+      "isSystem": true
+    },
+    {
+      "id": "maintenance",
+      "name": "Instandhaltung",
+      "description": "Wartungspersonal mit Konfigurations- und Diagnoserechten",
+      "permissions": [
+        "view_overview",
+        "view_ar",
+        "control_faults",
+        "edit_config"
+      ],
+      "isSystem": true
+    },
+    {
+      "id": "viewer",
+      "name": "Beobachter / Gäste",
+      "description": "Reiner Lesezugriff auf Leitstand und AR-HUD ohne Steuerungsrechte",
+      "permissions": [
+        "view_overview",
+        "view_ar"
+      ],
+      "isSystem": true
+    }
+  ],
+  "users": [
+    {
+      "id": "usr-admin",
+      "username": "admin",
+      "name": "System Administrator",
+      "groupId": "admin",
+      "passwordHash": "f5e2d2a2464e93d9bad7f8a47e21f81298e7146ff9347cb25f9c61d7f887e48e5d63cb33159302d03f5682d5fb103aecb544c6e120162825ee7310e15b636000",
+      "passwordSalt": "be320581fdc264c1a51e069885600a5a",
+      "createdAt": 1791879735919
+    },
+    {
+      "id": "usr-operator",
+      "username": "operator",
+      "name": "Schichtleiter Fertigung",
+      "groupId": "operator",
+      "passwordHash": "50124de6718a4099156f4da01e19f4aaaa82fbfcd46a32bb1d54c288122d1217a9c3ddeee50534c7d89ff83b85fbeb5728f1cde27dda4a6d9f6cc18bd26b1896",
+      "passwordSalt": "fca7ae2729232d253098df8e7f35d292",
+      "createdAt": 1791879735919
+    },
+    {
+      "id": "usr-viewer",
+      "username": "viewer",
+      "name": "Gast / Leitstand Monitor",
+      "groupId": "viewer",
+      "passwordHash": "ebe6f2407f00a3728525707a80d1c92c32da96aaf8353b4eff3c56da8578faf42530f672df92b3cea1b16ab61ffaf430fb0ef6d66a495c1810a5e3b584392299",
+      "passwordSalt": "07f17e003532cc22eab4204896707668",
+      "createdAt": 1791879735919
+    }
+  ]
+}

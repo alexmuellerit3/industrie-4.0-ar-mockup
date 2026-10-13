@@ -53,6 +53,7 @@
       </div>
       <div class="header-ctrl-group interactive">
         <a href="overview.html" class="overview-nav-btn interactive" title="Gesamtanlage ohne Hiro-Marker ansehen">Leitstand ↗</a>
+        <button class="auth-pill interactive" id="btn-ar-auth" title="Benutzeranmeldung">👤</button>
         <button class="config-pill interactive" id="btn-open-config" title="Konfiguration öffnen">⚙️</button>
         <button class="zoom-pill interactive" id="btn-zoom" title="Kamera-Zoom umschalten">1.0×</button>
       </div>
@@ -304,6 +305,79 @@
           <button type="button" class="heroui-btn heroui-btn-flat" id="ar-btn-cancel-config">Abbrechen</button>
           <button type="button" class="heroui-btn heroui-btn-primary" id="ar-btn-save-config">Speichern & Anwenden</button>
         </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       HEROUI LOGIN & AUTH MODAL DIALOG (AR)
+       ======================================================================== -->
+  <div class="heroui-modal-backdrop interactive" id="auth-modal-backdrop" style="display:none;">
+    <div class="heroui-modal-dialog auth-dialog" role="dialog" aria-modal="true" aria-labelledby="ar-auth-modal-title">
+      
+      <!-- Modal Header -->
+      <div class="heroui-modal-header">
+        <div class="modal-title-group">
+          <div class="modal-avatar-badge">🔐</div>
+          <div>
+            <h2 id="ar-auth-modal-title" class="modal-main-title">Benutzer-Anmeldung</h2>
+            <div class="modal-sub-title">Sicherer Zugriff & Rollenberechtigung</div>
+          </div>
+        </div>
+        <button type="button" class="heroui-modal-close" id="btn-close-auth-modal" title="Schließen">✕</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="heroui-modal-body" style="padding: 16px 20px;">
+        
+        <!-- Login Formular -->
+        <div id="auth-form-container">
+          <div class="form-section">
+            <label class="form-label" for="login-username">Benutzername</label>
+            <input type="text" id="login-username" class="heroui-input" placeholder="admin, operator oder viewer" autocomplete="username">
+          </div>
+          
+          <div class="form-section">
+            <label class="form-label" for="login-password">Passwort</label>
+            <input type="password" id="login-password" class="heroui-input" placeholder="Passwort eingeben" autocomplete="current-password">
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" style="font-size:0.75rem;">Schnellauswahl:</label>
+            <div class="preset-pill-group">
+              <button type="button" class="preset-pill auth-preset-pill" data-user="admin" data-pass="admin123">Admin</button>
+              <button type="button" class="preset-pill auth-preset-pill" data-user="operator" data-pass="operator123">Operator</button>
+              <button type="button" class="preset-pill auth-preset-pill" data-user="viewer" data-pass="viewer123">Viewer</button>
+            </div>
+          </div>
+
+          <div id="auth-login-feedback" class="test-feedback-badge" style="display:none;"></div>
+        </div>
+
+        <!-- Angemeldet-Ansicht -->
+        <div id="auth-logged-in-container" style="display:none;">
+          <div class="status-summary-box">
+            <div class="status-row">
+              <span class="status-lbl">Benutzer:</span>
+              <span class="status-val font-mono" id="dialog-logged-in-name">admin</span>
+            </div>
+            <div class="status-row">
+              <span class="status-lbl">Rolle:</span>
+              <span class="status-val" id="dialog-logged-in-group">Administrator</span>
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <button type="button" class="heroui-btn heroui-btn-danger" id="btn-dialog-logout" style="width:100%;">Abmelden</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="heroui-modal-footer">
+        <button type="button" class="heroui-btn heroui-btn-flat" id="btn-cancel-auth">Abbrechen</button>
+        <button type="button" class="heroui-btn heroui-btn-primary" id="btn-submit-login">Anmelden</button>
       </div>
 
     </div>

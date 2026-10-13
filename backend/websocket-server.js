@@ -21,6 +21,8 @@ export class WebSocketServerService {
     this.httpServer = options.server || null;
     this.store = options.store;
     this.mqttClient = options.mqttClient || null;
+    this.telemetryInterpreter = options.telemetryInterpreter || null;
+    this.authManager = options.authManager || null;
     this.path = options.path || "/ws/telemetry";
     this.wss = null;
     this.clients = new Set();
@@ -177,6 +179,49 @@ export class WebSocketServerService {
             isFault,
             timestamp: Date.now()
           });
+          break;
+        }
+
+        case "ingest":
+        case "ingest_telemetry": {
+          if (this.telemetryInterpreter && (msg.payload || msg.data)) {
+            const raw = msg.payload || msg.data;
+            const interpretation = this.telemetryInterpreter.interpret(raw);
+            const { station, metrics, isFault } = interpretation;
+
+            const sample = {
+              v1: metrics.v1.value,
+              v2: metrics.v2.value,
+              v3: metrics.v3.value,
+              isFault: Boolean(isFault),
+              status: interpretation.overallStatus
+            };
+            const entry = this.store ? this.store.push(station.id, sample) : sample;
+
+            if (this.store && isFault !== undefined) {
+              this.store.setMeta(`fault_${station.id}`, Boolean(isFault));
+            }
+
+            this.broadcast({
+              type: "telemetry_interpreted",
+              stationId: station.id,
+              entry,
+              summary: this.store ? this.store.getSummary(station.id) : null,
+              interpretation,
+              timestamp: Date.now()
+            });
+
+            if (this.mqttClient && this.mqttClient.isConnected) {
+              this.mqttClient.publish(`cps-i40/${station.id}/telemetry`, entry);
+            }
+
+            this.sendToClient(ws, {
+              type: "ingest_ack",
+              success: true,
+              stationId: station.id,
+              interpretation
+            });
+          }
           break;
         }
 

@@ -1092,3 +1092,300 @@ body.scada-body {
 .modal-feedback-msg.success { color: #34d399; }
 .modal-feedback-msg.error { color: #f87171; }
 
+/* ==========================================================================
+   7. AUTH, RBAC & RECHTEVERWALTUNG STYLES
+   ========================================================================== */
+.auth-dialog {
+  max-width: 500px;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--sevdesk-success-subtle);
+  border: 1px solid var(--sevdesk-success-border);
+  color: #34d399;
+}
+
+.permission-pills-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.perm-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-family: var(--font-mono);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-secondary);
+}
+
+.groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-item-card {
+  background: var(--heroui-content2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.group-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.group-item-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.group-item-desc {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.new-group-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--heroui-border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.form-sub-label {
+  display: block;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.permissions-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.perm-checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--heroui-border);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.perm-checkbox-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.perm-checkbox-item input[type="checkbox"] {
+  accent-color: var(--sevdesk-success);
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+.users-list-table-wrap,
+.interp-endpoints-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--heroui-border);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.heroui-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.heroui-mini-table th {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--heroui-border);
+}
+
+.heroui-mini-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--heroui-divider);
+  color: var(--text-main);
+}
+
+.heroui-mini-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ==========================================================================
+   8. INTELLIGENTER JSON INTERPRETER STYLES
+   ========================================================================== */
+.json-code-area {
+  width: 100%;
+  border-radius: 10px;
+  resize: vertical;
+  min-height: 140px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--heroui-border);
+  color: #e2e8f0;
+}
+
+.json-code-area:focus {
+  outline: none;
+  border-color: var(--heroui-border-focus);
+}
+
+.interpreter-result-card {
+  background: var(--heroui-content2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 14px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: border-color 0.25s ease;
+}
+
+.interpreter-result-card.status-optimal {
+  border-color: var(--sevdesk-success-border);
+}
+
+.interpreter-result-card.status-warnung {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.interpreter-result-card.status-kritisch {
+  border-color: var(--sevdesk-danger-border);
+}
+
+.interpreter-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.interpreter-st-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.interp-st-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.interp-st-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.interp-natural-text-box {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  padding: 12px 14px;
+  border-left: 4px solid var(--sevdesk-success);
+}
+
+.interpreter-result-card.status-warnung .interp-natural-text-box {
+  border-left-color: var(--sevdesk-warning);
+}
+
+.interpreter-result-card.status-kritisch .interp-natural-text-box {
+  border-left-color: var(--sevdesk-danger);
+}
+
+.interp-text-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.interp-text-content {
+  font-size: 0.88rem;
+  color: var(--text-main);
+  line-height: 1.5;
+}
+
+.interp-mapped-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.interp-sensor-card {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.interp-sensor-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.interp-sensor-lbl {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.interp-sensor-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+}
+
+.interp-sensor-unit {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+

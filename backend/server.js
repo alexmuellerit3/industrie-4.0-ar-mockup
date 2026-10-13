@@ -19,6 +19,8 @@ import { MqttClientService } from "./mqtt-client.js";
 import { WebSocketServerService } from "./websocket-server.js";
 import { createApiRouter } from "./routes/api.js";
 import { ConfigManager, DEFAULT_STATIONS_CONFIG } from "./config-manager.js";
+import { AuthManager } from "./auth-manager.js";
+import { TelemetryInterpreter } from "./telemetry-interpreter.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,14 +34,29 @@ export function createApp(options = {}) {
   const configManager = new ConfigManager(configFilePath);
   const activeConfig = configManager.getConfig();
 
+  // Sicherheits- & Authentifizierungsdienste
+  const authFilePath = options.authFilePath || path.join(ROOT_DIR, "config", "auth-config.json");
+  const authManager = new AuthManager(authFilePath);
+  const telemetryInterpreter = new TelemetryInterpreter({ stations: activeConfig.stations });
+
   // Middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
+  // Sicherheits-Header (Hardening)
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Permissions-Policy", "camera=*, microphone=()");
+    next();
+  });
+
   // CORS Header für Industrie-Netzwerke & Entwickler-Clients
   app.use((req, res, next) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
     if (req.method === "OPTIONS") return res.sendStatus(204);
     next();
@@ -103,8 +120,33 @@ export function createApp(options = {}) {
     mqttClient,
     get wsServer() { return app.locals.wsServer; },
     stationsConfig: activeConfig.stations,
-    configManager
+    configManager,
+    authManager,
+    telemetryInterpreter
   }));
+
+  // Intelligente Geräteerkennung & automatischer Einstiegs-Redirect:
+  // - Smartphone oder Tablet -> Direkt in den AR-Kameramodus (/index.html)
+  // - Desktop / Laptop -> Direkt in das SCADA-Overview Panel (/overview.html)
+  // - Manueller Override über Query-Parameter (?view=ar oder ?view=desktop)
+  app.get("/", (req, res) => {
+    const view = req.query.view;
+    if (view === "ar" || view === "camera") {
+      return res.redirect("/index.html");
+    }
+    if (view === "desktop" || view === "overview" || view === "scada") {
+      return res.redirect("/overview.html");
+    }
+
+    const userAgent = req.headers["user-agent"] || "";
+    const isMobileOrTablet = /(Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobile|Silk)/i.test(userAgent);
+
+    if (isMobileOrTablet) {
+      res.redirect("/index.html");
+    } else {
+      res.redirect("/overview.html");
+    }
+  });
 
   // Direktrouten zu HTML-Seiten
   app.get("/overview", (req, res) => {
@@ -115,15 +157,19 @@ export function createApp(options = {}) {
     res.sendFile(path.join(ROOT_DIR, "overview.html"));
   });
 
+  app.get("/ar", (req, res) => {
+    res.redirect("/index.html");
+  });
+
   // Statische Web-Dateien ausliefern (index.html, css/, js/, assets/)
   app.use(express.static(ROOT_DIR));
 
-  return { app, store, mqttClient, configManager };
+  return { app, store, mqttClient, configManager, authManager, telemetryInterpreter };
 }
 
 // Start-Funktion
 export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 80, options = {}) {
-  const { app, store, mqttClient, configManager } = createApp(options);
+  const { app, store, mqttClient, configManager, authManager, telemetryInterpreter } = createApp(options);
   const server = http.createServer(app);
 
   // WebSocket-Server an HTTP-Server binden
@@ -131,6 +177,8 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
     server,
     store,
     mqttClient,
+    telemetryInterpreter,
+    authManager,
     path: "/ws/telemetry"
   });
   app.locals.wsServer = wsServer;
@@ -168,7 +216,7 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 
-  return { server, app, store, mqttClient, wsServer, configManager };
+  return { server, app, store, mqttClient, wsServer, configManager, authManager, telemetryInterpreter };
 }
 
 // Direktstart bei Aufruf von node backend/server.js

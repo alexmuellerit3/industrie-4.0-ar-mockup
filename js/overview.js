@@ -10,6 +10,8 @@
  * 5. Interaktive Störungs-Simulation & Quittierung
  */
 
+import { authService } from "./services/auth-service.js";
+
 const STATIONS_DEFAULT = [
   {
     id: "ST-010",
@@ -73,6 +75,8 @@ class ScadaOverviewApp {
     this.connectWebSocket();
     this.startClock();
     this.initConfigModal();
+    this.initAuth();
+    this.initInterpreter();
   }
 
   /**
@@ -322,6 +326,8 @@ class ScadaOverviewApp {
       if (msg.config && msg.config.mqtt) {
         this.updateConfigStatus(msg.config.mqtt);
       }
+    } else if (msg.type === "telemetry_interpreted" && msg.interpretation) {
+      this.displayInterpretationResult(msg.interpretation);
     }
   }
 
@@ -459,7 +465,7 @@ class ScadaOverviewApp {
 
     fetch("/api/fault", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: authService.getAuthHeaders(),
       body: JSON.stringify({ stationId, isFault: targetState })
     }).catch(() => {});
 
@@ -860,7 +866,7 @@ class ScadaOverviewApp {
     try {
       const res = await fetch("/api/config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify(payload)
       });
       const data = await res.json();
@@ -892,7 +898,10 @@ class ScadaOverviewApp {
     }
 
     try {
-      const res = await fetch("/api/config/reset", { method: "POST" });
+      const res = await fetch("/api/config/reset", {
+        method: "POST",
+        headers: authService.getAuthHeaders()
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         this.setModalFeedback("✓ Auf Werkseinstellungen zurückgesetzt!", "success");
@@ -921,7 +930,503 @@ class ScadaOverviewApp {
     this.modal.feedbackMsg.textContent = msg;
     this.modal.feedbackMsg.className = `modal-feedback-msg ${type}`;
   }
+
+  // =========================================================================
+  // BENUTZER-AUTHENTIFIZIERUNG & RECHTEVERWALTUNG (RBAC)
+  // =========================================================================
+  initAuth() {
+    this.authDom = {
+      headerBtn: document.getElementById("btn-auth-user"),
+      headerIcon: document.getElementById("auth-status-icon"),
+      headerName: document.getElementById("auth-user-name"),
+      modal: document.getElementById("auth-modal-backdrop"),
+      btnClose: document.getElementById("btn-close-auth-modal"),
+      btnCancel: document.getElementById("btn-cancel-auth"),
+      btnSubmit: document.getElementById("btn-submit-login"),
+      btnDialogLogout: document.getElementById("btn-dialog-logout"),
+      inputUser: document.getElementById("login-username"),
+      inputPass: document.getElementById("login-password"),
+      feedback: document.getElementById("auth-login-feedback"),
+      formBox: document.getElementById("auth-form-container"),
+      loggedInBox: document.getElementById("auth-logged-in-container"),
+      dialogLoggedInName: document.getElementById("dialog-logged-in-name"),
+      dialogLoggedInGroup: document.getElementById("dialog-logged-in-group"),
+      dialogLoggedInPerms: document.getElementById("dialog-logged-in-perms"),
+
+      // Tab 4 Elements
+      tabOpenLogin: document.getElementById("btn-tab-open-login"),
+      tabLogout: document.getElementById("btn-tab-logout"),
+      tabUser: document.getElementById("auth-current-username"),
+      tabRole: document.getElementById("auth-current-role"),
+      tabPerms: document.getElementById("auth-current-perms"),
+      groupsList: document.getElementById("auth-groups-list"),
+      btnRefreshGroups: document.getElementById("btn-refresh-groups"),
+      usersTbody: document.getElementById("auth-users-tbody"),
+
+      // Create Group Elements
+      inputGroupId: document.getElementById("new-group-id"),
+      inputGroupName: document.getElementById("new-group-name"),
+      inputGroupDesc: document.getElementById("new-group-desc"),
+      permsGrid: document.getElementById("new-group-perms-grid"),
+      btnCreateGroup: document.getElementById("btn-create-group"),
+      createGroupFeedback: document.getElementById("new-group-feedback")
+    };
+
+    if (this.authDom.headerBtn) {
+      this.authDom.headerBtn.addEventListener("click", () => this.openAuthModal());
+    }
+    if (this.authDom.btnClose) {
+      this.authDom.btnClose.addEventListener("click", () => this.closeAuthModal());
+    }
+    if (this.authDom.btnCancel) {
+      this.authDom.btnCancel.addEventListener("click", () => this.closeAuthModal());
+    }
+    if (this.authDom.modal) {
+      this.authDom.modal.addEventListener("click", (e) => {
+        if (e.target === this.authDom.modal) this.closeAuthModal();
+      });
+    }
+
+    if (this.authDom.btnSubmit) {
+      this.authDom.btnSubmit.addEventListener("click", () => this.handleLoginSubmit());
+    }
+    if (this.authDom.inputPass) {
+      this.authDom.inputPass.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") this.handleLoginSubmit();
+      });
+    }
+
+    if (this.authDom.btnDialogLogout) {
+      this.authDom.btnDialogLogout.addEventListener("click", () => this.handleLogout());
+    }
+    if (this.authDom.tabLogout) {
+      this.authDom.tabLogout.addEventListener("click", () => this.handleLogout());
+    }
+    if (this.authDom.tabOpenLogin) {
+      this.authDom.tabOpenLogin.addEventListener("click", () => {
+        this.closeConfigModal();
+        this.openAuthModal();
+      });
+    }
+
+    // Preset pills in Login dialog
+    const presetPills = document.querySelectorAll(".auth-preset-pill");
+    presetPills.forEach(pill => {
+      pill.addEventListener("click", () => {
+        const u = pill.getAttribute("data-user");
+        const p = pill.getAttribute("data-pass");
+        if (this.authDom.inputUser && u) this.authDom.inputUser.value = u;
+        if (this.authDom.inputPass && p) this.authDom.inputPass.value = p;
+      });
+    });
+
+    if (this.authDom.btnRefreshGroups) {
+      this.authDom.btnRefreshGroups.addEventListener("click", () => {
+        this.loadGroups();
+        this.loadUsers();
+      });
+    }
+
+    if (this.authDom.btnCreateGroup) {
+      this.authDom.btnCreateGroup.addEventListener("click", () => this.handleCreateGroup());
+    }
+
+    // Listen to Auth State
+    authService.onAuthStateChanged((user) => this.updateAuthDisplay(user));
+    authService.checkSession().then((user) => {
+      this.updateAuthDisplay(user);
+      this.loadGroups();
+      this.loadUsers();
+    });
+  }
+
+  openAuthModal() {
+    if (!this.authDom.modal) return;
+    this.authDom.modal.style.display = "flex";
+    if (this.authDom.feedback) this.authDom.feedback.style.display = "none";
+    const user = authService.getUser();
+    if (user) {
+      if (this.authDom.formBox) this.authDom.formBox.style.display = "none";
+      if (this.authDom.loggedInBox) this.authDom.loggedInBox.style.display = "block";
+      if (this.authDom.btnSubmit) this.authDom.btnSubmit.style.display = "none";
+    } else {
+      if (this.authDom.formBox) this.authDom.formBox.style.display = "block";
+      if (this.authDom.loggedInBox) this.authDom.loggedInBox.style.display = "none";
+      if (this.authDom.btnSubmit) this.authDom.btnSubmit.style.display = "inline-flex";
+      setTimeout(() => this.authDom.inputUser?.focus(), 100);
+    }
+  }
+
+  closeAuthModal() {
+    if (this.authDom.modal) {
+      this.authDom.modal.style.display = "none";
+    }
+  }
+
+  async handleLoginSubmit() {
+    const username = this.authDom.inputUser?.value?.trim();
+    const password = this.authDom.inputPass?.value;
+    if (!username || !password) {
+      this.showLoginFeedback(false, "Bitte Benutzername und Passwort eingeben.");
+      return;
+    }
+
+    if (this.authDom.btnSubmit) {
+      this.authDom.btnSubmit.disabled = true;
+      this.authDom.btnSubmit.textContent = "Prüfe...";
+    }
+
+    try {
+      await authService.login(username, password);
+      this.showLoginFeedback(true, "Erfolgreich angemeldet!");
+      if (this.authDom.inputPass) this.authDom.inputPass.value = "";
+      setTimeout(() => {
+        this.closeAuthModal();
+        this.loadGroups();
+        this.loadUsers();
+      }, 700);
+    } catch (err) {
+      this.showLoginFeedback(false, err.message);
+    } finally {
+      if (this.authDom.btnSubmit) {
+        this.authDom.btnSubmit.disabled = false;
+        this.authDom.btnSubmit.textContent = "Anmelden";
+      }
+    }
+  }
+
+  showLoginFeedback(success, msg) {
+    if (!this.authDom.feedback) return;
+    this.authDom.feedback.style.display = "block";
+    this.authDom.feedback.className = `test-feedback-badge ${success ? "success" : "error"}`;
+    this.authDom.feedback.textContent = `${success ? "✓" : "✕"} ${msg}`;
+  }
+
+  async handleLogout() {
+    await authService.logout();
+    this.closeAuthModal();
+    this.loadGroups();
+    this.loadUsers();
+  }
+
+  updateAuthDisplay(user) {
+    const icon = user ? (user.group === "admin" ? "👑" : (user.group === "operator" ? "🏭" : "👤")) : "👤";
+    const name = user ? (user.displayName || user.username) : "Anmelden";
+
+    if (this.authDom.headerIcon) this.authDom.headerIcon.textContent = icon;
+    if (this.authDom.headerName) this.authDom.headerName.textContent = name;
+
+    // Dialog Angemeldet Box
+    if (this.authDom.dialogLoggedInName) {
+      this.authDom.dialogLoggedInName.textContent = user ? `${user.displayName} (@${user.username})` : "--";
+    }
+    if (this.authDom.dialogLoggedInGroup) {
+      this.authDom.dialogLoggedInGroup.textContent = user ? (user.groupName || user.group) : "--";
+    }
+    if (this.authDom.dialogLoggedInPerms) {
+      this.authDom.dialogLoggedInPerms.innerHTML = user && Array.isArray(user.permissions)
+        ? user.permissions.map(p => `<span class="perm-pill">${p}</span>`).join("")
+        : '<span class="perm-pill">keine</span>';
+    }
+
+    // Tab 4 Elements
+    if (this.authDom.tabUser) {
+      this.authDom.tabUser.textContent = user ? `${user.displayName} (@${user.username})` : "Nicht angemeldet (Gast)";
+    }
+    if (this.authDom.tabRole) {
+      const gName = user ? (user.groupName || user.group) : "viewer";
+      this.authDom.tabRole.innerHTML = `<span class="role-badge">${gName}</span>`;
+    }
+    if (this.authDom.tabPerms) {
+      const perms = user && Array.isArray(user.permissions) ? user.permissions : ["view_overview", "view_ar"];
+      this.authDom.tabPerms.innerHTML = perms.map(p => `<span class="perm-pill">${p}</span>`).join("");
+    }
+    if (this.authDom.tabLogout) {
+      this.authDom.tabLogout.style.display = user ? "inline-flex" : "none";
+    }
+  }
+
+  async loadGroups() {
+    if (!this.authDom.groupsList) return;
+    try {
+      const groups = await authService.fetchGroups();
+      this.authDom.groupsList.innerHTML = "";
+      groups.forEach(g => {
+        const card = document.createElement("div");
+        card.className = "group-item-card";
+        const permPills = (g.permissions || []).map(p => `<span class="perm-pill">${p}</span>`).join("");
+        card.innerHTML = `
+          <div class="group-item-head">
+            <div>
+              <span class="group-item-title">${g.name}</span>
+              <span class="role-badge" style="margin-left:8px;">${g.id}</span>
+            </div>
+          </div>
+          <div class="group-item-desc">${g.description || "Keine Beschreibung"}</div>
+          <div class="permission-pills-list">${permPills}</div>
+        `;
+        this.authDom.groupsList.appendChild(card);
+      });
+    } catch (e) {
+      console.warn("[SCADA] Gruppen konnten nicht geladen werden:", e);
+    }
+  }
+
+  async loadUsers() {
+    if (!this.authDom.usersTbody) return;
+    try {
+      const users = await authService.fetchUsers();
+      this.authDom.usersTbody.innerHTML = "";
+      users.forEach(u => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="font-mono"><strong>${u.username}</strong></td>
+          <td>${u.displayName || u.username}</td>
+          <td><span class="role-badge">${u.group}</span></td>
+          <td><span class="heroui-status-chip"><span class="chip-dot"></span>Aktiv</span></td>
+        `;
+        this.authDom.usersTbody.appendChild(tr);
+      });
+    } catch (e) {
+      console.warn("[SCADA] Benutzer konnten nicht geladen werden:", e);
+    }
+  }
+
+  async handleCreateGroup() {
+    const id = this.authDom.inputGroupId?.value?.trim().toLowerCase();
+    const name = this.authDom.inputGroupName?.value?.trim();
+    const description = this.authDom.inputGroupDesc?.value?.trim();
+
+    if (!id || !name) {
+      this.showCreateGroupFeedback(false, "Bitte Gruppen-ID und Anzeigenamen angeben.");
+      return;
+    }
+
+    const checkedBoxes = this.authDom.permsGrid?.querySelectorAll('input[type="checkbox"]:checked') || [];
+    const permissions = Array.from(checkedBoxes).map(cb => cb.value);
+
+    try {
+      await authService.createGroup({ id, name, description, permissions });
+      this.showCreateGroupFeedback(true, `Gruppe "${name}" erfolgreich angelegt!`);
+      if (this.authDom.inputGroupId) this.authDom.inputGroupId.value = "";
+      if (this.authDom.inputGroupName) this.authDom.inputGroupName.value = "";
+      if (this.authDom.inputGroupDesc) this.authDom.inputGroupDesc.value = "";
+      this.loadGroups();
+    } catch (err) {
+      this.showCreateGroupFeedback(false, err.message);
+    }
+  }
+
+  showCreateGroupFeedback(success, msg) {
+    if (!this.authDom.createGroupFeedback) return;
+    this.authDom.createGroupFeedback.style.display = "block";
+    this.authDom.createGroupFeedback.className = `test-feedback-badge ${success ? "success" : "error"}`;
+    this.authDom.createGroupFeedback.textContent = `${success ? "✓" : "✕"} ${msg}`;
+  }
+
+  // =========================================================================
+  // INTELLIGENTER JSON INTERPRETER & ENDPUNKT-EXTRAKTION
+  // =========================================================================
+  initInterpreter() {
+    this.interpreterDom = {
+      textArea: document.getElementById("json-payload-input"),
+      btnInterpret: document.getElementById("btn-interpret-json"),
+      btnIngest: document.getElementById("btn-ingest-json"),
+      presetBtns: document.querySelectorAll(".interpreter-preset"),
+      resultSection: document.getElementById("interpreter-result-section"),
+      resultCard: document.getElementById("interpreter-result-card"),
+      stAvatar: document.getElementById("interp-st-avatar"),
+      stName: document.getElementById("interp-st-name"),
+      stId: document.getElementById("interp-st-id"),
+      statusChip: document.getElementById("interp-status-chip"),
+      statusText: document.getElementById("interp-status-text"),
+      naturalText: document.getElementById("interp-natural-text"),
+      mappedGrid: document.getElementById("interp-mapped-grid"),
+      endpointCount: document.getElementById("interp-endpoint-count"),
+      endpointsTbody: document.getElementById("interp-endpoints-tbody")
+    };
+
+    if (this.interpreterDom.presetBtns) {
+      this.interpreterDom.presetBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+          const key = btn.getAttribute("data-preset");
+          this.loadInterpreterPreset(key);
+        });
+      });
+    }
+
+    if (this.interpreterDom.btnInterpret) {
+      this.interpreterDom.btnInterpret.addEventListener("click", () => this.handleInterpret(false));
+    }
+    if (this.interpreterDom.btnIngest) {
+      this.interpreterDom.btnIngest.addEventListener("click", () => this.handleInterpret(true));
+    }
+
+    // Initial preset laden (flat)
+    this.loadInterpreterPreset("flat");
+  }
+
+  loadInterpreterPreset(key) {
+    const payload = INTERPRETER_PRESETS[key] || INTERPRETER_PRESETS.flat;
+    if (this.interpreterDom.textArea) {
+      this.interpreterDom.textArea.value = JSON.stringify(payload, null, 2);
+    }
+  }
+
+  async handleInterpret(andIngest = false) {
+    const raw = this.interpreterDom.textArea?.value?.trim();
+    if (!raw) return;
+
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (err) {
+      alert(`Ungültiges JSON-Format: ${err.message}`);
+      return;
+    }
+
+    const btn = andIngest ? this.interpreterDom.btnIngest : this.interpreterDom.btnInterpret;
+    const origText = btn ? btn.textContent : "";
+    if (btn) btn.textContent = "Verarbeite...";
+
+    try {
+      let data;
+      if (andIngest) {
+        data = await authService.ingestTelemetry(payload);
+      } else {
+        data = await authService.interpretTelemetry(payload);
+      }
+      if (data && data.interpretation) {
+        this.displayInterpretationResult(data.interpretation);
+      }
+    } catch (err) {
+      alert(`Fehler bei der Interpretation: ${err.message}`);
+    } finally {
+      if (btn) btn.textContent = origText;
+    }
+  }
+
+  displayInterpretationResult(interp) {
+    if (!interp || !this.interpreterDom.resultSection) return;
+    this.interpreterDom.resultSection.style.display = "block";
+
+    // Station Info
+    const stId = interp.stationId || "ST-020";
+    const stName = interp.stationName || "CPS Modul";
+    if (this.interpreterDom.stAvatar) {
+      this.interpreterDom.stAvatar.textContent = stId.replace("ST-", "M");
+    }
+    if (this.interpreterDom.stName) {
+      this.interpreterDom.stName.textContent = stName;
+    }
+    if (this.interpreterDom.stId) {
+      this.interpreterDom.stId.textContent = `Station ID: ${stId}`;
+    }
+
+    // Status Chip & Card Class
+    const status = interp.status || "OPTIMAL";
+    if (this.interpreterDom.statusText) {
+      this.interpreterDom.statusText.textContent = status;
+    }
+    if (this.interpreterDom.statusChip) {
+      this.interpreterDom.statusChip.className = `heroui-status-chip ${status === "KRITISCH" ? "alert" : (status === "WARNUNG" ? "warning" : "")}`;
+    }
+    if (this.interpreterDom.resultCard) {
+      this.interpreterDom.resultCard.className = `interpreter-result-card status-${status.toLowerCase()}`;
+    }
+
+    // Natural Language Text
+    if (this.interpreterDom.naturalText) {
+      this.interpreterDom.naturalText.textContent = interp.summary || "Keine Zusammenfassung verfügbar.";
+    }
+
+    // Mapped Grid
+    if (this.interpreterDom.mappedGrid && interp.mappedValues) {
+      this.interpreterDom.mappedGrid.innerHTML = "";
+      Object.entries(interp.mappedValues).forEach(([k, mv]) => {
+        const card = document.createElement("div");
+        card.className = "interp-sensor-card";
+        card.innerHTML = `
+          <div class="interp-sensor-top">
+            <span class="interp-sensor-lbl">${mv.label}</span>
+            <span class="perm-pill">${mv.status}</span>
+          </div>
+          <div class="interp-sensor-val">
+            ${mv.val} <span class="interp-sensor-unit">${mv.unit}</span>
+          </div>
+        `;
+        this.interpreterDom.mappedGrid.appendChild(card);
+      });
+    }
+
+    // Extrahierte Endpunkte
+    const endpoints = interp.extractedEndpoints || [];
+    if (this.interpreterDom.endpointCount) {
+      this.interpreterDom.endpointCount.textContent = endpoints.length;
+    }
+    if (this.interpreterDom.endpointsTbody) {
+      this.interpreterDom.endpointsTbody.innerHTML = "";
+      endpoints.forEach(ep => {
+        const tr = document.createElement("tr");
+        const valStr = typeof ep.value === "object" ? JSON.stringify(ep.value) : String(ep.value);
+        tr.innerHTML = `
+          <td class="font-mono"><code>${ep.path}</code></td>
+          <td><span class="role-badge" style="font-size:0.65rem;">${ep.type}</span></td>
+          <td class="font-mono" style="max-width:240px; word-break:break-all;">${valStr}</td>
+        `;
+        this.interpreterDom.endpointsTbody.appendChild(tr);
+      });
+    }
+  }
 }
+
+const INTERPRETER_PRESETS = {
+  flat: {
+    station_id: "ST-020",
+    v1: 250.3,
+    v2: 5.2,
+    v3: 32
+  },
+  nested: {
+    timestamp: Date.now(),
+    device: {
+      type: "Siemens_IOT2050_Gateway",
+      module: "ST-020",
+      line: "CPS_Candy_Line"
+    },
+    telemetry: {
+      fill_weight_g: 250.5,
+      pressure_bar: 5.3,
+      cycle_rate_cpm: 32,
+      temperature_c: 42.1
+    }
+  },
+  opcua: {
+    source: "Siemens_S7_1500",
+    station: "ST-010",
+    tags: [
+      { name: "Magazin_Fuellstand", value: 84.0, unit: "%" },
+      { name: "Vakuum_Sauger", value: -0.8, unit: "bar" },
+      { name: "Stueckzaehler_Gut", value: 1684, unit: "Stk" }
+    ]
+  },
+  warning: {
+    station: "ST-020",
+    data: {
+      v1: 250.1,
+      v2: 6.9,
+      v3: 32
+    }
+  },
+  critical: {
+    station: "ST-030",
+    payload: {
+      v1: 8.8,
+      v2: 6.5,
+      v3: 85
+    }
+  }
+};
 
 window.addEventListener("DOMContentLoaded", () => {
   window.__scadaApp = new ScadaOverviewApp();

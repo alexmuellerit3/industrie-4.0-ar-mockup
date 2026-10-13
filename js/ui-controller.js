@@ -3,6 +3,8 @@
  * Aktualisiert Messwert-Zellen, Status-Tags, Störungsanzeigen und Zoom-Button.
  */
 
+import { authService } from "./services/auth-service.js";
+
 export class UIController {
   constructor({ onNextStation, onToggleFault, onToggleSim, onZoomCycle, onCloseCard }) {
     // Callbacks
@@ -77,6 +79,21 @@ export class UIController {
     this.feedbackMsg = document.getElementById("ar-modal-feedback-msg");
     this.historyTtl = document.getElementById("ar-cfg-history-ttl");
     this.pollInterval = document.getElementById("ar-cfg-poll-interval");
+
+    // Auth & Login DOM-Elemente (AR)
+    this.btnArAuth = document.getElementById("btn-ar-auth");
+    this.authModalBackdrop = document.getElementById("auth-modal-backdrop");
+    this.btnCloseAuthModal = document.getElementById("btn-close-auth-modal");
+    this.btnCancelAuth = document.getElementById("btn-cancel-auth");
+    this.btnSubmitLogin = document.getElementById("btn-submit-login");
+    this.btnDialogLogout = document.getElementById("btn-dialog-logout");
+    this.loginUsername = document.getElementById("login-username");
+    this.loginPassword = document.getElementById("login-password");
+    this.authFormContainer = document.getElementById("auth-form-container");
+    this.authLoggedInContainer = document.getElementById("auth-logged-in-container");
+    this.dialogLoggedInName = document.getElementById("dialog-logged-in-name");
+    this.dialogLoggedInGroup = document.getElementById("dialog-logged-in-group");
+    this.authLoginFeedback = document.getElementById("auth-login-feedback");
 
     this.bindEvents();
   }
@@ -154,6 +171,38 @@ export class UIController {
         });
       });
     }
+
+    // Auth & Login Bindings (AR)
+    bindTap(this.btnArAuth, () => this.openAuthModal());
+    bindTap(this.btnCloseAuthModal, () => this.closeAuthModal());
+    bindTap(this.btnCancelAuth, () => this.closeAuthModal());
+    bindTap(this.btnSubmitLogin, () => this.handleLoginSubmit());
+    bindTap(this.btnDialogLogout, () => this.handleLogout());
+
+    if (this.authModalBackdrop) {
+      this.authModalBackdrop.addEventListener("click", (e) => {
+        if (e.target === this.authModalBackdrop) this.closeAuthModal();
+      });
+
+      const presetPills = this.authModalBackdrop.querySelectorAll(".auth-preset-pill");
+      presetPills.forEach(pill => {
+        pill.addEventListener("click", () => {
+          const u = pill.getAttribute("data-user");
+          const p = pill.getAttribute("data-pass");
+          if (this.loginUsername && u) this.loginUsername.value = u;
+          if (this.loginPassword && p) this.loginPassword.value = p;
+        });
+      });
+    }
+
+    if (this.loginPassword) {
+      this.loginPassword.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") this.handleLoginSubmit();
+      });
+    }
+
+    authService.onAuthStateChanged((user) => this.updateAuthDisplay(user));
+    authService.checkSession().then((user) => this.updateAuthDisplay(user));
   }
 
   /**
@@ -443,7 +492,7 @@ export class UIController {
     try {
       const res = await fetch("/api/config", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authService.getAuthHeaders(),
         body: JSON.stringify({
           mqtt: { brokerUrl },
           api: { historyTtlMs: historyTtlSec * 1000, pollIntervalMs },
@@ -474,7 +523,10 @@ export class UIController {
   async resetDefaults() {
     if (!confirm("Auf Standardwerte zurücksetzen?")) return;
     try {
-      const res = await fetch("/api/config/reset", { method: "POST" });
+      const res = await fetch("/api/config/reset", {
+        method: "POST",
+        headers: authService.getAuthHeaders()
+      });
       const data = await res.json();
       if (res.ok && data.success) {
         this.populateConfigForm(data.config, { connected: false, simulated: true });
@@ -484,5 +536,85 @@ export class UIController {
         }
       }
     } catch (_) {}
+  }
+
+  // =========================================================================
+  // AR AUTH MODAL METHODS
+  // =========================================================================
+  openAuthModal() {
+    if (!this.authModalBackdrop) return;
+    this.authModalBackdrop.style.display = "flex";
+    if (this.authLoginFeedback) this.authLoginFeedback.style.display = "none";
+
+    const user = authService.getUser();
+    if (user) {
+      if (this.authFormContainer) this.authFormContainer.style.display = "none";
+      if (this.authLoggedInContainer) this.authLoggedInContainer.style.display = "block";
+      if (this.btnSubmitLogin) this.btnSubmitLogin.style.display = "none";
+    } else {
+      if (this.authFormContainer) this.authFormContainer.style.display = "block";
+      if (this.authLoggedInContainer) this.authLoggedInContainer.style.display = "none";
+      if (this.btnSubmitLogin) this.btnSubmitLogin.style.display = "inline-flex";
+      setTimeout(() => this.loginUsername?.focus(), 100);
+    }
+  }
+
+  closeAuthModal() {
+    if (this.authModalBackdrop) {
+      this.authModalBackdrop.style.display = "none";
+    }
+  }
+
+  async handleLoginSubmit() {
+    const username = this.loginUsername?.value?.trim();
+    const password = this.loginPassword?.value;
+    if (!username || !password) {
+      this.showLoginFeedback(false, "Benutzer & Passwort erforderlich");
+      return;
+    }
+
+    if (this.btnSubmitLogin) {
+      this.btnSubmitLogin.disabled = true;
+      this.btnSubmitLogin.textContent = "Prüfe...";
+    }
+
+    try {
+      await authService.login(username, password);
+      this.showLoginFeedback(true, "Angemeldet!");
+      if (this.loginPassword) this.loginPassword.value = "";
+      setTimeout(() => this.closeAuthModal(), 600);
+    } catch (err) {
+      this.showLoginFeedback(false, err.message);
+    } finally {
+      if (this.btnSubmitLogin) {
+        this.btnSubmitLogin.disabled = false;
+        this.btnSubmitLogin.textContent = "Anmelden";
+      }
+    }
+  }
+
+  async handleLogout() {
+    await authService.logout();
+    this.closeAuthModal();
+  }
+
+  showLoginFeedback(success, msg) {
+    if (!this.authLoginFeedback) return;
+    this.authLoginFeedback.style.display = "block";
+    this.authLoginFeedback.className = `test-feedback-badge ${success ? "success" : "error"}`;
+    this.authLoginFeedback.textContent = `${success ? "✓" : "✕"} ${msg}`;
+  }
+
+  updateAuthDisplay(user) {
+    if (this.btnArAuth) {
+      this.btnArAuth.textContent = user ? (user.group === "admin" ? "👑" : (user.group === "operator" ? "🏭" : "👤")) : "👤";
+      this.btnArAuth.title = user ? `${user.displayName} (${user.group})` : "Benutzeranmeldung";
+    }
+    if (this.dialogLoggedInName) {
+      this.dialogLoggedInName.textContent = user ? `${user.displayName} (@${user.username})` : "--";
+    }
+    if (this.dialogLoggedInGroup) {
+      this.dialogLoggedInGroup.textContent = user ? (user.groupName || user.group) : "--";
+    }
   }
 }

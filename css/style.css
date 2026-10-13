@@ -199,8 +199,9 @@ a-scene canvas {
   border-color: var(--heroui-border-focus);
 }
 
-/* HeroUI Pill Button für Konfiguration */
-.config-pill {
+/* HeroUI Pill Button für Konfiguration & Auth */
+.config-pill,
+.auth-pill {
   padding: 6px 12px;
   background: var(--heroui-surface);
   border: 1px solid var(--heroui-border);
@@ -218,7 +219,8 @@ a-scene canvas {
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.config-pill:active {
+.config-pill:active,
+.auth-pill:active {
   transform: scale(0.95);
   background: rgba(255, 255, 255, 0.2);
   border-color: var(--heroui-border-focus);
@@ -829,6 +831,10 @@ a-scene canvas {
   overflow: hidden;
   color: var(--text-primary);
   font-family: var(--font-sans);
+}
+
+.heroui-modal-dialog.auth-dialog {
+  max-width: 440px;
 }
 
 .heroui-modal-header {
