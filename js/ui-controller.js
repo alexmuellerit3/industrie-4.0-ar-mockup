@@ -199,8 +199,12 @@ export class UIController {
       const wsPresets = this.modalBackdrop.querySelectorAll(".ar-ws-preset-pill");
       wsPresets.forEach(pill => {
         pill.addEventListener("click", () => {
-          const url = pill.getAttribute("data-url");
+          let url = pill.getAttribute("data-url");
           if (url && this.inputWsUrl) {
+            if (url.includes("localhost:3000") && typeof window !== "undefined" && window.location.host) {
+              const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+              url = `${proto}//${window.location.host}/ws/telemetry`;
+            }
             this.inputWsUrl.value = url;
           }
         });

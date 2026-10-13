@@ -198,6 +198,7 @@ export function createApp(options = {}) {
 
 // Start-Funktion
 export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 80, options = {}) {
+  const parsedPort = parseInt(port, 10) || 80;
   const { app, store, mqttClient, wsClient, configManager, authManager, telemetryInterpreter } = createApp(options);
   const server = http.createServer(app);
 
@@ -216,23 +217,22 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   mqttClient.connect();
 
   server.on("error", (err) => {
-    if (err.code === "EADDRINUSE" && !process.env.PORT && port === 80) {
+    if (err.code === "EADDRINUSE" && !process.env.PORT && parsedPort === 80) {
       console.warn(`[Server] Port 80 ist belegt. Wechsle automatisch auf Fallback-Port 8080...`);
-      port = 8080;
       server.listen(8080);
       return;
     }
-    console.error(`[Server] Fehler auf Port ${port}:`, err.message);
+    console.error(`[Server] Fehler auf Port ${parsedPort}:`, err.message);
   });
 
-  server.listen(port, () => {
+  server.listen(parsedPort, () => {
     console.info("=================================================");
-    console.info(`CPS-i40 Backend Server läuft auf Port ${port}`);
-    console.info(`- Anlagenübersicht (ohne Hiro): http://localhost:${port}/overview.html`);
-    console.info(`- AR WebApp:                  http://localhost:${port}/index.html`);
-    console.info(`- REST API Endpunkt:          http://localhost:${port}/api/stations`);
-    console.info(`- REST Konfiguration:         http://localhost:${port}/api/config`);
-    console.info(`- WebSocket Stream:           ws://localhost:${port}/ws/telemetry`);
+    console.info(`CPS-i40 Backend Server läuft auf Port ${parsedPort}`);
+    console.info(`- Anlagenübersicht (ohne Hiro): http://localhost:${parsedPort}/overview.html`);
+    console.info(`- AR WebApp:                  http://localhost:${parsedPort}/index.html`);
+    console.info(`- REST API Endpunkt:          http://localhost:${parsedPort}/api/stations`);
+    console.info(`- REST Konfiguration:         http://localhost:${parsedPort}/api/config`);
+    console.info(`- WebSocket Stream:           ws://localhost:${parsedPort}/ws/telemetry`);
     console.info(`- MQTT Broker:                ${mqttClient.brokerUrl}`);
     console.info(`- 5-Minuten KeyValueStore:    TTL = 300s (aktiv)`);
     console.info("=================================================");
@@ -255,7 +255,8 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   return { server, app, store, mqttClient, wsClient, wsServer, configManager, authManager, telemetryInterpreter };
 }
 
-// Direktstart bei Aufruf von node backend/server.js
+// Direktstart bei Aufruf von node backend/server.js (unterstützt CLI-Port z.B. node backend/server.js 8080)
 if (process.argv[1] && process.argv[1].endsWith("server.js")) {
-  startServer();
+  const argPort = process.argv[2] ? parseInt(process.argv[2], 10) : null;
+  startServer(argPort || process.env.PORT || process.env.HTTP_PORT || 80);
 }

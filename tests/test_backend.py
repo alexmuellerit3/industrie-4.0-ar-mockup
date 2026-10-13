@@ -141,6 +141,34 @@ class TestDockerAndPipelineFiles(unittest.TestCase):
         self.assertIn("listener 9001", content)
         self.assertIn("protocol websockets", content)
 
+    def test_arbitrary_port_binding_and_configuration(self):
+        """Prüft, dass Docker, docker-compose und Skripte beliebige Ports via PORT / HOST_PORT unterstützen."""
+        compose_path = os.path.join(BASE_DIR, "docker-compose.yml")
+        with open(compose_path, "r") as f:
+            compose_content = f.read()
+        self.assertIn("${PORT", compose_content, "docker-compose.yml muss dynamische Port-Bindung über Umgebungsvariablen unterstützen")
+        self.assertIn("${HOST_PORT", compose_content, "docker-compose.yml sollte HOST_PORT unterstützen")
+        self.assertIn("${CONTAINER_PORT", compose_content, "docker-compose.yml sollte CONTAINER_PORT unterstützen")
+
+        dockerfile_path = os.path.join(BASE_DIR, "Dockerfile")
+        with open(dockerfile_path, "r") as f:
+            dockerfile_content = f.read()
+        self.assertIn("ARG PORT", dockerfile_content, "Dockerfile sollte ARG PORT unterstützen")
+        self.assertIn("ENV PORT", dockerfile_content, "Dockerfile sollte ENV PORT setzen")
+        self.assertIn("${PORT:-80}", dockerfile_content, "Dockerfile HEALTHCHECK sollte dynamischen Port unterstützen")
+
+        deploy_script_path = os.path.join(BASE_DIR, "scripts", "deploy.sh")
+        with open(deploy_script_path, "r") as f:
+            deploy_content = f.read()
+        self.assertIn("PORT=", deploy_content, "scripts/deploy.sh muss PORT Variable definieren oder übergeben")
+
+        env_example_path = os.path.join(BASE_DIR, ".env.example")
+        self.assertTrue(os.path.isfile(env_example_path), ".env.example sollte existieren")
+        with open(env_example_path, "r") as f:
+            env_content = f.read()
+        self.assertIn("PORT=", env_content, ".env.example sollte PORT Konfiguration enthalten")
+        self.assertIn("HOST_PORT=", env_content, ".env.example sollte HOST_PORT Konfiguration enthalten")
+
 
 class TestBackendServerLive(unittest.TestCase):
     """Startet den Node.js Server temporär und prüft HTTP & REST Schnittstellen."""

@@ -845,8 +845,12 @@ class ScadaOverviewApp {
     const wsPresets = this.modal.backdrop.querySelectorAll(".ws-preset-pill");
     wsPresets.forEach(pill => {
       pill.addEventListener("click", () => {
-        const url = pill.getAttribute("data-url");
+        let url = pill.getAttribute("data-url");
         if (url && this.modal.inputWsUrl) {
+          if (url.includes("localhost:3000") && typeof window !== "undefined" && window.location.host) {
+            const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+            url = `${proto}//${window.location.host}/ws/telemetry`;
+          }
           this.modal.inputWsUrl.value = url;
           this.setModalFeedback(`WebSocket-Preset übernommen: ${url}`, "success");
         }

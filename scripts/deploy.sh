@@ -12,8 +12,13 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Port-Konfiguration: Beliebiger Port via Argument ($1), Umgebungsvariable $PORT oder Standard (80)
+PORT="${1:-${PORT:-80}}"
+export PORT
+
 echo -e "${CYAN}====================================================${NC}"
 echo -e "${CYAN}   CPS-i40 Industrie 4.0 Server-Deployment          ${NC}"
+echo -e "${CYAN}   Ziel-Port: ${GREEN}${PORT}${CYAN} (Anpassbar: ./deploy.sh <PORT> oder PORT=...)${NC}"
 echo -e "${CYAN}====================================================${NC}"
 
 # 1. Voraussetzungen prüfen

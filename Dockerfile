@@ -23,16 +23,17 @@ COPY tests/ ./tests/
 COPY index.html ./
 COPY overview.html ./
 
-# Produktions-Umgebungsvariablen
+# Produktions-Umgebungsvariablen & Beliebiger Port
+ARG PORT=80
 ENV NODE_ENV=production
-ENV PORT=80
+ENV PORT=${PORT}
 
-# Port nach außen freigeben
-EXPOSE 80 3000
+# Beliebigen Port freigeben (unterstützt 80, 3000, 8080 sowie dynamischen $PORT)
+EXPOSE 80 3000 8080
 
-# Healthcheck zur automatischen Überwachung durch Docker / Portainer / K8s
+# Healthcheck zur automatischen Überwachung durch Docker / Portainer / K8s (dynamischer Port)
 HEALTHCHECK --interval=20s --timeout=5s --start-period=5s --retries=3 \
-  CMD wget -qO- http://localhost:80/health || wget -qO- http://localhost:3000/health || exit 1
+  CMD wget -qO- http://localhost:${PORT:-80}/health || wget -qO- http://localhost:80/health || wget -qO- http://localhost:3000/health || exit 1
 
 # Startbefehl
 CMD ["node", "backend/server.js"]
