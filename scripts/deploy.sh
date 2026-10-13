@@ -44,9 +44,14 @@ if [ ! -f "mosquitto/mosquitto.conf" ]; then
 fi
 echo -e "${GREEN}✓ Konfigurationsdateien vorhanden.${NC}"
 
-# 3. Container bauen
-echo -e "\n${YELLOW}[3/5] Erstelle Docker Images...${NC}"
-$COMPOSE_CMD build --pull
+# 3. Container-Image aus GitHub Container Registry (ghcr.io) beziehen
+echo -e "\n${YELLOW}[3/5] Ziehe fertiges Container-Image aus GitHub Container Registry (ghcr.io)...${NC}"
+if $COMPOSE_CMD pull; then
+    echo -e "${GREEN}✓ Container-Image erfolgreich aus der Pipeline gezogen.${NC}"
+else
+    echo -e "${YELLOW}Hinweis: Registry-Pull nicht möglich. Baue Container alternativ lokal...${NC}"
+    $COMPOSE_CMD build
+fi
 
 # 4. Container im Hintergrund starten
 echo -e "\n${YELLOW}[4/5] Starte Dienste (Backend + Mosquitto)...${NC}"

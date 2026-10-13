@@ -109,11 +109,16 @@ class TestDockerAndPipelineFiles(unittest.TestCase):
         self.assertIn("eclipse-mosquitto:2", content)
         self.assertTrue("3000" in content)
         self.assertIn("1883:1883", content)
+        self.assertIn("ghcr.io", content, "docker-compose.yml muss das Image aus der GitHub Container Registry referenzieren")
 
     def test_deploy_script_executable(self):
         script_path = os.path.join(BASE_DIR, "scripts", "deploy.sh")
         self.assertTrue(os.path.isfile(script_path), "scripts/deploy.sh fehlt")
         self.assertTrue(os.access(script_path, os.X_OK), "scripts/deploy.sh muss ausführbar sein (chmod +x)")
+        with open(script_path, "r") as f:
+            content = f.read()
+        self.assertIn("pull", content, "scripts/deploy.sh muss das Image aus der Registry pullen")
+        self.assertIn("ghcr.io", content)
 
     def test_github_workflow_pipeline(self):
         wf_path = os.path.join(BASE_DIR, ".github", "workflows", "docker-build.yml")
@@ -122,6 +127,8 @@ class TestDockerAndPipelineFiles(unittest.TestCase):
             content = f.read()
         self.assertIn("docker-build", content)
         self.assertIn("unittest", content)
+        self.assertIn("packages: write", content, "Workflow benötigt Berechtigung für GitHub Container Registry")
+        self.assertIn("ghcr.io", content, "Workflow muss das Image zu ghcr.io pushen")
 
     def test_mosquitto_config(self):
         conf_path = os.path.join(BASE_DIR, "mosquitto", "mosquitto.conf")

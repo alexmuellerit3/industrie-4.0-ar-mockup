@@ -7,6 +7,10 @@ on:
     branches: [ "main", "experimental" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   test:
     name: Unit & Integration Tests
@@ -23,7 +27,7 @@ jobs:
           cache: 'npm'
 
       - name: Install NPM Dependencies
-        run: npm ci || npm install
+        run: npm ci
 
       - name: Setup Python 3.13
         uses: actions/setup-python@v5
@@ -34,7 +38,7 @@ jobs:
         run: python3 -m unittest discover tests -v
 
   docker-build:
-    name: Build & Verify Docker Container
+    name: Build & Publish Docker Container
     runs-on: ubuntu-latest
     needs: test
 
@@ -45,19 +49,44 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Image
+      - name: Log in to GitHub Container Registry (ghcr.io)
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata & tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=sha,format=short
+
+      - name: Build Docker Image locally
         uses: docker/build-push-action@v5
         with:
           context: .
           load: true
-          tags: cps-i40-telemetry:ci
+          tags: ghcr.io/${{ github.repository }}:latest,ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+          labels: ${{ steps.meta.outputs.labels }}
 
       - name: Test Container Health
         run: |
-          docker run -d --name test-cps -p 3000:3000 -e PORT=3000 cps-i40-telemetry:ci
+          docker run -d --name test-cps -p 3000:3000 -e PORT=3000 ghcr.io/${{ github.repository }}:latest
           sleep 6
           docker ps
           curl --fail -s http://localhost:3000/health || exit 1
           curl --fail -s http://localhost:3000/api/stations || exit 1
           docker stop test-cps
           docker rm test-cps
+
+      - name: Push Docker Image to GHCR
+        if: github.event_name != 'pull_request'
+        run: |
+          docker push ghcr.io/${{ github.repository }}:latest
+          docker push ghcr.io/${{ github.repository }}:${{ github.ref_name }}

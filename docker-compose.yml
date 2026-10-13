@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: cps-i40-telemetry:latest
+    image: ghcr.io/alexmuellerit3/industrie-4.0-ar-mockup:latest
     container_name: cps-i40-backend
     restart: unless-stopped
     ports:
