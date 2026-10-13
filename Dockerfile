@@ -11,7 +11,7 @@ LABEL description="CPS-i40 Industrie 4.0 AR WebApp & IoT Backend mit MQTT, WebSo
 WORKDIR /app
 
 # Dependencies installieren
-COPY package.json ./
+COPY package*.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
 # Anwendungscode kopieren
