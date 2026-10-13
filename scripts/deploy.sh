@@ -37,12 +37,12 @@ echo -e "${GREEN}✓ Docker und Compose gefunden ($COMPOSE_CMD)${NC}"
 
 # 2. Verzeichnisse vorbereiten
 echo -e "\n${YELLOW}[2/5] Bereite Konfiguration vor...${NC}"
-mkdir -p mosquitto
+mkdir -p mosquitto config
 if [ ! -f "mosquitto/mosquitto.conf" ]; then
     echo -e "${RED}FEHLER: mosquitto/mosquitto.conf fehlt!${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ Konfigurationsdateien vorhanden.${NC}"
+echo -e "${GREEN}✓ Konfigurationsverzeichnisse & Dateien vorhanden.${NC}"
 
 # 3. Container-Image aus GitHub Container Registry (ghcr.io) beziehen
 echo -e "\n${YELLOW}[3/5] Ziehe fertiges Container-Image aus GitHub Container Registry (ghcr.io)...${NC}"

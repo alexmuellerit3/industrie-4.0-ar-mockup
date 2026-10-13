@@ -45,6 +45,11 @@
       <!-- Live Uhrzeit -->
       <div class="heroui-chip" id="scada-clock">--:--:--</div>
 
+      <!-- Konfigurationspanel Button -->
+      <button type="button" class="heroui-btn heroui-btn-flat" id="btn-open-config" title="Anlagen- und MQTT-Konfiguration öffnen">
+        <span>⚙️ Konfiguration</span>
+      </button>
+
       <!-- HeroUI Umschalter zur mobilen AR-Ansicht -->
       <a href="index.html" class="heroui-btn heroui-btn-primary" title="Wechselt zur Smartphone AR-Kameraansicht mit Hiro-Marker">
         <span>Kamera AR-HUD</span>
@@ -124,6 +129,127 @@
       Lernfeld 7: Cyber-Physische Systeme • Berufsschule FiSi • Candy-Linie CPR-01
     </div>
   </footer>
+
+  <!-- ========================================================================
+       HEROUI & SEVDESK KONFIGURATIONSPANEL (MODAL)
+       ======================================================================== -->
+  <div class="heroui-modal-backdrop" id="config-modal-backdrop" style="display:none;">
+    <div class="heroui-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      
+      <!-- Modal Header -->
+      <div class="heroui-modal-header">
+        <div class="modal-title-group">
+          <div class="modal-avatar-badge">⚙️</div>
+          <div>
+            <h2 id="modal-title" class="modal-main-title">Anlagen- & Schnittstellen-Konfiguration</h2>
+            <div class="modal-sub-title">Live-Parametrierung von MQTT-Broker, Modulen & Toleranzbändern</div>
+          </div>
+        </div>
+        <button type="button" class="heroui-modal-close" id="btn-close-config" title="Schließen">✕</button>
+      </div>
+
+      <!-- Modal Tabs Bar -->
+      <div class="heroui-tabs-bar">
+        <button type="button" class="heroui-tab-btn active" data-tab="pane-tab-mqtt">🔌 MQTT & Broker</button>
+        <button type="button" class="heroui-tab-btn" data-tab="pane-tab-stations">🏭 Module & Toleranzen</button>
+        <button type="button" class="heroui-tab-btn" data-tab="pane-tab-system">⚙️ System & Puffer</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="heroui-modal-body">
+        
+        <!-- Tab 1: MQTT & Broker -->
+        <div class="tab-pane active" id="pane-tab-mqtt">
+          <div class="form-section">
+            <label class="form-label" for="cfg-mqtt-url">MQTT Broker URL</label>
+            <div class="input-with-action">
+              <input type="text" id="cfg-mqtt-url" class="heroui-input font-mono" placeholder="mqtt://localhost:1883" autocomplete="off" spellcheck="false">
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="btn-test-mqtt">Verbindung testen</button>
+            </div>
+            <div class="form-hint">Unterstützte Protokolle: <code>mqtt://</code>, <code>mqtts://</code>, <code>ws://</code>, <code>wss://</code>, <code>tcp://</code></div>
+            <div id="mqtt-test-result" class="test-feedback-badge" style="display:none;"></div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">Schnellkonfiguration (Presets)</label>
+            <div class="preset-pill-group">
+              <button type="button" class="preset-pill" data-url="mqtt://localhost:1883">Lokal (Docker: 1883)</button>
+              <button type="button" class="preset-pill" data-url="mqtt://192.168.10.1:1883">Edge-Gateway (IOT2050: 192.168.10.1)</button>
+              <button type="button" class="preset-pill" data-url="mqtt://broker.hivemq.com:1883">Öffentlicher HiveMQ Broker</button>
+              <button type="button" class="preset-pill" data-url="mqtt://test.mosquitto.org:1883">Test Mosquitto Public</button>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">Aktueller Verbindungsstatus</label>
+            <div class="status-summary-box">
+              <div class="status-row">
+                <span class="status-lbl">Aktive Broker-URL:</span>
+                <span class="status-val font-mono" id="cfg-current-broker-url">mqtt://localhost:1883</span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">Broker-Status:</span>
+                <span class="heroui-status-chip" id="cfg-broker-chip">
+                  <span class="chip-dot"></span>
+                  <span id="cfg-broker-status-text">Initialisiere...</span>
+                </span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">Client-ID:</span>
+                <span class="status-val font-mono" id="cfg-client-id">cps-backend</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Module & Toleranzen -->
+        <div class="tab-pane" id="pane-tab-stations">
+          <div class="stations-accordion-list" id="cfg-stations-list">
+            <!-- Dynamisch gerendert aus aktiver Konfiguration -->
+          </div>
+        </div>
+
+        <!-- Tab 3: System & Puffer -->
+        <div class="tab-pane" id="pane-tab-system">
+          <div class="form-grid-2">
+            <div class="form-section">
+              <label class="form-label" for="cfg-history-ttl">5-Minuten Puffer TTL (Sekunden)</label>
+              <input type="number" id="cfg-history-ttl" class="heroui-input" value="300" min="60" max="3600">
+              <div class="form-hint">Standard: 300 Sekunden (exakt 5 Minuten)</div>
+            </div>
+
+            <div class="form-section">
+              <label class="form-label" for="cfg-poll-interval">Simulations- & Abfrageintervall (ms)</label>
+              <input type="number" id="cfg-poll-interval" class="heroui-input" value="1500" min="200" max="10000" step="100">
+              <div class="form-hint">Standard: 1500 ms</div>
+            </div>
+          </div>
+
+          <div class="form-section danger-zone">
+            <label class="form-label text-danger">Werkseinstellungen</label>
+            <div class="danger-zone-content">
+              <p class="form-hint" style="margin-bottom:8px;">Setzt alle MQTT-URLs, Module und Toleranzgrenzen auf die ursprünglichen Standardwerte zurück.</p>
+              <button type="button" class="heroui-btn heroui-btn-danger" id="btn-reset-defaults">Auf Werkseinstellungen zurücksetzen</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="heroui-modal-footer">
+        <div class="modal-feedback-msg" id="modal-feedback-msg"></div>
+        <div class="modal-btn-group">
+          <button type="button" class="heroui-btn heroui-btn-flat" id="btn-cancel-config">Abbrechen</button>
+          <button type="button" class="heroui-btn heroui-btn-primary" id="btn-save-config">
+            <span id="save-btn-spinner" style="display:none;">⏳</span>
+            <span>Speichern & Übernehmen</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <!-- Controller Script -->
   <script type="module" src="js/overview.js"></script>

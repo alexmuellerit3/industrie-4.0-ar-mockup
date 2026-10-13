@@ -200,4 +200,80 @@ export class MqttClientService {
     }
     this.isConnected = false;
   }
+
+  /**
+   * Ändert die MQTT-Broker URL dynamisch zur Laufzeit und verbindet neu
+   * @param {string} newBrokerUrl - Neue MQTT URL (z.B. mqtt://192.168.10.1:1883)
+   */
+  updateBroker(newBrokerUrl) {
+    if (!newBrokerUrl || typeof newBrokerUrl !== "string") return false;
+    const cleanUrl = newBrokerUrl.trim();
+    console.info(`[MQTT] Aktualisiere Broker URL: ${this.brokerUrl} -> ${cleanUrl}`);
+    
+    this.disconnect();
+    this.brokerUrl = cleanUrl;
+    this.connect();
+    return true;
+  }
+
+  /**
+   * Testet die Erreichbarkeit eines MQTT-Brokers ohne den aktiven Dienst zu stören
+   * @param {string} brokerUrl - Zu testende Broker URL
+   * @param {number} [timeoutMs=3500] - Timeout in Millisekunden
+   * @returns {Promise<{success: boolean, message: string}>}
+   */
+  static testConnection(brokerUrl, timeoutMs = 3500) {
+    return new Promise((resolve) => {
+      if (!brokerUrl || typeof brokerUrl !== "string") {
+        return resolve({ success: false, message: "Ungültige oder leere Broker-URL angegeben." });
+      }
+
+      let client = null;
+      let settled = false;
+
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          if (client) {
+            try { client.end(true); } catch (_) {}
+          }
+          resolve({ success: false, message: `Zeitüberschreitung beim Verbindungsaufbau zu ${brokerUrl} (${timeoutMs}ms).` });
+        }
+      }, timeoutMs);
+
+      try {
+        const testId = `test-${Math.random().toString(16).substring(2, 8)}`;
+        client = mqtt.connect(brokerUrl.trim(), {
+          clientId: testId,
+          clean: true,
+          connectTimeout: timeoutMs,
+          reconnectPeriod: 0
+        });
+
+        client.on("connect", () => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            try { client.end(true); } catch (_) {}
+            resolve({ success: true, message: `Erfolgreich mit Broker verbunden: ${brokerUrl}` });
+          }
+        });
+
+        client.on("error", (err) => {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            try { client.end(true); } catch (_) {}
+            resolve({ success: false, message: `Verbindungsfehler: ${err.message}` });
+          }
+        });
+      } catch (err) {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve({ success: false, message: `Fehler: ${err.message}` });
+        }
+      }
+    });
+  }
 }

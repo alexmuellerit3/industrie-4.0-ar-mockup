@@ -4,12 +4,15 @@
 
 import express from "express";
 
-export function createApiRouter({ store, mqttClient, wsServer, stationsConfig }) {
+import { MqttClientService } from "../mqtt-client.js";
+
+export function createApiRouter({ store, mqttClient, wsServer, stationsConfig, configManager }) {
   const router = express.Router();
 
   // 1. Alle Stationen mit aktuellem Status abrufen
   router.get("/stations", (req, res) => {
-    const stations = stationsConfig.map(st => {
+    const activeStations = configManager ? configManager.getConfig().stations : (stationsConfig || []);
+    const stations = activeStations.map(st => {
       const summary = store.getSummary(st.id);
       const isFault = Boolean(store.getMeta(`fault_${st.id}`));
       return {
@@ -124,6 +127,125 @@ export function createApiRouter({ store, mqttClient, wsServer, stationsConfig })
     }
 
     res.json({ success: true, stationId, entry });
+  });
+
+  // 7. Konfiguration abrufen (MQTT-URL, Stationen, System-Status)
+  router.get("/config", (req, res) => {
+    const currentConfig = configManager ? configManager.getConfig() : {
+      mqtt: {
+        brokerUrl: mqttClient ? mqttClient.brokerUrl : "mqtt://localhost:1883",
+        clientId: mqttClient ? mqttClient.clientId : "cps-backend"
+      },
+      stations: stationsConfig || []
+    };
+
+    res.json({
+      config: currentConfig,
+      mqttStatus: {
+        connected: mqttClient ? mqttClient.isConnected : false,
+        brokerUrl: mqttClient ? mqttClient.brokerUrl : null,
+        simulated: mqttClient ? mqttClient.isSimulatorActive : true
+      },
+      timestamp: Date.now()
+    });
+  });
+
+  // 8. Konfiguration bearbeiten & sofort anwenden (inkl. MQTT Broker Reconnect)
+  router.post("/config", (req, res) => {
+    try {
+      const updates = req.body;
+      if (!updates || typeof updates !== "object") {
+        return res.status(400).json({ error: "Gültiges Konfigurationsobjekt erforderlich." });
+      }
+
+      // Validierung MQTT URL
+      if (updates.mqtt && updates.mqtt.brokerUrl) {
+        const url = String(updates.mqtt.brokerUrl).trim();
+        if (!/^(mqtt|mqtts|ws|wss|tcp):\/\/.+/i.test(url)) {
+          return res.status(400).json({
+            error: "Ungültiges Protokoll für MQTT Broker URL. Erlaubt sind mqtt://, mqtts://, ws://, wss:// oder tcp://"
+          });
+        }
+      }
+
+      let updatedConfig = updates;
+      if (configManager) {
+        updatedConfig = configManager.updateConfig(updates);
+      }
+
+      // Wenn MQTT Broker URL geändert wurde, Client sofort neu verbinden
+      if (updates.mqtt && updates.mqtt.brokerUrl && mqttClient) {
+        mqttClient.updateBroker(updates.mqtt.brokerUrl);
+      }
+
+      // Broadcast an alle verbundenen WebClients
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "config_updated",
+          config: updatedConfig,
+          timestamp: Date.now()
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Konfiguration erfolgreich aktualisiert und übernommen.",
+        config: updatedConfig,
+        mqttStatus: {
+          connected: mqttClient ? mqttClient.isConnected : false,
+          brokerUrl: mqttClient ? mqttClient.brokerUrl : null,
+          simulated: mqttClient ? mqttClient.isSimulatorActive : true
+        }
+      });
+    } catch (err) {
+      console.error("[API] Fehler beim Speichern der Konfiguration:", err);
+      res.status(500).json({ error: "Fehler beim Aktualisieren der Konfiguration: " + err.message });
+    }
+  });
+
+  // 9. Konfiguration auf Werkseinstellungen zurücksetzen
+  router.post("/config/reset", (req, res) => {
+    try {
+      let resetCfg = {};
+      if (configManager) {
+        resetCfg = configManager.resetConfig();
+      }
+
+      if (mqttClient && resetCfg.mqtt && resetCfg.mqtt.brokerUrl) {
+        mqttClient.updateBroker(resetCfg.mqtt.brokerUrl);
+      }
+
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "config_updated",
+          config: resetCfg,
+          timestamp: Date.now()
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Konfiguration erfolgreich auf Standardwerte zurückgesetzt.",
+        config: resetCfg
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Fehler beim Zurücksetzen: " + err.message });
+    }
+  });
+
+  // 10. Verbindung zu beliebigem MQTT-Broker testen
+  router.post("/config/test-mqtt", async (req, res) => {
+    const { brokerUrl, timeoutMs } = req.body;
+    if (!brokerUrl) {
+      return res.status(400).json({ success: false, message: "brokerUrl ist erforderlich" });
+    }
+
+    try {
+      const result = await MqttClientService.testConnection(brokerUrl, timeoutMs || 3500);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
   });
 
   return router;

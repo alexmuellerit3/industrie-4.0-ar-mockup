@@ -652,3 +652,443 @@ body.scada-body {
   color: var(--text-muted);
   gap: 12px;
 }
+
+/* ==========================================================================
+   8. HEROUI & SEVDESK KONFIGURATIONSPANEL (MODAL & FORMS)
+   ========================================================================== */
+.heroui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modal-fade-in 0.2s ease-out;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.heroui-modal-dialog {
+  background: var(--heroui-content1);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--heroui-border);
+  border-radius: 22px;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--heroui-border-focus);
+  width: 100%;
+  max-width: 820px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modal-scale-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modal-scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.heroui-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--heroui-divider);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.modal-avatar-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--heroui-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+}
+
+.modal-main-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+
+.modal-sub-title {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.heroui-modal-close {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-secondary);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.heroui-modal-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-main);
+}
+
+/* Tab Bar */
+.heroui-tabs-bar {
+  display: flex;
+  padding: 8px 24px;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border-bottom: 1px solid var(--heroui-divider);
+  overflow-x: auto;
+}
+
+.heroui-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.heroui-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+.heroui-tab-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--heroui-border-focus);
+  color: var(--text-main);
+}
+
+/* Modal Body */
+.heroui-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tab-pane {
+  display: none;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tab-pane.active {
+  display: flex;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: 0.02em;
+}
+
+.form-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.form-hint code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.heroui-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--heroui-content2);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-main);
+  font-size: 0.88rem;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.heroui-input:focus {
+  border-color: var(--sevdesk-success);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.heroui-input.font-mono {
+  font-family: var(--font-mono);
+}
+
+.input-with-action {
+  display: flex;
+  gap: 10px;
+}
+
+.input-with-action .heroui-input {
+  flex: 1;
+}
+
+.preset-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.preset-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-main);
+  border-color: var(--heroui-border-focus);
+}
+
+.status-summary-box {
+  background: var(--heroui-content2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8rem;
+}
+
+.status-lbl {
+  color: var(--text-secondary);
+}
+
+.status-val {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.test-feedback-badge {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.test-feedback-badge.success {
+  background: var(--sevdesk-success-subtle);
+  border: 1px solid var(--sevdesk-success-border);
+  color: #34d399;
+}
+
+.test-feedback-badge.error {
+  background: var(--sevdesk-danger-subtle);
+  border: 1px solid var(--sevdesk-danger-border);
+  color: #f87171;
+}
+
+/* Stations Accordion Cards */
+.stations-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.station-cfg-card {
+  background: var(--heroui-content2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.station-cfg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--heroui-divider);
+  padding-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.station-cfg-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.station-cfg-plc-input {
+  max-width: 140px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+}
+
+.sensors-cfg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.sensor-cfg-box {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--heroui-border);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sensor-cfg-lbl {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.tolerance-inputs-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.tolerance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tolerance-field label {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+}
+
+.tolerance-field input {
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  border-radius: 8px;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.danger-zone {
+  margin-top: 10px;
+  border-top: 1px solid var(--heroui-divider);
+  padding-top: 16px;
+}
+
+.heroui-btn-danger {
+  background: var(--sevdesk-danger-subtle);
+  border: 1px solid var(--sevdesk-danger-border);
+  color: #f87171;
+}
+
+.heroui-btn-danger:hover {
+  background: var(--sevdesk-danger);
+  color: #ffffff;
+}
+
+.heroui-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-main);
+}
+
+.heroui-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.heroui-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid var(--heroui-divider);
+  background: rgba(255, 255, 255, 0.02);
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.modal-feedback-msg {
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.modal-feedback-msg.success { color: #34d399; }
+.modal-feedback-msg.error { color: #f87171; }
+

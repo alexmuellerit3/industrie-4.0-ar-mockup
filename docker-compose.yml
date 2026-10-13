@@ -13,6 +13,8 @@ services:
       - PORT=3000
       - NODE_ENV=production
       - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
+    volumes:
+      - ./config:/app/config
     depends_on:
       - mqtt-broker
     healthcheck:

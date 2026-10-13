@@ -260,6 +260,10 @@ export class TelemetryService {
               this.isFaultSimulated = incoming.isFault;
               this.notify();
             }
+          } else if (incoming.type === "config_updated") {
+            if (incoming.config && Array.isArray(incoming.config.stations)) {
+              this.updateStationsConfig(incoming.config.stations);
+            }
           } else {
             this.applyExternalData(incoming);
           }
@@ -332,5 +336,30 @@ export class TelemetryService {
       if (data.isFault !== undefined) this.isFaultSimulated = data.isFault;
       this.notify();
     }
+  }
+
+  /**
+   * Aktualisiert die Stationskonfigurationen (z. B. Toleranzbänder, Sollwerte) live
+   * @param {Array} newStations - Neue Stationsdefinitionen
+   */
+  updateStationsConfig(newStations) {
+    if (!Array.isArray(newStations)) return;
+    newStations.forEach(newSt => {
+      const target = this.stations.find(s => s.id === newSt.id);
+      if (target) {
+        if (newSt.name) target.name = newSt.name;
+        if (newSt.plcIp) target.plcIp = newSt.plcIp;
+        ['v1', 'v2', 'v3'].forEach(k => {
+          if (newSt[k] && target[k]) {
+            if (newSt[k].min !== undefined) target[k].min = newSt[k].min;
+            if (newSt[k].max !== undefined) target[k].max = newSt[k].max;
+            if (newSt[k].label) target[k].label = newSt[k].label;
+            if (newSt[k].unit) target[k].unit = newSt[k].unit;
+            if (newSt[k].defaultVal !== undefined) target[k].val = newSt[k].defaultVal;
+          }
+        });
+      }
+    });
+    this.notify();
   }
 }

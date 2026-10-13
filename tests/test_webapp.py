@@ -219,8 +219,25 @@ class TestHeroUiAndSevDeskStyle(unittest.TestCase):
         self.assertIn("zoom-pill", self.ar_css)
         self.assertIn("overview-nav-btn", self.ar_css)
 
+    def test_configuration_panels_markup_and_styles(self):
+        """Prüft das Vorhandensein des Konfigurationspanels in Leitstand und AR-App."""
+        # Overview HTML & CSS
+        self.assertIn('id="btn-open-config"', self.overview_html, "Konfigurations-Button in overview.html fehlt")
+        self.assertIn('id="config-modal-backdrop"', self.overview_html, "Konfigurationsmodal in overview.html fehlt")
+        self.assertIn('id="cfg-mqtt-url"', self.overview_html, "MQTT-URL Input in overview.html fehlt")
+        self.assertIn('id="btn-test-mqtt"', self.overview_html, "Test-Button in overview.html fehlt")
+        self.assertIn('id="btn-save-config"', self.overview_html, "Speichern-Button in overview.html fehlt")
+        self.assertIn(".heroui-modal-backdrop", self.overview_css, "Modal-CSS in overview.css fehlt")
+
+        # AR WebApp HTML & CSS
+        self.assertIn('id="btn-open-config"', self.index_html, "Konfigurations-Button in index.html fehlt")
+        self.assertIn('id="config-modal-backdrop"', self.index_html, "Konfigurationsmodal in index.html fehlt")
+        self.assertIn('id="ar-cfg-mqtt-url"', self.index_html, "MQTT-URL Input in index.html fehlt")
+        self.assertIn(".config-pill", self.ar_css, "config-pill CSS in style.css fehlt")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

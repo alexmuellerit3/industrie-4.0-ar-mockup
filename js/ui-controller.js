@@ -61,6 +61,23 @@ export class UIController {
     this.btnSim = document.getElementById("btn-sim");
     this.btnZoom = document.getElementById("btn-zoom");
 
+    // Modal & Konfiguration
+    this.btnOpenConfig = document.getElementById("btn-open-config");
+    this.modalBackdrop = document.getElementById("config-modal-backdrop");
+    this.btnCloseConfig = document.getElementById("btn-close-config");
+    this.btnCancelConfig = document.getElementById("ar-btn-cancel-config");
+    this.btnSaveConfig = document.getElementById("ar-btn-save-config");
+    this.btnTestMqtt = document.getElementById("ar-btn-test-mqtt");
+    this.btnResetDefaults = document.getElementById("ar-btn-reset-defaults");
+    this.inputMqttUrl = document.getElementById("ar-cfg-mqtt-url");
+    this.statusVal = document.getElementById("ar-cfg-status-val");
+    this.activeUrl = document.getElementById("ar-cfg-active-url");
+    this.testResult = document.getElementById("ar-mqtt-test-result");
+    this.stationsList = document.getElementById("ar-cfg-stations-list");
+    this.feedbackMsg = document.getElementById("ar-modal-feedback-msg");
+    this.historyTtl = document.getElementById("ar-cfg-history-ttl");
+    this.pollInterval = document.getElementById("ar-cfg-poll-interval");
+
     this.bindEvents();
   }
 
@@ -98,14 +115,54 @@ export class UIController {
     bindTap(this.btnZoom, () => {
       if (this.onZoomCycle) this.onZoomCycle();
     });
+
+    bindTap(this.btnOpenConfig, () => this.openConfigModal());
+    bindTap(this.btnCloseConfig, () => this.closeConfigModal());
+    bindTap(this.btnCancelConfig, () => this.closeConfigModal());
+    bindTap(this.btnTestMqtt, () => this.testMqtt());
+    bindTap(this.btnSaveConfig, () => this.saveConfig());
+    bindTap(this.btnResetDefaults, () => this.resetDefaults());
+
+    if (this.modalBackdrop) {
+      this.modalBackdrop.addEventListener("click", (e) => {
+        if (e.target === this.modalBackdrop) this.closeConfigModal();
+      });
+
+      // Tabs
+      const tabBtns = this.modalBackdrop.querySelectorAll(".heroui-tab-btn");
+      tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+          const targetId = btn.getAttribute("data-tab");
+          tabBtns.forEach(b => b.classList.remove("active"));
+          btn.classList.add("active");
+
+          const panes = this.modalBackdrop.querySelectorAll(".tab-pane");
+          panes.forEach(p => p.classList.remove("active"));
+          const targetPane = document.getElementById(targetId);
+          if (targetPane) targetPane.classList.add("active");
+        });
+      });
+
+      // Presets
+      const presetPills = this.modalBackdrop.querySelectorAll(".preset-pill");
+      presetPills.forEach(pill => {
+        pill.addEventListener("click", () => {
+          const url = pill.getAttribute("data-url");
+          if (url && this.inputMqttUrl) {
+            this.inputMqttUrl.value = url;
+          }
+        });
+      });
+    }
   }
 
   /**
    * Rendert den aktuellen Datensatz in das HUD
    * @param {Object} station - Stationsdaten
    * @param {boolean} isFault - Störungszustand
+   * @param {Object} [summary] - 5-Minuten Aggregation
    */
-  render(station, isFault) {
+  render(station, isFault, summary = null) {
     if (!station) return;
 
     this.stName.textContent = station.name;
@@ -252,5 +309,180 @@ export class UIController {
     if (this.btnZoom) {
       this.btnZoom.textContent = `${level.toFixed(1)}×`;
     }
+  }
+
+  // =========================================================================
+  // AR MOBILE CONFIG MODAL METHODS
+  // =========================================================================
+  async openConfigModal() {
+    if (!this.modalBackdrop) return;
+    this.modalBackdrop.style.display = "flex";
+    if (this.feedbackMsg) this.feedbackMsg.textContent = "";
+    if (this.testResult) this.testResult.style.display = "none";
+
+    try {
+      const res = await fetch("/api/config");
+      if (res.ok) {
+        const data = await res.json();
+        this.populateConfigForm(data.config, data.mqttStatus);
+      }
+    } catch (_) {}
+  }
+
+  closeConfigModal() {
+    if (this.modalBackdrop) {
+      this.modalBackdrop.style.display = "none";
+    }
+  }
+
+  populateConfigForm(config, mqttStatus) {
+    if (!config) return;
+    if (this.inputMqttUrl && config.mqtt?.brokerUrl) {
+      this.inputMqttUrl.value = config.mqtt.brokerUrl;
+    }
+    if (this.activeUrl && config.mqtt?.brokerUrl) {
+      this.activeUrl.textContent = config.mqtt.brokerUrl;
+    }
+    if (this.statusVal && mqttStatus) {
+      this.statusVal.textContent = mqttStatus.connected
+        ? "Verbunden"
+        : (mqttStatus.simulated ? "SPS-Simulator aktiv" : "Getrennt");
+      this.statusVal.style.color = mqttStatus.connected ? "#34d399" : "#f87171";
+    }
+    if (this.historyTtl && config.api?.historyTtlMs) {
+      this.historyTtl.value = Math.round(config.api.historyTtlMs / 1000);
+    }
+    if (this.pollInterval && config.api?.pollIntervalMs) {
+      this.pollInterval.value = config.api.pollIntervalMs;
+    }
+
+    if (this.stationsList && Array.isArray(config.stations)) {
+      this.stationsList.innerHTML = "";
+      config.stations.forEach(st => {
+        const item = document.createElement("div");
+        item.className = "station-cfg-card";
+        item.dataset.stationId = st.id;
+        item.innerHTML = `
+          <div class="station-cfg-header">
+            <span class="station-cfg-title">${st.id}: ${st.name}</span>
+            <input type="text" class="heroui-input font-mono" data-field="plcIp" value="${st.plcIp || ''}" style="max-width:120px; font-size:0.75rem;">
+          </div>
+          <div class="sensors-cfg-grid">
+            <div class="sensor-cfg-box">
+              <span class="sensor-cfg-lbl">${st.v1.label} (${st.v1.unit})</span>
+              <div class="tolerance-inputs-row">
+                <div class="tolerance-field"><label>Min</label><input type="number" step="0.1" class="heroui-input font-mono" data-field="v1.min" value="${st.v1.min ?? ''}"></div>
+                <div class="tolerance-field"><label>Max</label><input type="number" step="0.1" class="heroui-input font-mono" data-field="v1.max" value="${st.v1.max ?? ''}"></div>
+              </div>
+            </div>
+            <div class="sensor-cfg-box">
+              <span class="sensor-cfg-lbl">${st.v2.label} (${st.v2.unit})</span>
+              <div class="tolerance-inputs-row">
+                <div class="tolerance-field"><label>Min</label><input type="number" step="0.1" class="heroui-input font-mono" data-field="v2.min" value="${st.v2.min ?? ''}"></div>
+                <div class="tolerance-field"><label>Max</label><input type="number" step="0.1" class="heroui-input font-mono" data-field="v2.max" value="${st.v2.max ?? ''}"></div>
+              </div>
+            </div>
+          </div>
+        `;
+        this.stationsList.appendChild(item);
+      });
+    }
+  }
+
+  async testMqtt() {
+    const url = this.inputMqttUrl?.value?.trim();
+    if (!url) return;
+    if (this.btnTestMqtt) this.btnTestMqtt.textContent = "Prüfe...";
+
+    try {
+      const res = await fetch("/api/config/test-mqtt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brokerUrl: url, timeoutMs: 3500 })
+      });
+      const data = await res.json();
+      if (this.testResult) {
+        this.testResult.style.display = "block";
+        this.testResult.className = `test-feedback-badge ${data.success ? "success" : "error"}`;
+        this.testResult.textContent = `${data.success ? "✓" : "✕"} ${data.message}`;
+      }
+    } catch (err) {
+      if (this.testResult) {
+        this.testResult.style.display = "block";
+        this.testResult.className = "test-feedback-badge error";
+        this.testResult.textContent = `✕ Fehler: ${err.message}`;
+      }
+    } finally {
+      if (this.btnTestMqtt) this.btnTestMqtt.textContent = "Testen";
+    }
+  }
+
+  async saveConfig() {
+    const brokerUrl = this.inputMqttUrl?.value?.trim();
+    const historyTtlSec = parseInt(this.historyTtl?.value, 10) || 300;
+    const pollIntervalMs = parseInt(this.pollInterval?.value, 10) || 1500;
+
+    const cards = this.stationsList?.querySelectorAll(".station-cfg-card") || [];
+    const updatedStations = [];
+    cards.forEach(card => {
+      const sId = card.dataset.stationId;
+      const plcIp = card.querySelector('[data-field="plcIp"]')?.value?.trim();
+      const v1Min = parseFloat(card.querySelector('[data-field="v1.min"]')?.value);
+      const v1Max = parseFloat(card.querySelector('[data-field="v1.max"]')?.value);
+      const v2Min = parseFloat(card.querySelector('[data-field="v2.min"]')?.value);
+      const v2Max = parseFloat(card.querySelector('[data-field="v2.max"]')?.value);
+
+      updatedStations.push({
+        id: sId,
+        plcIp,
+        v1: { min: isNaN(v1Min) ? undefined : v1Min, max: isNaN(v1Max) ? undefined : v1Max },
+        v2: { min: isNaN(v2Min) ? undefined : v2Min, max: isNaN(v2Max) ? undefined : v2Max }
+      });
+    });
+
+    try {
+      const res = await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mqtt: { brokerUrl },
+          api: { historyTtlMs: historyTtlSec * 1000, pollIntervalMs },
+          stations: updatedStations
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (this.feedbackMsg) {
+          this.feedbackMsg.textContent = "✓ Gespeichert!";
+          this.feedbackMsg.className = "modal-feedback-msg success";
+        }
+        setTimeout(() => this.closeConfigModal(), 1000);
+      } else {
+        if (this.feedbackMsg) {
+          this.feedbackMsg.textContent = `✕ ${data.error || "Fehler"}`;
+          this.feedbackMsg.className = "modal-feedback-msg error";
+        }
+      }
+    } catch (err) {
+      if (this.feedbackMsg) {
+        this.feedbackMsg.textContent = `✕ ${err.message}`;
+        this.feedbackMsg.className = "modal-feedback-msg error";
+      }
+    }
+  }
+
+  async resetDefaults() {
+    if (!confirm("Auf Standardwerte zurücksetzen?")) return;
+    try {
+      const res = await fetch("/api/config/reset", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        this.populateConfigForm(data.config, { connected: false, simulated: true });
+        if (this.feedbackMsg) {
+          this.feedbackMsg.textContent = "✓ Zurückgesetzt!";
+          this.feedbackMsg.className = "modal-feedback-msg success";
+        }
+      }
+    } catch (_) {}
   }
 }

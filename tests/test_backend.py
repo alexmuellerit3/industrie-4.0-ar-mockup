@@ -246,6 +246,55 @@ class TestBackendServerLive(unittest.TestCase):
             self.assertNotIn("a-scene", html, "overview.html darf keine AR.js/Hiro 3D-Szene enthalten!")
             self.assertIn("overview.css", html)
 
+    def test_api_config_get_endpoint(self):
+        """GET /api/config liefert Konfiguration mit MQTT-URL und Stationen."""
+        url = f"http://localhost:{self.server_port}/api/config"
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertIn("config", data)
+            self.assertIn("mqttStatus", data)
+            self.assertIn("mqtt", data["config"])
+            self.assertIn("brokerUrl", data["config"]["mqtt"])
+            self.assertIn("stations", data["config"])
+
+    def test_api_config_post_and_reset_endpoints(self):
+        """POST /api/config aktualisiert MQTT-URL und POST /api/config/reset setzt zurück."""
+        url = f"http://localhost:{self.server_port}/api/config"
+        new_url = "mqtt://192.168.10.77:1883"
+        payload = json.dumps({"mqtt": {"brokerUrl": new_url}}).encode()
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertTrue(data["success"])
+            self.assertEqual(data["config"]["mqtt"]["brokerUrl"], new_url)
+
+        # GET prüfen
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            self.assertEqual(data["config"]["mqtt"]["brokerUrl"], new_url)
+
+        # Reset auf Werkseinstellungen
+        reset_url = f"http://localhost:{self.server_port}/api/config/reset"
+        reset_req = urllib.request.Request(reset_url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(reset_req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertTrue(data["success"])
+
+    def test_api_config_test_mqtt_endpoint(self):
+        """POST /api/config/test-mqtt testet Erreichbarkeit eines Brokers."""
+        url = f"http://localhost:{self.server_port}/api/config/test-mqtt"
+        payload = json.dumps({"brokerUrl": "mqtt://127.0.0.1:1883", "timeoutMs": 300}).encode()
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertIn("success", data)
+            self.assertIn("message", data)
+
 
 if __name__ == "__main__":
     unittest.main()
+

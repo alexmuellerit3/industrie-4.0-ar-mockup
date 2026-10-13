@@ -53,6 +53,7 @@
       </div>
       <div class="header-ctrl-group interactive">
         <a href="overview.html" class="overview-nav-btn interactive" title="Gesamtanlage ohne Hiro-Marker ansehen">Leitstand ↗</a>
+        <button class="config-pill interactive" id="btn-open-config" title="Konfiguration öffnen">⚙️</button>
         <button class="zoom-pill interactive" id="btn-zoom" title="Kamera-Zoom umschalten">1.0×</button>
       </div>
     </header>
@@ -209,6 +210,104 @@
 
   <!-- Sim-Schalter für Desktop -->
   <div class="sim-toggle interactive" id="btn-sim">Sim: Kamera</div>
+
+  <!-- ========================================================================
+       HEROUI KONFIGURATIONSPANEL (AR WEBAPP)
+       ======================================================================== -->
+  <div class="heroui-modal-backdrop interactive" id="config-modal-backdrop" style="display:none;">
+    <div class="heroui-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="ar-modal-title">
+      
+      <!-- Modal Header -->
+      <div class="heroui-modal-header">
+        <div class="modal-title-group">
+          <div class="modal-avatar-badge">⚙️</div>
+          <div>
+            <h2 id="ar-modal-title" class="modal-main-title">AR & MQTT Konfiguration</h2>
+            <div class="modal-sub-title">Live-Parametrierung am mobilen Endgerät</div>
+          </div>
+        </div>
+        <button type="button" class="heroui-modal-close" id="btn-close-config" title="Schließen">✕</button>
+      </div>
+
+      <!-- Modal Tabs Bar -->
+      <div class="heroui-tabs-bar">
+        <button type="button" class="heroui-tab-btn active" data-tab="ar-pane-mqtt">🔌 MQTT & Broker</button>
+        <button type="button" class="heroui-tab-btn" data-tab="ar-pane-stations">🏭 Toleranzbänder</button>
+        <button type="button" class="heroui-tab-btn" data-tab="ar-pane-system">⚙️ System</button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="heroui-modal-body">
+        
+        <!-- Tab 1: MQTT & Broker -->
+        <div class="tab-pane active" id="ar-pane-mqtt">
+          <div class="form-section">
+            <label class="form-label" for="ar-cfg-mqtt-url">MQTT Broker URL</label>
+            <div class="input-with-action">
+              <input type="text" id="ar-cfg-mqtt-url" class="heroui-input font-mono" placeholder="mqtt://localhost:1883" autocomplete="off" spellcheck="false">
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="ar-btn-test-mqtt">Testen</button>
+            </div>
+            <div id="ar-mqtt-test-result" class="test-feedback-badge" style="display:none;"></div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">Schnellauswahl</label>
+            <div class="preset-pill-group">
+              <button type="button" class="preset-pill" data-url="mqtt://localhost:1883">Lokal (1883)</button>
+              <button type="button" class="preset-pill" data-url="mqtt://192.168.10.1:1883">Edge (192.168.10.1)</button>
+              <button type="button" class="preset-pill" data-url="mqtt://broker.hivemq.com:1883">HiveMQ Public</button>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="status-summary-box">
+              <div class="status-row">
+                <span class="status-lbl">Broker-Status:</span>
+                <span class="status-val" id="ar-cfg-status-val">Initialisiere...</span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">Aktive URL:</span>
+                <span class="status-val font-mono" id="ar-cfg-active-url">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Toleranzbänder -->
+        <div class="tab-pane" id="ar-pane-stations">
+          <div class="stations-accordion-list" id="ar-cfg-stations-list">
+            <!-- Dynamisch gerendert -->
+          </div>
+        </div>
+
+        <!-- Tab 3: System -->
+        <div class="tab-pane" id="ar-pane-system">
+          <div class="form-section">
+            <label class="form-label" for="ar-cfg-history-ttl">5-Minuten Puffer TTL (s)</label>
+            <input type="number" id="ar-cfg-history-ttl" class="heroui-input" value="300" min="60" max="3600">
+          </div>
+          <div class="form-section">
+            <label class="form-label" for="ar-cfg-poll-interval">Update-Intervall (ms)</label>
+            <input type="number" id="ar-cfg-poll-interval" class="heroui-input" value="1500" min="200" max="10000" step="100">
+          </div>
+          <div class="form-section" style="margin-top:12px;">
+            <button type="button" class="heroui-btn heroui-btn-danger" id="ar-btn-reset-defaults">Auf Werkseinstellungen zurücksetzen</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="heroui-modal-footer">
+        <div class="modal-feedback-msg" id="ar-modal-feedback-msg"></div>
+        <div class="modal-btn-group">
+          <button type="button" class="heroui-btn heroui-btn-flat" id="ar-btn-cancel-config">Abbrechen</button>
+          <button type="button" class="heroui-btn heroui-btn-primary" id="ar-btn-save-config">Speichern & Anwenden</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
 
   <!-- Modular WebApp Application Entry -->
   <script type="module" src="js/app.js"></script>

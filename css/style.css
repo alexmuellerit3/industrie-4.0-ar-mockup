@@ -199,6 +199,31 @@ a-scene canvas {
   border-color: var(--heroui-border-focus);
 }
 
+/* HeroUI Pill Button für Konfiguration */
+.config-pill {
+  padding: 6px 12px;
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  border-radius: 9999px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  font-size: clamp(11px, 3vw, 13px);
+  color: var(--text-white);
+  cursor: pointer;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.config-pill:active {
+  transform: scale(0.95);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--heroui-border-focus);
+}
+
 /* HeroUI SevDesk Leitstand Nav Button */
 .overview-nav-btn {
   padding: 6px 14px;
@@ -766,3 +791,396 @@ a-scene canvas {
     min-height: 38px;
   }
 }
+
+/* ==========================================================================
+   HEROUI CONFIGURATION MODAL (AR WEBAPP)
+   ========================================================================== */
+.heroui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 6, 12, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: modal-fade-in 0.2s ease-out;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.heroui-modal-dialog {
+  background: var(--heroui-surface);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--heroui-border);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--heroui-border-focus);
+  width: 100%;
+  max-width: 680px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+}
+
+.heroui-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--heroui-divider);
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-avatar-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--heroui-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.modal-main-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.modal-sub-title {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.heroui-modal-close {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.heroui-tabs-bar {
+  display: flex;
+  padding: 6px 16px;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--heroui-divider);
+  overflow-x: auto;
+}
+
+.heroui-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.heroui-tab-btn.active {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--heroui-border-focus);
+  color: var(--text-white);
+}
+
+.heroui-modal-body {
+  padding: 16px 20px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-pane {
+  display: none;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-pane.active {
+  display: flex;
+}
+
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-white);
+}
+
+.form-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.form-hint code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+
+.heroui-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--heroui-surface-focus);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-white);
+  font-size: 0.82rem;
+  outline: none;
+  font-family: var(--font-sans);
+}
+
+.heroui-input:focus {
+  border-color: var(--status-ok);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.heroui-input.font-mono {
+  font-family: var(--font-mono);
+}
+
+.input-with-action {
+  display: flex;
+  gap: 8px;
+}
+
+.input-with-action .heroui-input {
+  flex: 1;
+}
+
+.preset-pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preset-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--heroui-border);
+  color: var(--text-secondary);
+  padding: 5px 10px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+
+.preset-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-white);
+}
+
+.status-summary-box {
+  background: var(--heroui-surface-focus);
+  border: 1px solid var(--heroui-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.76rem;
+}
+
+.status-lbl { color: var(--text-secondary); }
+.status-val { color: var(--text-white); font-weight: 600; }
+
+.test-feedback-badge {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.test-feedback-badge.success {
+  background: var(--status-ok-subtle);
+  border: 1px solid var(--status-ok-border);
+  color: #34d399;
+}
+
+.test-feedback-badge.error {
+  background: var(--status-fault-subtle);
+  border: 1px solid var(--status-fault-border);
+  color: #f87171;
+}
+
+.stations-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.station-cfg-card {
+  background: var(--heroui-surface-focus);
+  border: 1px solid var(--heroui-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.station-cfg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--heroui-divider);
+  padding-bottom: 6px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.station-cfg-title {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-white);
+}
+
+.sensors-cfg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.sensor-cfg-box {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--heroui-border);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sensor-cfg-lbl {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.tolerance-inputs-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.tolerance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tolerance-field label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.tolerance-field input {
+  padding: 3px 6px;
+  font-size: 0.74rem;
+  border-radius: 6px;
+}
+
+.heroui-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid var(--heroui-divider);
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.modal-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.heroui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.heroui-btn-primary {
+  background: var(--status-ok);
+  color: #042f2e;
+  font-weight: 700;
+}
+
+.heroui-btn-flat {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-white);
+  border-color: var(--heroui-border);
+}
+
+.heroui-btn-secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--heroui-border);
+  color: var(--text-white);
+}
+
+.heroui-btn-danger {
+  background: var(--status-fault-subtle);
+  border-color: var(--status-fault-border);
+  color: #f87171;
+}
+
+.modal-feedback-msg {
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.modal-feedback-msg.success { color: #34d399; }
+.modal-feedback-msg.error { color: #f87171; }
+

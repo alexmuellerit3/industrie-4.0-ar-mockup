@@ -16,6 +16,7 @@ RUN npm install --omit=dev --no-audit --no-fund
 
 # Anwendungscode kopieren
 COPY backend/ ./backend/
+COPY config/ ./config/
 COPY css/ ./css/
 COPY js/ ./js/
 COPY tests/ ./tests/
