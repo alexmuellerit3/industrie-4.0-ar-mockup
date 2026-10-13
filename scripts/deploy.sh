@@ -54,12 +54,13 @@ $COMPOSE_CMD up -d
 
 # 5. Healthcheck abwarten
 echo -e "\n${YELLOW}[5/5] Warte auf Server-Bereitschaft...${NC}"
+PORT="${HOST_PORT:-3000}"
 MAX_RETRIES=15
 COUNTER=0
 HEALTHY=false
 
 while [ $COUNTER -lt $MAX_RETRIES ]; do
-    if curl -s http://localhost:3000/health | grep -q '"status":"ok"'; then
+    if curl -s "http://localhost:${PORT}/health" | grep -q '"status":"ok"'; then
         HEALTHY=true
         break
     fi
@@ -75,10 +76,10 @@ if [ "$HEALTHY" = true ]; then
     echo -e "${GREEN}====================================================${NC}"
     echo -e "${GREEN}✓ Deployment erfolgreich abgeschlossen!            ${NC}"
     echo -e "${GREEN}====================================================${NC}"
-    echo -e "Anlagen-Leitstand (ohne Marker): http://${HOST_IP}:3000/overview.html"
-    echo -e "Mobile AR-Kameraansicht:         http://${HOST_IP}:3000/index.html"
-    echo -e "REST API Endpunkt:               http://${HOST_IP}:3000/api/stations"
-    echo -e "WebSocket Stream:                ws://${HOST_IP}:3000/ws/telemetry"
+    echo -e "Anlagen-Leitstand (ohne Marker): http://${HOST_IP}:${PORT}/overview.html"
+    echo -e "Mobile AR-Kameraansicht:         http://${HOST_IP}:${PORT}/index.html"
+    echo -e "REST API Endpunkt:               http://${HOST_IP}:${PORT}/api/stations"
+    echo -e "WebSocket Stream:                ws://${HOST_IP}:${PORT}/ws/telemetry"
     echo -e "MQTT Broker:                     mqtt://${HOST_IP}:1883"
     echo -e "===================================================="
 else

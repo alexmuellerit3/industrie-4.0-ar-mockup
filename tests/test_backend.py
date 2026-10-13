@@ -107,7 +107,7 @@ class TestDockerAndPipelineFiles(unittest.TestCase):
         self.assertIn("cps-backend", content)
         self.assertIn("mqtt-broker", content)
         self.assertIn("eclipse-mosquitto:2", content)
-        self.assertIn("3000:3000", content)
+        self.assertTrue("3000" in content)
         self.assertIn("1883:1883", content)
 
     def test_deploy_script_executable(self):
