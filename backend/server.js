@@ -187,6 +187,12 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   mqttClient.connect();
 
   server.on("error", (err) => {
+    if (err.code === "EADDRINUSE" && !process.env.PORT && port === 80) {
+      console.warn(`[Server] Port 80 ist belegt. Wechsle automatisch auf Fallback-Port 8080...`);
+      port = 8080;
+      server.listen(8080);
+      return;
+    }
     console.error(`[Server] Fehler auf Port ${port}:`, err.message);
   });
 
