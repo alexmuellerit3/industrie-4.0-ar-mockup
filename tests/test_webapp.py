@@ -235,6 +235,45 @@ class TestHeroUiAndSevDeskStyle(unittest.TestCase):
         self.assertIn('id="ar-cfg-mqtt-url"', self.index_html, "MQTT-URL Input in index.html fehlt")
         self.assertIn(".config-pill", self.ar_css, "config-pill CSS in style.css fehlt")
 
+    def test_websocket_datasource_markup_and_controllers(self):
+        """Prüft das Vorhandensein des Datenquellen-Selektors und der WebSocket-Konfiguration."""
+        # 1. overview.html Markup
+        self.assertIn('id="source-badge"', self.overview_html)
+        self.assertIn('id="source-badge-text"', self.overview_html)
+        self.assertIn('id="src-choice-websocket"', self.overview_html)
+        self.assertIn('id="src-choice-mqtt"', self.overview_html)
+        self.assertIn('id="src-choice-simulator"', self.overview_html)
+        self.assertIn('id="cfg-ws-url"', self.overview_html)
+        self.assertIn('id="btn-test-ws"', self.overview_html)
+        self.assertIn('id="ws-test-result"', self.overview_html)
+
+        # 2. index.html Markup
+        self.assertIn('id="ar-src-choice-websocket"', self.index_html)
+        self.assertIn('id="ar-src-choice-mqtt"', self.index_html)
+        self.assertIn('id="ar-src-choice-simulator"', self.index_html)
+        self.assertIn('id="ar-cfg-ws-url"', self.index_html)
+        self.assertIn('id="ar-btn-test-ws"', self.index_html)
+        self.assertIn('id="ar-ws-test-result"', self.index_html)
+        self.assertIn('id="ar-source-tag"', self.index_html)
+
+        # 3. CSS Styles
+        self.assertIn(".source-selector-grid", self.overview_css)
+        self.assertIn(".source-choice-card", self.overview_css)
+        self.assertIn(".source-selector-grid", self.ar_css)
+        self.assertIn(".source-choice-card", self.ar_css)
+        self.assertIn(".ar-source-tag", self.ar_css)
+
+        # 4. Controller Skripte
+        with open(os.path.join(BASE_DIR, "js", "overview.js"), "r") as f:
+            overview_js = f.read()
+        with open(os.path.join(BASE_DIR, "js", "ui-controller.js"), "r") as f:
+            ui_controller_js = f.read()
+        self.assertIn("testWsConnection", overview_js)
+        self.assertIn("selectedDataSource", overview_js)
+        self.assertIn("testWebSocket", ui_controller_js)
+        self.assertIn("selectedDataSource", ui_controller_js)
+
+
 
 class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
     """Prüft die Funktionsfähigkeit und Fallbacks für GitHub Pages & statisches Hosting."""

@@ -17,6 +17,7 @@ import express from "express";
 import { KeyValueStore } from "./keyvalue-store.js";
 import { MqttClientService } from "./mqtt-client.js";
 import { WebSocketServerService } from "./websocket-server.js";
+import { WebSocketClientService } from "./websocket-client.js";
 import { createApiRouter } from "./routes/api.js";
 import { ConfigManager, DEFAULT_STATIONS_CONFIG } from "./config-manager.js";
 import { AuthManager } from "./auth-manager.js";
@@ -114,10 +115,38 @@ export function createApp(options = {}) {
     }
   });
 
-  // 3. REST-API Router registrieren
+  // 3. Upstream WebSocket-Client (für externe WebSocket Datenquellen)
+  const wsClient = new WebSocketClientService({
+    url: activeConfig.websocket?.url,
+    onTelemetry: (stationId, payload) => {
+      const entry = store.push(stationId, payload);
+      if (app.locals.wsServer) {
+        app.locals.wsServer.broadcastTelemetry(stationId, entry);
+      }
+    },
+    onFault: (stationId, isFault) => {
+      store.setMeta(`fault_${stationId}`, isFault);
+      if (app.locals.wsServer) {
+        app.locals.wsServer.broadcast({
+          type: "fault_change",
+          stationId,
+          isFault,
+          timestamp: Date.now()
+        });
+      }
+    },
+    onStatusChange: (status) => {
+      if (app.locals.wsServer) {
+        app.locals.wsServer.broadcastStatus({ wsUpstream: status });
+      }
+    }
+  });
+
+  // 4. REST-API Router registrieren
   app.use("/api", createApiRouter({
     store,
     mqttClient,
+    wsClient,
     get wsServer() { return app.locals.wsServer; },
     stationsConfig: activeConfig.stations,
     configManager,
@@ -164,12 +193,12 @@ export function createApp(options = {}) {
   // Statische Web-Dateien ausliefern (index.html, css/, js/, assets/)
   app.use(express.static(ROOT_DIR));
 
-  return { app, store, mqttClient, configManager, authManager, telemetryInterpreter };
+  return { app, store, mqttClient, wsClient, configManager, authManager, telemetryInterpreter };
 }
 
 // Start-Funktion
 export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 80, options = {}) {
-  const { app, store, mqttClient, configManager, authManager, telemetryInterpreter } = createApp(options);
+  const { app, store, mqttClient, wsClient, configManager, authManager, telemetryInterpreter } = createApp(options);
   const server = http.createServer(app);
 
   // WebSocket-Server an HTTP-Server binden
@@ -212,6 +241,7 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   const shutdown = () => {
     console.info("[Server] Fahre Dienste ordnungsgemäß herunter...");
     if (wsServer) wsServer.close();
+    if (wsClient) wsClient.close();
     if (mqttClient) mqttClient.disconnect();
     server.close(() => {
       console.info("[Server] Beendet.");
@@ -222,7 +252,7 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 
-  return { server, app, store, mqttClient, wsServer, configManager, authManager, telemetryInterpreter };
+  return { server, app, store, mqttClient, wsClient, wsServer, configManager, authManager, telemetryInterpreter };
 }
 
 // Direktstart bei Aufruf von node backend/server.js

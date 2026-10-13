@@ -287,6 +287,68 @@ export class WebSocketServerService {
     return this.clients.size;
   }
 
+  /**
+   * Testet die Erreichbarkeit eines beliebigen externen WebSocket-Endpunkts
+   * @param {string} wsUrl - Ziel-URL (z. B. ws://192.168.10.1:1880/ws oder wss://echo.websocket.org)
+   * @param {number} [timeoutMs=3500] - Timeout in Millisekunden
+   * @returns {Promise<{success: boolean, message: string, url: string, timestamp: number}>}
+   */
+  static testConnection(wsUrl, timeoutMs = 3500) {
+    return new Promise((resolve) => {
+      let resolved = false;
+      let timer = null;
+      let testWs = null;
+
+      const finish = (success, message) => {
+        if (resolved) return;
+        resolved = true;
+        if (timer) clearTimeout(timer);
+        if (testWs) {
+          try {
+            testWs.removeAllListeners();
+            testWs.on("error", () => {});
+            testWs.close();
+          } catch (_) {}
+        }
+        resolve({
+          success,
+          message,
+          url: wsUrl,
+          timestamp: Date.now()
+        });
+      };
+
+      try {
+        if (!wsUrl || typeof wsUrl !== "string") {
+          return finish(false, "Keine WebSocket-URL angegeben.");
+        }
+
+        const trimmed = wsUrl.trim();
+        if (!/^(ws|wss):\/\/.+/i.test(trimmed)) {
+          return finish(false, "Ungültiges Protokoll. WebSocket-URL muss mit ws:// oder wss:// beginnen.");
+        }
+
+        timer = setTimeout(() => {
+          finish(false, `Timeout: WebSocket-Endpunkt antwortet nicht innerhalb von ${timeoutMs}ms.`);
+        }, timeoutMs);
+
+        testWs = new WebSocket(trimmed, {
+          handshakeTimeout: timeoutMs
+        });
+
+        testWs.on("open", () => {
+          finish(true, `WebSocket-Verbindung erfolgreich aufgebaut: ${trimmed}`);
+        });
+
+        testWs.on("error", (err) => {
+          finish(false, `WebSocket-Verbindungsfehler: ${err.message}`);
+        });
+      } catch (err) {
+        finish(false, `WebSocket-Initialisierungsfehler: ${err.message}`);
+      }
+    });
+  }
+
   close() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);

@@ -1,4 +1,11 @@
 {
+  "dataSource": "websocket",
+  "websocket": {
+    "url": "ws://localhost:3000/ws/telemetry",
+    "clientId": "cps-backend-ws",
+    "reconnectPeriod": 3500,
+    "connectTimeout": 4000
+  },
   "mqtt": {
     "brokerUrl": "mqtt://localhost:1883",
     "clientId": "cps-backend",

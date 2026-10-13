@@ -11,11 +11,13 @@
 
 import express from "express";
 import { MqttClientService } from "../mqtt-client.js";
+import { WebSocketServerService } from "../websocket-server.js";
 import { AVAILABLE_PERMISSIONS } from "../auth-manager.js";
 
 export function createApiRouter({
   store,
   mqttClient,
+  wsClient,
   wsServer,
   stationsConfig,
   configManager,
@@ -433,9 +435,14 @@ export function createApiRouter({
     res.json({ success: true, stationId, entry });
   });
 
-  // 7. Konfiguration abrufen (MQTT-URL, Stationen, System-Status)
+  // 7. Konfiguration abrufen (Datenquelle, WebSocket, MQTT-URL, Stationen, System-Status)
   router.get("/config", (req, res) => {
     const currentConfig = configManager ? configManager.getConfig() : {
+      dataSource: "websocket",
+      websocket: {
+        url: "ws://localhost:3000/ws/telemetry",
+        clientId: "cps-backend-ws"
+      },
       mqtt: {
         brokerUrl: mqttClient ? mqttClient.brokerUrl : "mqtt://localhost:1883",
         clientId: mqttClient ? mqttClient.clientId : "cps-backend"
@@ -445,10 +452,17 @@ export function createApiRouter({
 
     res.json({
       config: currentConfig,
+      dataSource: currentConfig.dataSource || "websocket",
       mqttStatus: {
         connected: mqttClient ? mqttClient.isConnected : false,
         brokerUrl: mqttClient ? mqttClient.brokerUrl : null,
         simulated: mqttClient ? mqttClient.isSimulatorActive : true
+      },
+      wsStatus: {
+        connected: wsClient ? wsClient.isConnected : true,
+        url: currentConfig.websocket?.url || "ws://localhost:3000/ws/telemetry",
+        activeClients: wsServer ? wsServer.getClientCount() : 0,
+        endpoint: "/ws/telemetry"
       },
       timestamp: Date.now()
     });
@@ -472,6 +486,16 @@ export function createApiRouter({
         }
       }
 
+      // Validierung WebSocket URL
+      if (updates.websocket && updates.websocket.url) {
+        const wsUrl = String(updates.websocket.url).trim();
+        if (!/^(ws|wss):\/\/.+/i.test(wsUrl)) {
+          return res.status(400).json({
+            error: "Ungültiges Protokoll für WebSocket URL. Erlaubt sind ws:// oder wss://"
+          });
+        }
+      }
+
       let updatedConfig = updates;
       if (configManager) {
         updatedConfig = configManager.updateConfig(updates);
@@ -484,6 +508,11 @@ export function createApiRouter({
       // Wenn MQTT Broker URL geändert wurde, Client sofort neu verbinden
       if (updates.mqtt && updates.mqtt.brokerUrl && mqttClient) {
         mqttClient.updateBroker(updates.mqtt.brokerUrl);
+      }
+
+      // Wenn Upstream WebSocket URL geändert wurde, Client sofort neu verbinden
+      if (updates.websocket && updates.websocket.url && wsClient) {
+        wsClient.updateUrl(updates.websocket.url);
       }
 
       // Broadcast an alle verbundenen WebClients
@@ -499,10 +528,17 @@ export function createApiRouter({
         success: true,
         message: "Konfiguration erfolgreich aktualisiert und übernommen.",
         config: updatedConfig,
+        dataSource: updatedConfig.dataSource || "websocket",
         mqttStatus: {
           connected: mqttClient ? mqttClient.isConnected : false,
           brokerUrl: mqttClient ? mqttClient.brokerUrl : null,
           simulated: mqttClient ? mqttClient.isSimulatorActive : true
+        },
+        wsStatus: {
+          connected: wsClient ? wsClient.isConnected : true,
+          url: updatedConfig.websocket?.url || "ws://localhost:3000/ws/telemetry",
+          activeClients: wsServer ? wsServer.getClientCount() : 0,
+          endpoint: "/ws/telemetry"
         }
       });
     } catch (err) {
@@ -525,6 +561,10 @@ export function createApiRouter({
 
       if (mqttClient && resetCfg.mqtt && resetCfg.mqtt.brokerUrl) {
         mqttClient.updateBroker(resetCfg.mqtt.brokerUrl);
+      }
+
+      if (wsClient && resetCfg.websocket && resetCfg.websocket.url) {
+        wsClient.updateUrl(resetCfg.websocket.url);
       }
 
       if (wsServer) {
@@ -554,6 +594,29 @@ export function createApiRouter({
 
     try {
       const result = await MqttClientService.testConnection(brokerUrl, timeoutMs || 3500);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  // 11. Verbindung zu beliebigem WebSocket-Server testen
+  router.post("/config/test-websocket", async (req, res) => {
+    const { url, wsUrl, timeoutMs } = req.body;
+    const targetUrl = url || wsUrl;
+    if (!targetUrl) {
+      return res.status(400).json({ success: false, message: "url ist erforderlich" });
+    }
+
+    if (!/^(ws|wss):\/\/.+/i.test(String(targetUrl).trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Ungültiges Protokoll. WebSocket-URL muss mit ws:// oder wss:// beginnen."
+      });
+    }
+
+    try {
+      const result = await WebSocketServerService.testConnection(targetUrl, timeoutMs || 3500);
       res.json(result);
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });

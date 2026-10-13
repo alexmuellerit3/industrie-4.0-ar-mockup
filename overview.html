@@ -23,15 +23,20 @@
       </div>
     </div>
 
-    <div class="header-badges">
+      <!-- Aktive Datenquelle Badge -->
+      <div class="heroui-chip" id="source-badge" title="Aktive Datenquelle (WebSocket / MQTT / Simulator)">
+        <span style="color:var(--text-muted);">Quelle:</span>
+        <span id="source-badge-text" style="color:var(--primary); font-weight:700;">WebSocket</span>
+      </div>
+
       <!-- WebSocket Live Badge -->
-      <div class="heroui-chip heroui-chip-success" title="Echtzeit-Push über WebSocket">
+      <div class="heroui-chip heroui-chip-success" id="ws-badge-container" title="Echtzeit-Push über WebSocket">
         <span class="chip-dot pulse" id="ws-badge-dot"></span>
         <span id="ws-badge-text">WS: Verbinde...</span>
       </div>
 
       <!-- MQTT Broker Badge -->
-      <div class="heroui-chip" title="MQTT Anbindung an SPS / IOT2050">
+      <div class="heroui-chip" id="mqtt-badge-container" title="MQTT Anbindung an SPS / IOT2050">
         <span class="chip-dot" id="mqtt-badge-dot"></span>
         <span id="mqtt-badge-text">MQTT: SPS-Sim</span>
       </div>
@@ -148,7 +153,7 @@
           <div class="modal-avatar-badge">⚙️</div>
           <div>
             <h2 id="modal-title" class="modal-main-title">Anlagen- & Schnittstellen-Konfiguration</h2>
-            <div class="modal-sub-title">Live-Parametrierung von MQTT-Broker, Modulen & Toleranzbändern</div>
+            <div class="modal-sub-title">Live-Parametrierung von WebSockets, MQTT-Broker, Modulen & Toleranzbändern</div>
           </div>
         </div>
         <button type="button" class="heroui-modal-close" id="btn-close-config" title="Schließen">✕</button>
@@ -156,7 +161,7 @@
 
       <!-- Modal Tabs Bar -->
       <div class="heroui-tabs-bar">
-        <button type="button" class="heroui-tab-btn active" data-tab="pane-tab-mqtt">🔌 MQTT & Broker</button>
+        <button type="button" class="heroui-tab-btn active" data-tab="pane-tab-sources">📡 Datenquellen (WS & MQTT)</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-stations">🏭 Module & Toleranzen</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-system">⚙️ System & Puffer</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-auth">👥 Benutzer & Gruppen</button>
@@ -166,9 +171,67 @@
       <!-- Modal Body -->
       <div class="heroui-modal-body">
         
-        <!-- Tab 1: MQTT & Broker -->
-        <div class="tab-pane active" id="pane-tab-mqtt">
+        <!-- Tab 1: Datenquellen (WebSockets & MQTT) -->
+        <div class="tab-pane active" id="pane-tab-sources">
+          
+          <!-- Auswahl der aktiven Datenquelle -->
           <div class="form-section">
+            <label class="form-label">Primäre Datenquelle auswählen</label>
+            <div class="source-selector-grid">
+              <button type="button" class="source-choice-card active" data-source="websocket" id="src-choice-websocket">
+                <div class="source-choice-icon">⚡</div>
+                <div class="source-choice-title">WebSocket Stream</div>
+                <div class="source-choice-desc">Echtzeit-Push über WebSocket (ws:// / wss://), ideal für Web-Clients, Edge-Gateways & Node-RED</div>
+              </button>
+              <button type="button" class="source-choice-card" data-source="mqtt" id="src-choice-mqtt">
+                <div class="source-choice-icon">📡</div>
+                <div class="source-choice-title">MQTT Broker</div>
+                <div class="source-choice-desc">Industrielles Pub/Sub Protokoll für SPS (IOT2050, Mosquitto, HiveMQ) mit Topic-Abonnement</div>
+              </button>
+              <button type="button" class="source-choice-card" data-source="simulator" id="src-choice-simulator">
+                <div class="source-choice-icon">🧪</div>
+                <div class="source-choice-title">SPS-Simulator</div>
+                <div class="source-choice-desc">Autarker physikalischer Fertigungssimulator für Unterricht, Offline-Betrieb & GitHub Pages</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Sektion: WebSocket Konfiguration -->
+          <div class="form-section" id="section-cfg-websocket">
+            <div class="section-title-tag">⚡ WebSocket Stream Konfiguration</div>
+            <label class="form-label" for="cfg-ws-url">WebSocket Telemetrie-URL</label>
+            <div class="input-with-action">
+              <input type="text" id="cfg-ws-url" class="heroui-input font-mono" placeholder="ws://localhost:3000/ws/telemetry" autocomplete="off" spellcheck="false">
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="btn-test-ws">Verbindung testen</button>
+            </div>
+            <div class="form-hint">Unterstützte Protokolle: <code>ws://</code> (unverschlüsselt), <code>wss://</code> (TLS/verschlüsselt)</div>
+            <div id="ws-test-result" class="test-feedback-badge" style="display:none;"></div>
+
+            <label class="form-sub-label" style="margin-top:10px;">WebSocket Schnellkonfiguration (Presets):</label>
+            <div class="preset-pill-group">
+              <button type="button" class="preset-pill ws-preset-pill" data-url="ws://localhost:3000/ws/telemetry">Lokal (Backend: 3000)</button>
+              <button type="button" class="preset-pill ws-preset-pill" data-url="ws://192.168.10.1:1880/ws/telemetry">Edge-Gateway Node-RED (192.168.10.1)</button>
+              <button type="button" class="preset-pill ws-preset-pill" data-url="wss://echo.websocket.org">Öffentlicher Echo-Server</button>
+            </div>
+
+            <div class="status-summary-box" style="margin-top:10px;">
+              <div class="status-row">
+                <span class="status-lbl">Aktive WebSocket-URL:</span>
+                <span class="status-val font-mono" id="cfg-current-ws-url">ws://localhost:3000/ws/telemetry</span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">WebSocket-Status:</span>
+                <span class="heroui-status-chip" id="cfg-ws-chip">
+                  <span class="chip-dot"></span>
+                  <span id="cfg-ws-status-text">Initialisiere...</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sektion: MQTT Konfiguration -->
+          <div class="form-section" id="section-cfg-mqtt">
+            <div class="section-title-tag">📡 MQTT Broker Konfiguration</div>
             <label class="form-label" for="cfg-mqtt-url">MQTT Broker URL</label>
             <div class="input-with-action">
               <input type="text" id="cfg-mqtt-url" class="heroui-input font-mono" placeholder="mqtt://localhost:1883" autocomplete="off" spellcheck="false">
@@ -176,21 +239,16 @@
             </div>
             <div class="form-hint">Unterstützte Protokolle: <code>mqtt://</code>, <code>mqtts://</code>, <code>ws://</code>, <code>wss://</code>, <code>tcp://</code></div>
             <div id="mqtt-test-result" class="test-feedback-badge" style="display:none;"></div>
-          </div>
 
-          <div class="form-section">
-            <label class="form-label">Schnellkonfiguration (Presets)</label>
+            <label class="form-sub-label" style="margin-top:10px;">MQTT Schnellkonfiguration (Presets):</label>
             <div class="preset-pill-group">
-              <button type="button" class="preset-pill" data-url="mqtt://localhost:1883">Lokal (Docker: 1883)</button>
-              <button type="button" class="preset-pill" data-url="mqtt://192.168.10.1:1883">Edge-Gateway (IOT2050: 192.168.10.1)</button>
-              <button type="button" class="preset-pill" data-url="mqtt://broker.hivemq.com:1883">Öffentlicher HiveMQ Broker</button>
-              <button type="button" class="preset-pill" data-url="mqtt://test.mosquitto.org:1883">Test Mosquitto Public</button>
+              <button type="button" class="preset-pill mqtt-preset-pill" data-url="mqtt://localhost:1883">Lokal (Docker: 1883)</button>
+              <button type="button" class="preset-pill mqtt-preset-pill" data-url="mqtt://192.168.10.1:1883">Edge-Gateway (IOT2050: 192.168.10.1)</button>
+              <button type="button" class="preset-pill mqtt-preset-pill" data-url="mqtt://broker.hivemq.com:1883">Öffentlicher HiveMQ Broker</button>
+              <button type="button" class="preset-pill mqtt-preset-pill" data-url="mqtt://test.mosquitto.org:1883">Test Mosquitto Public</button>
             </div>
-          </div>
 
-          <div class="form-section">
-            <label class="form-label">Aktueller Verbindungsstatus</label>
-            <div class="status-summary-box">
+            <div class="status-summary-box" style="margin-top:10px;">
               <div class="status-row">
                 <span class="status-lbl">Aktive Broker-URL:</span>
                 <span class="status-val font-mono" id="cfg-current-broker-url">mqtt://localhost:1883</span>

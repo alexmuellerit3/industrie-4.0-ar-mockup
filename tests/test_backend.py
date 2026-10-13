@@ -300,6 +300,66 @@ class TestBackendServerLive(unittest.TestCase):
             self.assertIn("success", data)
             self.assertIn("message", data)
 
+    def test_api_config_websocket_and_data_source(self):
+        """GET /api/config liefert dataSource & wsStatus und POST /api/config aktualisiert WebSocket-Parameter."""
+        url = f"http://localhost:{self.server_port}/api/config"
+        # 1. GET Prüfen
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertIn("dataSource", data["config"])
+            self.assertIn("websocket", data["config"])
+            self.assertIn("url", data["config"]["websocket"])
+            self.assertIn("wsStatus", data)
+
+        # 2. POST Aktualisieren
+        new_ws_url = "ws://192.168.10.1:1880/ws/telemetry"
+        payload = json.dumps({
+            "dataSource": "websocket",
+            "websocket": {"url": new_ws_url}
+        }).encode()
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertTrue(data["success"])
+            self.assertEqual(data["config"]["websocket"]["url"], new_ws_url)
+            self.assertEqual(data["config"]["dataSource"], "websocket")
+
+        # 3. GET Bestätigen
+        with urllib.request.urlopen(url, timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            self.assertEqual(data["config"]["websocket"]["url"], new_ws_url)
+
+        # 4. Reset
+        reset_url = f"http://localhost:{self.server_port}/api/config/reset"
+        reset_req = urllib.request.Request(reset_url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(reset_req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+
+    def test_api_config_test_websocket_endpoint(self):
+        """POST /api/config/test-websocket testet Erreichbarkeit eines WebSocket-Endpunkts."""
+        url = f"http://localhost:{self.server_port}/api/config/test-websocket"
+        # Test 1: Gültiger lokaler WebSocket-Endpunkt
+        payload = json.dumps({"url": f"ws://127.0.0.1:{self.server_port}/ws/telemetry", "timeoutMs": 1500}).encode()
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertIn("success", data)
+            self.assertIn("message", data)
+            self.assertTrue(data["success"], "Lokaler Server-WebSocket muss erreichbar sein")
+
+        # Test 2: Ungültiges Protokoll muss mit 400 abgelehnt werden
+        invalid_payload = json.dumps({"url": "ftp://invalid-server"}).encode()
+        invalid_req = urllib.request.Request(url, data=invalid_payload, headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(invalid_req, timeout=2) as resp:
+                self.fail("FTP URL hätte mit HTTP 400 abgewiesen werden müssen")
+        except urllib.error.HTTPError as err:
+            self.assertEqual(err.code, 400)
+
+
     def test_security_headers_present(self):
         """Backend setzt alle essenziellen Security Headers (X-Content-Type-Options, etc.)."""
         conn = http.client.HTTPConnection("localhost", self.server_port, timeout=2)

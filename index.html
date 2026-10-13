@@ -69,7 +69,7 @@
     <header class="top-bar interactive">
       <div class="top-indicator interactive">
         <span class="status-dot" id="status-dot"></span>
-        <span>CPS-i40 • <strong>Bonbon-Fertigung</strong></span>
+        <span>CPS-i40 • <strong>Bonbon-Fertigung</strong> <span id="ar-source-tag" class="ar-source-tag">WebSocket</span></span>
       </div>
       <div class="header-ctrl-group interactive">
         <a href="overview.html" class="overview-nav-btn interactive" title="Gesamtanlage ohne Hiro-Marker ansehen">Leitstand ↗</a>
@@ -243,8 +243,8 @@
         <div class="modal-title-group">
           <div class="modal-avatar-badge">⚙️</div>
           <div>
-            <h2 id="ar-modal-title" class="modal-main-title">AR & MQTT Konfiguration</h2>
-            <div class="modal-sub-title">Live-Parametrierung am mobilen Endgerät</div>
+            <h2 id="ar-modal-title" class="modal-main-title">AR & Datenquellen-Konfiguration</h2>
+            <div class="modal-sub-title">Live-Parametrierung von WebSockets, MQTT & Simulator</div>
           </div>
         </div>
         <button type="button" class="heroui-modal-close" id="btn-close-config" title="Schließen">✕</button>
@@ -252,7 +252,7 @@
 
       <!-- Modal Tabs Bar -->
       <div class="heroui-tabs-bar">
-        <button type="button" class="heroui-tab-btn active" data-tab="ar-pane-mqtt">🔌 MQTT & Broker</button>
+        <button type="button" class="heroui-tab-btn active" data-tab="ar-pane-mqtt">📡 Datenquellen (WS & MQTT)</button>
         <button type="button" class="heroui-tab-btn" data-tab="ar-pane-stations">🏭 Toleranzbänder</button>
         <button type="button" class="heroui-tab-btn" data-tab="ar-pane-system">⚙️ System</button>
       </div>
@@ -260,34 +260,84 @@
       <!-- Modal Body -->
       <div class="heroui-modal-body">
         
-        <!-- Tab 1: MQTT & Broker -->
+        <!-- Tab 1: Datenquellen (WebSockets & MQTT) -->
         <div class="tab-pane active" id="ar-pane-mqtt">
+          <!-- Auswahl der primären Datenquelle -->
           <div class="form-section">
+            <label class="form-label">Primäre Datenquelle auswählen</label>
+            <div class="source-selector-grid">
+              <button type="button" class="source-choice-card active" data-source="websocket" id="ar-src-choice-websocket">
+                <div class="source-choice-icon">⚡</div>
+                <div class="source-choice-title">WebSocket Stream</div>
+                <div class="source-choice-desc">Echtzeit-Push über WebSocket (ws:// / wss://)</div>
+              </button>
+              <button type="button" class="source-choice-card" data-source="mqtt" id="ar-src-choice-mqtt">
+                <div class="source-choice-icon">📡</div>
+                <div class="source-choice-title">MQTT Broker</div>
+                <div class="source-choice-desc">Industrielles Pub/Sub Protokoll für SPS (IOT2050, Mosquitto)</div>
+              </button>
+              <button type="button" class="source-choice-card" data-source="simulator" id="ar-src-choice-simulator">
+                <div class="source-choice-icon">🧪</div>
+                <div class="source-choice-title">SPS-Simulator</div>
+                <div class="source-choice-desc">Autarker lokaler Simulator (Offline & GitHub Pages)</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Sektion: WebSocket Konfiguration -->
+          <div class="form-section" id="ar-section-cfg-websocket">
+            <div class="section-title-tag">⚡ WebSocket Stream Konfiguration</div>
+            <label class="form-label" for="ar-cfg-ws-url">WebSocket Telemetrie-URL</label>
+            <div class="input-with-action">
+              <input type="text" id="ar-cfg-ws-url" class="heroui-input font-mono" placeholder="ws://localhost:3000/ws/telemetry" autocomplete="off" spellcheck="false">
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="ar-btn-test-ws">Verbindung testen</button>
+            </div>
+            <div class="form-hint">Unterstützte Protokolle: <code>ws://</code> (unverschlüsselt), <code>wss://</code> (TLS/verschlüsselt)</div>
+            <div id="ar-ws-test-result" class="test-feedback-badge" style="display:none;"></div>
+
+            <label class="form-sub-label" style="margin-top:10px;">Schnellauswahl (WebSocket Presets)</label>
+            <div class="preset-pill-group">
+              <button type="button" class="preset-pill ar-ws-preset-pill" data-url="ws://localhost:3000/ws/telemetry">Lokal (Backend: 3000)</button>
+              <button type="button" class="preset-pill ar-ws-preset-pill" data-url="ws://192.168.10.1:1880/ws/telemetry">Edge-Gateway Node-RED</button>
+              <button type="button" class="preset-pill ar-ws-preset-pill" data-url="wss://echo.websocket.org">Echo-Server</button>
+            </div>
+
+            <div class="status-summary-box" style="margin-top:10px;">
+              <div class="status-row">
+                <span class="status-lbl">Aktive WS-URL:</span>
+                <span class="status-val font-mono" id="ar-cfg-active-ws-url">ws://localhost:3000/ws/telemetry</span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">WebSocket-Status:</span>
+                <span class="status-val" id="ar-cfg-ws-status-val">Initialisiere...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sektion: MQTT Konfiguration -->
+          <div class="form-section" id="ar-section-cfg-mqtt">
+            <div class="section-title-tag">📡 MQTT Broker Konfiguration</div>
             <label class="form-label" for="ar-cfg-mqtt-url">MQTT Broker URL</label>
             <div class="input-with-action">
               <input type="text" id="ar-cfg-mqtt-url" class="heroui-input font-mono" placeholder="mqtt://localhost:1883" autocomplete="off" spellcheck="false">
-              <button type="button" class="heroui-btn heroui-btn-secondary" id="ar-btn-test-mqtt">Testen</button>
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="ar-btn-test-mqtt">Verbindung testen</button>
             </div>
             <div id="ar-mqtt-test-result" class="test-feedback-badge" style="display:none;"></div>
-          </div>
 
-          <div class="form-section">
-            <label class="form-label">Schnellauswahl</label>
+            <label class="form-sub-label" style="margin-top:10px;">Schnellauswahl (MQTT Presets)</label>
             <div class="preset-pill-group">
-              <button type="button" class="preset-pill" data-url="mqtt://localhost:1883">Lokal (1883)</button>
-              <button type="button" class="preset-pill" data-url="mqtt://192.168.10.1:1883">Edge (192.168.10.1)</button>
-              <button type="button" class="preset-pill" data-url="mqtt://broker.hivemq.com:1883">HiveMQ Public</button>
+              <button type="button" class="preset-pill ar-mqtt-preset-pill" data-url="mqtt://localhost:1883">Lokal (1883)</button>
+              <button type="button" class="preset-pill ar-mqtt-preset-pill" data-url="mqtt://192.168.10.1:1883">Edge (192.168.10.1)</button>
+              <button type="button" class="preset-pill ar-mqtt-preset-pill" data-url="mqtt://broker.hivemq.com:1883">HiveMQ Public</button>
             </div>
-          </div>
 
-          <div class="form-section">
-            <div class="status-summary-box">
+            <div class="status-summary-box" style="margin-top:10px;">
               <div class="status-row">
                 <span class="status-lbl">Broker-Status:</span>
                 <span class="status-val" id="ar-cfg-status-val">Initialisiere...</span>
               </div>
               <div class="status-row">
-                <span class="status-lbl">Aktive URL:</span>
+                <span class="status-lbl">Aktive Broker-URL:</span>
                 <span class="status-val font-mono" id="ar-cfg-active-url">--</span>
               </div>
             </div>

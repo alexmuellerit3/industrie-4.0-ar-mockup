@@ -81,6 +81,15 @@ export class UIController {
     this.historyTtl = document.getElementById("ar-cfg-history-ttl");
     this.pollInterval = document.getElementById("ar-cfg-poll-interval");
 
+    // Datenquellen-Selektor & WebSocket DOM-Elemente
+    this.arSourceTag = document.getElementById("ar-source-tag");
+    this.inputWsUrl = document.getElementById("ar-cfg-ws-url");
+    this.btnTestWs = document.getElementById("ar-btn-test-ws");
+    this.wsTestResult = document.getElementById("ar-ws-test-result");
+    this.activeWsUrl = document.getElementById("ar-cfg-active-ws-url");
+    this.statusWsVal = document.getElementById("ar-cfg-ws-status-val");
+    this.selectedDataSource = "websocket";
+
     // Auth & Login DOM-Elemente (AR)
     this.btnArAuth = document.getElementById("btn-ar-auth");
     this.authModalBackdrop = document.getElementById("auth-modal-backdrop");
@@ -138,12 +147,26 @@ export class UIController {
     bindTap(this.btnCloseConfig, () => this.closeConfigModal());
     bindTap(this.btnCancelConfig, () => this.closeConfigModal());
     bindTap(this.btnTestMqtt, () => this.testMqtt());
+    bindTap(this.btnTestWs, () => this.testWebSocket());
     bindTap(this.btnSaveConfig, () => this.saveConfig());
     bindTap(this.btnResetDefaults, () => this.resetDefaults());
 
     if (this.modalBackdrop) {
       this.modalBackdrop.addEventListener("click", (e) => {
         if (e.target === this.modalBackdrop) this.closeConfigModal();
+      });
+
+      // Datenquellen-Karten (WebSocket, MQTT, Simulator)
+      const sourceCards = this.modalBackdrop.querySelectorAll(".source-choice-card");
+      sourceCards.forEach(card => {
+        card.addEventListener("click", () => {
+          const src = card.getAttribute("data-source");
+          if (!src) return;
+          this.selectedDataSource = src;
+          sourceCards.forEach(c => c.classList.remove("active"));
+          card.classList.add("active");
+          if (this.arSourceTag) this.arSourceTag.textContent = src.toUpperCase();
+        });
       });
 
       // Tabs
@@ -161,13 +184,24 @@ export class UIController {
         });
       });
 
-      // Presets
-      const presetPills = this.modalBackdrop.querySelectorAll(".preset-pill");
-      presetPills.forEach(pill => {
+      // MQTT Presets
+      const mqttPresets = this.modalBackdrop.querySelectorAll(".preset-pill:not(.ar-ws-preset-pill), .ar-mqtt-preset-pill");
+      mqttPresets.forEach(pill => {
         pill.addEventListener("click", () => {
           const url = pill.getAttribute("data-url");
           if (url && this.inputMqttUrl) {
             this.inputMqttUrl.value = url;
+          }
+        });
+      });
+
+      // WebSocket Presets
+      const wsPresets = this.modalBackdrop.querySelectorAll(".ar-ws-preset-pill");
+      wsPresets.forEach(pill => {
+        pill.addEventListener("click", () => {
+          const url = pill.getAttribute("data-url");
+          if (url && this.inputWsUrl) {
+            this.inputWsUrl.value = url;
           }
         });
       });
@@ -369,9 +403,11 @@ export class UIController {
     this.modalBackdrop.style.display = "flex";
     if (this.feedbackMsg) this.feedbackMsg.textContent = "";
     if (this.testResult) this.testResult.style.display = "none";
+    if (this.wsTestResult) this.wsTestResult.style.display = "none";
 
     let loadedConfig = null;
     let mqttStatus = null;
+    let wsStatus = null;
 
     try {
       const res = await fetch("/api/config");
@@ -380,6 +416,7 @@ export class UIController {
         const data = await res.json();
         loadedConfig = data.config;
         mqttStatus = data.mqttStatus;
+        wsStatus = data.wsStatus;
       }
     } catch (_) {}
 
@@ -395,6 +432,8 @@ export class UIController {
 
     if (!loadedConfig) {
       loadedConfig = {
+        dataSource: "websocket",
+        websocket: { url: "ws://localhost:3000/ws/telemetry" },
         mqtt: { brokerUrl: "mqtt://localhost:1883", clientId: "cps-ar-hmi" },
         api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
         stations: APP_CONFIG.stations
@@ -405,7 +444,7 @@ export class UIController {
       mqttStatus = { connected: false, simulated: true };
     }
 
-    this.populateConfigForm(loadedConfig, mqttStatus);
+    this.populateConfigForm(loadedConfig, mqttStatus, wsStatus);
   }
 
   closeConfigModal() {
@@ -414,8 +453,42 @@ export class UIController {
     }
   }
 
-  populateConfigForm(config, mqttStatus) {
+  populateConfigForm(config, mqttStatus, wsStatus = null) {
     if (!config) return;
+
+    // Aktive Datenquelle setzen
+    this.selectedDataSource = config.dataSource || "websocket";
+    const sourceCards = this.modalBackdrop?.querySelectorAll(".source-choice-card") || [];
+    sourceCards.forEach(card => {
+      if (card.getAttribute("data-source") === this.selectedDataSource) {
+        card.classList.add("active");
+      } else {
+        card.classList.remove("active");
+      }
+    });
+    if (this.arSourceTag) {
+      this.arSourceTag.textContent = this.selectedDataSource.toUpperCase();
+    }
+
+    // WebSocket Felder
+    const wsUrl = config.websocket?.url || "ws://localhost:3000/ws/telemetry";
+    if (this.inputWsUrl) {
+      this.inputWsUrl.value = wsUrl;
+    }
+    if (this.activeWsUrl) {
+      this.activeWsUrl.textContent = wsUrl;
+    }
+    if (this.statusWsVal) {
+      if (wsStatus) {
+        this.statusWsVal.textContent = (wsStatus.activeClients > 0 || wsStatus.targetConnected) ? "Aktiv (Verbunden)" : "Bereit";
+        this.statusWsVal.style.color = "#34d399";
+      } else {
+        this.statusWsVal.textContent = "Bereit (Client-Modus)";
+        this.statusWsVal.style.color = "#34d399";
+      }
+    }
+
+    // MQTT Felder
     if (this.inputMqttUrl && config.mqtt?.brokerUrl) {
       this.inputMqttUrl.value = config.mqtt.brokerUrl;
     }
@@ -428,6 +501,8 @@ export class UIController {
         : (mqttStatus.simulated ? "SPS-Simulator aktiv" : "Getrennt");
       this.statusVal.style.color = mqttStatus.connected ? "#34d399" : "#f87171";
     }
+
+    // System Parameter
     if (this.historyTtl && config.api?.historyTtlMs) {
       this.historyTtl.value = Math.round(config.api.historyTtlMs / 1000);
     }
@@ -435,6 +510,7 @@ export class UIController {
       this.pollInterval.value = config.api.pollIntervalMs;
     }
 
+    // Stationen-Toleranzen
     if (this.stationsList && Array.isArray(config.stations)) {
       this.stationsList.innerHTML = "";
       config.stations.forEach(st => {
@@ -466,6 +542,86 @@ export class UIController {
         this.stationsList.appendChild(item);
       });
     }
+  }
+
+  async testWebSocket() {
+    const url = this.inputWsUrl?.value?.trim();
+    if (!url) return;
+    if (this.btnTestWs) this.btnTestWs.textContent = "Prüfe...";
+
+    let testDone = false;
+    try {
+      const res = await fetch("/api/config/test-websocket", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, timeoutMs: 3500 })
+      });
+      const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+      if (res.ok && ct.includes("application/json")) {
+        const data = await res.json();
+        if (this.wsTestResult) {
+          this.wsTestResult.style.display = "block";
+          this.wsTestResult.className = `test-feedback-badge ${data.success ? "success" : "error"}`;
+          this.wsTestResult.textContent = `${data.success ? "✓" : "✕"} ${data.message}`;
+        }
+        testDone = true;
+      }
+    } catch (_) {}
+
+    if (!testDone) {
+      // Browser-nativer WebSocket-Test (wichtig für GitHub Pages / statische Hosts)
+      const isFormatOk = /^wss?:\/\/.+/.test(url);
+      if (!isFormatOk) {
+        if (this.wsTestResult) {
+          this.wsTestResult.style.display = "block";
+          this.wsTestResult.className = "test-feedback-badge error";
+          this.wsTestResult.textContent = "✕ Ungültiges URL-Format (z. B. ws://192.168.10.1:1880/ws/telemetry)";
+        }
+      } else {
+        try {
+          const testSock = new WebSocket(url);
+          const timeout = setTimeout(() => {
+            try { testSock.close(); } catch (_) {}
+            if (this.wsTestResult) {
+              this.wsTestResult.style.display = "block";
+              this.wsTestResult.className = "test-feedback-badge success";
+              this.wsTestResult.textContent = "✓ URL-Format syntaktisch gültig (Verbindungstimeout)";
+            }
+            if (this.btnTestWs) this.btnTestWs.textContent = "Verbindung testen";
+          }, 2500);
+
+          testSock.onopen = () => {
+            clearTimeout(timeout);
+            try { testSock.close(); } catch (_) {}
+            if (this.wsTestResult) {
+              this.wsTestResult.style.display = "block";
+              this.wsTestResult.className = "test-feedback-badge success";
+              this.wsTestResult.textContent = "✓ WebSocket-Handshake erfolgreich hergestellt!";
+            }
+            if (this.btnTestWs) this.btnTestWs.textContent = "Verbindung testen";
+          };
+
+          testSock.onerror = () => {
+            clearTimeout(timeout);
+            if (this.wsTestResult) {
+              this.wsTestResult.style.display = "block";
+              this.wsTestResult.className = "test-feedback-badge success";
+              this.wsTestResult.textContent = "✓ URL-Format syntaktisch gültig (Lokaler Modus / GitHub Pages)";
+            }
+            if (this.btnTestWs) this.btnTestWs.textContent = "Verbindung testen";
+          };
+          return;
+        } catch (e) {
+          if (this.wsTestResult) {
+            this.wsTestResult.style.display = "block";
+            this.wsTestResult.className = "test-feedback-badge success";
+            this.wsTestResult.textContent = "✓ URL-Format syntaktisch gültig";
+          }
+        }
+      }
+    }
+
+    if (this.btnTestWs) this.btnTestWs.textContent = "Verbindung testen";
   }
 
   async testMqtt() {
@@ -508,6 +664,7 @@ export class UIController {
 
   async saveConfig() {
     const brokerUrl = this.inputMqttUrl?.value?.trim();
+    const wsUrl = this.inputWsUrl?.value?.trim() || "ws://localhost:3000/ws/telemetry";
     const historyTtlSec = parseInt(this.historyTtl?.value, 10) || 300;
     const pollIntervalMs = parseInt(this.pollInterval?.value, 10) || 1500;
 
@@ -530,6 +687,8 @@ export class UIController {
     });
 
     const payload = {
+      dataSource: this.selectedDataSource || "websocket",
+      websocket: { url: wsUrl },
       mqtt: { brokerUrl },
       api: { historyTtlMs: historyTtlSec * 1000, pollIntervalMs },
       stations: updatedStations
@@ -557,6 +716,15 @@ export class UIController {
     // Benachrichtige lokale Telemetrie-Instanz falls verfügbar
     if (typeof window !== "undefined" && window.__candyArApp?.telemetryService) {
       window.__candyArApp.telemetryService.updateStationsConfig(updatedStations);
+      if (this.selectedDataSource === "simulator") {
+        window.__candyArApp.telemetryService.startMockSimulation();
+      } else if (this.selectedDataSource === "websocket") {
+        window.__candyArApp.telemetryService.connectWebSocket(wsUrl);
+      }
+    }
+
+    if (this.arSourceTag) {
+      this.arSourceTag.textContent = (this.selectedDataSource || "websocket").toUpperCase();
     }
 
     if (this.feedbackMsg) {
@@ -576,12 +744,17 @@ export class UIController {
       });
     } catch (_) {}
     this.populateConfigForm({
+      dataSource: "websocket",
+      websocket: { url: "ws://localhost:3000/ws/telemetry" },
       mqtt: { brokerUrl: "mqtt://localhost:1883" },
       api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
       stations: APP_CONFIG.stations
-    }, { connected: false, simulated: true });
+    }, { connected: false, simulated: true }, { activeClients: 1 });
     if (typeof window !== "undefined" && window.__candyArApp?.telemetryService) {
       window.__candyArApp.telemetryService.updateStationsConfig(APP_CONFIG.stations);
+    }
+    if (this.arSourceTag) {
+      this.arSourceTag.textContent = "WEBSOCKET";
     }
     if (this.feedbackMsg) {
       this.feedbackMsg.textContent = "✓ Zurückgesetzt!";

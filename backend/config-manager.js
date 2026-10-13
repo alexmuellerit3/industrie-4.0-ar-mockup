@@ -60,7 +60,15 @@ export class ConfigManager {
 
   createDefaultConfig(overrides = {}) {
     const envMqtt = process.env.MQTT_BROKER_URL || "mqtt://localhost:1883";
+    const envWs = process.env.WS_SERVER_URL || "ws://localhost:3000/ws/telemetry";
     return {
+      dataSource: overrides.dataSource || "websocket",
+      websocket: {
+        url: overrides.websocket?.url || envWs,
+        clientId: overrides.websocket?.clientId || "cps-backend-ws",
+        reconnectPeriod: 3500,
+        connectTimeout: 4000
+      },
       mqtt: {
         brokerUrl: overrides.mqtt?.brokerUrl || envMqtt,
         clientId: overrides.mqtt?.clientId || "cps-backend",
@@ -92,6 +100,8 @@ export class ConfigManager {
         const parsed = JSON.parse(raw);
         // Stelle sicher, dass essentielle Schlüssel existieren
         return {
+          dataSource: parsed.dataSource || this.defaults.dataSource,
+          websocket: { ...this.defaults.websocket, ...(parsed.websocket || {}) },
           mqtt: { ...this.defaults.mqtt, ...(parsed.mqtt || {}) },
           api: { ...this.defaults.api, ...(parsed.api || {}) },
           stations: parsed.stations && Array.isArray(parsed.stations) ? parsed.stations : this.defaults.stations
@@ -136,6 +146,23 @@ export class ConfigManager {
    */
   updateConfig(partial = {}) {
     const updated = JSON.parse(JSON.stringify(this.config));
+
+    if (partial.dataSource && typeof partial.dataSource === "string") {
+      const src = partial.dataSource.toLowerCase().trim();
+      if (["websocket", "mqtt", "simulator", "mock"].includes(src)) {
+        updated.dataSource = src === "mock" ? "simulator" : src;
+      }
+    }
+
+    if (partial.websocket) {
+      if (!updated.websocket) updated.websocket = {};
+      if (partial.websocket.url && typeof partial.websocket.url === "string") {
+        updated.websocket.url = partial.websocket.url.trim();
+      }
+      if (partial.websocket.clientId) updated.websocket.clientId = String(partial.websocket.clientId);
+      if (partial.websocket.reconnectPeriod) updated.websocket.reconnectPeriod = Number(partial.websocket.reconnectPeriod);
+      if (partial.websocket.connectTimeout) updated.websocket.connectTimeout = Number(partial.websocket.connectTimeout);
+    }
 
     if (partial.mqtt) {
       if (partial.mqtt.brokerUrl && typeof partial.mqtt.brokerUrl === "string") {

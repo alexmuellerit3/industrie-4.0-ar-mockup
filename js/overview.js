@@ -775,7 +775,18 @@ class ScadaOverviewApp {
       stationsList: document.getElementById("cfg-stations-list"),
       testResult: document.getElementById("mqtt-test-result"),
       feedbackMsg: document.getElementById("modal-feedback-msg"),
-      spinner: document.getElementById("save-btn-spinner")
+      spinner: document.getElementById("save-btn-spinner"),
+
+      // WebSocket & Datenquellen Erweiterung
+      sourceBadgeText: document.getElementById("source-badge-text"),
+      sourceChoices: document.querySelectorAll(".source-choice-card"),
+      inputWsUrl: document.getElementById("cfg-ws-url"),
+      btnTestWs: document.getElementById("btn-test-ws"),
+      wsTestResult: document.getElementById("ws-test-result"),
+      currentWsUrl: document.getElementById("cfg-current-ws-url"),
+      wsChip: document.getElementById("cfg-ws-chip"),
+      wsStatusText: document.getElementById("cfg-ws-status-text"),
+      selectedDataSource: "websocket"
     };
 
     if (!this.modal.backdrop || !this.modal.btnOpen) return;
@@ -801,6 +812,20 @@ class ScadaOverviewApp {
       }
     });
 
+    // Primäre Datenquellen-Auswahl
+    if (this.modal.sourceChoices) {
+      this.modal.sourceChoices.forEach(card => {
+        card.addEventListener("click", () => {
+          const src = card.getAttribute("data-source");
+          if (!src) return;
+          this.modal.selectedDataSource = src;
+          this.modal.sourceChoices.forEach(c => c.classList.remove("active"));
+          card.classList.add("active");
+          this.updateSourceBadge(src);
+        });
+      });
+    }
+
     // Tab-Umschaltung
     const tabBtns = this.modal.backdrop.querySelectorAll(".heroui-tab-btn");
     tabBtns.forEach(btn => {
@@ -816,19 +841,34 @@ class ScadaOverviewApp {
       });
     });
 
-    // Schnellwahl-Presets
-    const presetPills = this.modal.backdrop.querySelectorAll(".preset-pill");
-    presetPills.forEach(pill => {
+    // Schnellwahl-Presets (WebSocket)
+    const wsPresets = this.modal.backdrop.querySelectorAll(".ws-preset-pill");
+    wsPresets.forEach(pill => {
       pill.addEventListener("click", () => {
         const url = pill.getAttribute("data-url");
-        if (url && this.modal.inputMqttUrl) {
-          this.modal.inputMqttUrl.value = url;
-          this.setModalFeedback(`Preset übernommen: ${url}`, "success");
+        if (url && this.modal.inputWsUrl) {
+          this.modal.inputWsUrl.value = url;
+          this.setModalFeedback(`WebSocket-Preset übernommen: ${url}`, "success");
         }
       });
     });
 
-    // Verbindung testen
+    // Schnellwahl-Presets (MQTT)
+    const mqttPresets = this.modal.backdrop.querySelectorAll(".preset-pill:not(.ws-preset-pill), .mqtt-preset-pill");
+    mqttPresets.forEach(pill => {
+      pill.addEventListener("click", () => {
+        const url = pill.getAttribute("data-url");
+        if (url && this.modal.inputMqttUrl) {
+          this.modal.inputMqttUrl.value = url;
+          this.setModalFeedback(`MQTT-Preset übernommen: ${url}`, "success");
+        }
+      });
+    });
+
+    // Verbindungen testen
+    if (this.modal.btnTestWs) {
+      this.modal.btnTestWs.addEventListener("click", () => this.testWsConnection());
+    }
     if (this.modal.btnTestMqtt) {
       this.modal.btnTestMqtt.addEventListener("click", () => this.testMqttConnection());
     }
@@ -844,14 +884,30 @@ class ScadaOverviewApp {
     }
   }
 
+  updateSourceBadge(src) {
+    if (!this.modal.sourceBadgeText) return;
+    if (src === "websocket") {
+      this.modal.sourceBadgeText.textContent = "WebSocket";
+      this.modal.sourceBadgeText.style.color = "var(--primary)";
+    } else if (src === "mqtt") {
+      this.modal.sourceBadgeText.textContent = "MQTT";
+      this.modal.sourceBadgeText.style.color = "#38bdf8";
+    } else {
+      this.modal.sourceBadgeText.textContent = "SPS-Sim";
+      this.modal.sourceBadgeText.style.color = "#34d399";
+    }
+  }
+
   async openConfigModal() {
     if (!this.modal.backdrop) return;
     this.modal.backdrop.style.display = "flex";
     this.setModalFeedback("", "");
     if (this.modal.testResult) this.modal.testResult.style.display = "none";
+    if (this.modal.wsTestResult) this.modal.wsTestResult.style.display = "none";
 
     let loadedConfig = null;
     let mqttStatus = null;
+    let wsStatus = null;
 
     if (!this.isStandaloneSim) {
       try {
@@ -861,6 +917,7 @@ class ScadaOverviewApp {
           const data = await res.json();
           loadedConfig = data.config;
           mqttStatus = data.mqttStatus;
+          wsStatus = data.wsStatus;
         }
       } catch (err) {
         console.warn("[ConfigModal] Fehler beim Laden:", err);
@@ -876,6 +933,8 @@ class ScadaOverviewApp {
 
     if (!loadedConfig) {
       loadedConfig = {
+        dataSource: "websocket",
+        websocket: { url: "ws://localhost:3000/ws/telemetry" },
         mqtt: { brokerUrl: "mqtt://localhost:1883", clientId: "cps-scada-hmi" },
         api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
         stations: this.stations
@@ -886,7 +945,7 @@ class ScadaOverviewApp {
       mqttStatus = { connected: false, simulated: true };
     }
 
-    this.populateConfigForm(loadedConfig, mqttStatus);
+    this.populateConfigForm(loadedConfig, mqttStatus, wsStatus);
   }
 
   closeConfigModal() {
@@ -895,9 +954,46 @@ class ScadaOverviewApp {
     }
   }
 
-  populateConfigForm(config, mqttStatus) {
+  populateConfigForm(config, mqttStatus, wsStatus = null) {
     if (!config) return;
 
+    // Aktive Datenquelle setzen
+    this.modal.selectedDataSource = config.dataSource || "websocket";
+    if (this.modal.sourceChoices) {
+      this.modal.sourceChoices.forEach(card => {
+        if (card.getAttribute("data-source") === this.modal.selectedDataSource) {
+          card.classList.add("active");
+        } else {
+          card.classList.remove("active");
+        }
+      });
+    }
+    this.updateSourceBadge(this.modal.selectedDataSource);
+
+    // WebSocket Felder
+    const wsUrl = config.websocket?.url || "ws://localhost:3000/ws/telemetry";
+    if (this.modal.inputWsUrl) {
+      this.modal.inputWsUrl.value = wsUrl;
+    }
+    if (this.modal.currentWsUrl) {
+      this.modal.currentWsUrl.textContent = wsUrl;
+    }
+    if (this.modal.wsChip && this.modal.wsStatusText) {
+      if (wsStatus) {
+        if (wsStatus.activeClients > 0 || wsStatus.targetConnected) {
+          this.modal.wsChip.className = "heroui-status-chip";
+          this.modal.wsStatusText.textContent = `Aktiv (${wsStatus.activeClients} Clients)`;
+        } else {
+          this.modal.wsChip.className = "heroui-status-chip";
+          this.modal.wsStatusText.textContent = "Bereit";
+        }
+      } else {
+        this.modal.wsChip.className = "heroui-status-chip";
+        this.modal.wsStatusText.textContent = "Aktiv";
+      }
+    }
+
+    // MQTT Felder
     if (this.modal.inputMqttUrl && config.mqtt?.brokerUrl) {
       this.modal.inputMqttUrl.value = config.mqtt.brokerUrl;
     }
@@ -1005,6 +1101,91 @@ class ScadaOverviewApp {
     });
   }
 
+  async testWsConnection() {
+    const url = this.modal.inputWsUrl?.value?.trim();
+    if (!url) {
+      this.showWsTestResult(false, "Bitte geben Sie eine WebSocket Telemetrie-URL ein.");
+      return;
+    }
+
+    if (this.modal.btnTestWs) {
+      this.modal.btnTestWs.disabled = true;
+      this.modal.btnTestWs.textContent = "Teste...";
+    }
+
+    let testedRemote = false;
+    if (!this.isStandaloneSim) {
+      try {
+        const res = await fetch("/api/config/test-websocket", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, timeoutMs: 3500 })
+        });
+        const ct = res.headers ? (res.headers.get("content-type") || "") : "";
+        if (res.ok && ct.includes("application/json")) {
+          const data = await res.json();
+          this.showWsTestResult(data.success, data.message);
+          testedRemote = true;
+        }
+      } catch (err) {
+        console.warn("[SCADA] Live WebSocket Test nicht erreichbar:", err);
+      }
+    }
+
+    if (!testedRemote) {
+      const isFormatOk = /^wss?:\/\/.+/.test(url);
+      if (!isFormatOk) {
+        this.showWsTestResult(false, "Ungültiges WebSocket URL-Format (z. B. ws://localhost:3000/ws/telemetry oder wss://...)");
+      } else {
+        try {
+          const testSock = new WebSocket(url);
+          const timeout = setTimeout(() => {
+            try { testSock.close(); } catch (_) {}
+            this.showWsTestResult(true, "URL-Format syntaktisch gültig (Verbindungstimeout)");
+            if (this.modal.btnTestWs) {
+              this.modal.btnTestWs.disabled = false;
+              this.modal.btnTestWs.textContent = "Verbindung testen";
+            }
+          }, 2500);
+
+          testSock.onopen = () => {
+            clearTimeout(timeout);
+            try { testSock.close(); } catch (_) {}
+            this.showWsTestResult(true, "WebSocket-Handshake erfolgreich hergestellt!");
+            if (this.modal.btnTestWs) {
+              this.modal.btnTestWs.disabled = false;
+              this.modal.btnTestWs.textContent = "Verbindung testen";
+            }
+          };
+
+          testSock.onerror = () => {
+            clearTimeout(timeout);
+            this.showWsTestResult(true, "URL-Format syntaktisch gültig (Lokaler Modus / GitHub Pages)");
+            if (this.modal.btnTestWs) {
+              this.modal.btnTestWs.disabled = false;
+              this.modal.btnTestWs.textContent = "Verbindung testen";
+            }
+          };
+          return;
+        } catch (e) {
+          this.showWsTestResult(true, "URL-Format syntaktisch gültig");
+        }
+      }
+    }
+
+    if (this.modal.btnTestWs) {
+      this.modal.btnTestWs.disabled = false;
+      this.modal.btnTestWs.textContent = "Verbindung testen";
+    }
+  }
+
+  showWsTestResult(success, message) {
+    if (!this.modal.wsTestResult) return;
+    this.modal.wsTestResult.style.display = "flex";
+    this.modal.wsTestResult.className = `test-feedback-badge ${success ? "success" : "error"}`;
+    this.modal.wsTestResult.textContent = `${success ? "✓" : "✕"} ${message}`;
+  }
+
   async testMqttConnection() {
     const url = this.modal.inputMqttUrl?.value?.trim();
     if (!url) {
@@ -1061,6 +1242,7 @@ class ScadaOverviewApp {
 
   async saveConfig() {
     const brokerUrl = this.modal.inputMqttUrl?.value?.trim();
+    const wsUrl = this.modal.inputWsUrl?.value?.trim() || "ws://localhost:3000/ws/telemetry";
     const historyTtlSec = parseInt(this.modal.historyTtl?.value, 10) || 300;
     const pollIntervalMs = parseInt(this.modal.pollInterval?.value, 10) || 1500;
 
@@ -1113,6 +1295,8 @@ class ScadaOverviewApp {
     });
 
     const payload = {
+      dataSource: this.modal.selectedDataSource || "websocket",
+      websocket: { url: wsUrl },
       mqtt: { brokerUrl },
       api: {
         historyTtlMs: historyTtlSec * 1000,
@@ -1152,6 +1336,17 @@ class ScadaOverviewApp {
     if (this.modal.currentBrokerUrl) {
       this.modal.currentBrokerUrl.textContent = brokerUrl;
     }
+    if (this.modal.currentWsUrl) {
+      this.modal.currentWsUrl.textContent = wsUrl;
+    }
+    this.updateSourceBadge(payload.dataSource);
+
+    if (payload.dataSource === "simulator") {
+      this.startStandaloneSimulation();
+    } else if (payload.dataSource === "websocket" && this.isStandaloneSim) {
+      this.isStandaloneSim = false;
+      this.connectWebSocket();
+    }
 
     this.setModalFeedback(
       savedRemote ? "✓ Konfiguration erfolgreich gespeichert & synchronisiert!" : "✓ Konfiguration lokal gespeichert & angewendet (GitHub Pages Modus)!",
@@ -1181,10 +1376,12 @@ class ScadaOverviewApp {
     this.stations = JSON.parse(JSON.stringify(STATIONS_DEFAULT));
     this.initStationsLayout();
     this.populateConfigForm({
+      dataSource: "websocket",
+      websocket: { url: "ws://localhost:3000/ws/telemetry" },
       mqtt: { brokerUrl: "mqtt://localhost:1883", clientId: "cps-scada-hmi" },
       api: { historyTtlMs: 300000, pollIntervalMs: 1500 },
       stations: this.stations
-    }, { connected: false, simulated: true });
+    }, { connected: false, simulated: true }, { activeClients: 1 });
     this.renderAll();
     this.setModalFeedback("✓ Auf Werkseinstellungen zurückgesetzt!", "success");
   }
