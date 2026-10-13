@@ -10,7 +10,10 @@
  */
 
 import http from "http";
+import https from "https";
+import fs from "fs";
 import path from "path";
+import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import express from "express";
 
@@ -41,6 +44,7 @@ export function createApp(options = {}) {
   const telemetryInterpreter = new TelemetryInterpreter({ stations: activeConfig.stations });
 
   // Middleware
+  app.enable("trust proxy");
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 
@@ -196,20 +200,117 @@ export function createApp(options = {}) {
   return { app, store, mqttClient, wsClient, configManager, authManager, telemetryInterpreter };
 }
 
+// Ermittelt SSL-Zertifikate für HTTPS & WSS (Secure WebSocket)
+export function resolveSslConfig(options = {}) {
+  // 1. Direkt übergebene Optionen (z.B. in Tests)
+  if (options.ssl && options.ssl.key && options.ssl.cert) {
+    return {
+      key: options.ssl.key,
+      cert: options.ssl.cert,
+      ca: options.ssl.ca,
+      source: "options"
+    };
+  }
+
+  // 2. Über Inline-Umgebungsvariablen
+  if (process.env.SSL_KEY && process.env.SSL_CERT) {
+    return {
+      key: process.env.SSL_KEY,
+      cert: process.env.SSL_CERT,
+      source: "env_inline"
+    };
+  }
+
+  // 3. Über Dateipfade in Umgebungsvariablen
+  if (process.env.SSL_KEY_PATH && process.env.SSL_CERT_PATH) {
+    if (fs.existsSync(process.env.SSL_KEY_PATH) && fs.existsSync(process.env.SSL_CERT_PATH)) {
+      return {
+        key: fs.readFileSync(process.env.SSL_KEY_PATH),
+        cert: fs.readFileSync(process.env.SSL_CERT_PATH),
+        source: "env_paths"
+      };
+    }
+  }
+
+  // 4. Standard certs-Ordner
+  const defaultKeyPath = path.join(ROOT_DIR, "certs", "server.key");
+  const defaultCertPath = path.join(ROOT_DIR, "certs", "server.crt");
+  const defaultKeyPem = path.join(ROOT_DIR, "certs", "key.pem");
+  const defaultCertPem = path.join(ROOT_DIR, "certs", "cert.pem");
+
+  if (fs.existsSync(defaultKeyPath) && fs.existsSync(defaultCertPath)) {
+    return {
+      key: fs.readFileSync(defaultKeyPath),
+      cert: fs.readFileSync(defaultCertPath),
+      source: "default_files"
+    };
+  }
+  if (fs.existsSync(defaultKeyPem) && fs.existsSync(defaultCertPem)) {
+    return {
+      key: fs.readFileSync(defaultKeyPem),
+      cert: fs.readFileSync(defaultCertPem),
+      source: "default_files"
+    };
+  }
+
+  // 5. Explizit aktiviertes WSS/HTTPS ohne vorhandene Dateien -> Auto-Generierung
+  const isExplicitWss = (
+    process.env.ENABLE_WSS === "true" ||
+    process.env.HTTPS === "true" ||
+    process.env.WSS === "true" ||
+    options.enableWss === true ||
+    options.https === true
+  );
+
+  if (isExplicitWss) {
+    try {
+      const certsDir = path.join(ROOT_DIR, "certs");
+      if (!fs.existsSync(certsDir)) {
+        fs.mkdirSync(certsDir, { recursive: true });
+      }
+      const autoKeyPath = path.join(certsDir, "server.key");
+      const autoCertPath = path.join(certsDir, "server.crt");
+
+      if (!fs.existsSync(autoKeyPath) || !fs.existsSync(autoCertPath)) {
+        console.info("[Server] WSS/HTTPS aktiviert: Generiere temporäres Self-Signed SSL-Zertifikat für Entwicklungs-/Industriebetrieb...");
+        execSync(`openssl req -x509 -newkey rsa:2048 -nodes -keyout "${autoKeyPath}" -out "${autoCertPath}" -days 365 -subj "/CN=localhost/O=CPS-i40/OU=Automation"`, {
+          stdio: "pipe"
+        });
+      }
+
+      return {
+        key: fs.readFileSync(autoKeyPath),
+        cert: fs.readFileSync(autoCertPath),
+        source: "generated_self_signed"
+      };
+    } catch (err) {
+      console.warn("[Server] Konnte kein Self-Signed Zertifikat via openssl erzeugen:", err.message);
+    }
+  }
+
+  return null;
+}
+
 // Start-Funktion
 export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 80, options = {}) {
   const parsedPort = parseInt(port, 10) || 80;
   const { app, store, mqttClient, wsClient, configManager, authManager, telemetryInterpreter } = createApp(options);
-  const server = http.createServer(app);
+  
+  const sslConfig = resolveSslConfig(options);
+  const isHttps = Boolean(sslConfig);
+  const server = isHttps
+    ? https.createServer({ key: sslConfig.key, cert: sslConfig.cert, ca: sslConfig.ca }, app)
+    : http.createServer(app);
 
-  // WebSocket-Server an HTTP-Server binden
+  // WebSocket-Server an Server binden (unterstützt ws:// und wss://)
   const wsServer = new WebSocketServerService({
     server,
     store,
     mqttClient,
     telemetryInterpreter,
     authManager,
-    path: "/ws/telemetry"
+    path: "/ws/telemetry",
+    isSecure: isHttps
   });
   app.locals.wsServer = wsServer;
 
@@ -226,13 +327,15 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   });
 
   server.listen(parsedPort, () => {
+    const proto = isHttps ? "https" : "http";
+    const wsProto = isHttps ? "wss" : "ws";
     console.info("=================================================");
-    console.info(`CPS-i40 Backend Server läuft auf Port ${parsedPort}`);
-    console.info(`- Anlagenübersicht (ohne Hiro): http://localhost:${parsedPort}/overview.html`);
-    console.info(`- AR WebApp:                  http://localhost:${parsedPort}/index.html`);
-    console.info(`- REST API Endpunkt:          http://localhost:${parsedPort}/api/stations`);
-    console.info(`- REST Konfiguration:         http://localhost:${parsedPort}/api/config`);
-    console.info(`- WebSocket Stream:           ws://localhost:${parsedPort}/ws/telemetry`);
+    console.info(`CPS-i40 Backend Server läuft auf Port ${parsedPort} (${isHttps ? "HTTPS & WSS aktiv" : "HTTP & WS aktiv"})`);
+    console.info(`- Anlagenübersicht (ohne Hiro): ${proto}://localhost:${parsedPort}/overview.html`);
+    console.info(`- AR WebApp:                  ${proto}://localhost:${parsedPort}/index.html`);
+    console.info(`- REST API Endpunkt:          ${proto}://localhost:${parsedPort}/api/stations`);
+    console.info(`- REST Konfiguration:         ${proto}://localhost:${parsedPort}/api/config`);
+    console.info(`- WebSocket Stream:           ${wsProto}://localhost:${parsedPort}/ws/telemetry`);
     console.info(`- MQTT Broker:                ${mqttClient.brokerUrl}`);
     console.info(`- 5-Minuten KeyValueStore:    TTL = 300s (aktiv)`);
     console.info("=================================================");

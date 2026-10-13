@@ -362,7 +362,10 @@ export function createApiRouter({
       },
       websockets: {
         activeClients: wsServer ? wsServer.getClientCount() : 0,
-        endpoint: "/ws/telemetry"
+        endpoint: "/ws/telemetry",
+        protocol: wsServer ? wsServer.getProtocol() : "ws",
+        isSecure: wsServer ? wsServer.isSecure() : false,
+        supportsWss: true
       },
       store: store ? store.getStats() : {},
       auth: {
@@ -462,7 +465,10 @@ export function createApiRouter({
         connected: wsClient ? wsClient.isConnected : true,
         url: currentConfig.websocket?.url || "ws://localhost:3000/ws/telemetry",
         activeClients: wsServer ? wsServer.getClientCount() : 0,
-        endpoint: "/ws/telemetry"
+        endpoint: "/ws/telemetry",
+        protocol: wsServer ? wsServer.getProtocol() : "ws",
+        isSecure: wsServer ? wsServer.isSecure() : false,
+        supportsWss: true
       },
       timestamp: Date.now()
     });
@@ -600,9 +606,9 @@ export function createApiRouter({
     }
   });
 
-  // 11. Verbindung zu beliebigem WebSocket-Server testen
+  // 11. Verbindung zu beliebigem WebSocket-Server testen (ws:// oder wss://)
   router.post("/config/test-websocket", async (req, res) => {
-    const { url, wsUrl, timeoutMs } = req.body;
+    const { url, wsUrl, timeoutMs, rejectUnauthorized } = req.body;
     const targetUrl = url || wsUrl;
     if (!targetUrl) {
       return res.status(400).json({ success: false, message: "url ist erforderlich" });
@@ -616,7 +622,9 @@ export function createApiRouter({
     }
 
     try {
-      const result = await WebSocketServerService.testConnection(targetUrl, timeoutMs || 3500);
+      const result = await WebSocketServerService.testConnection(targetUrl, timeoutMs || 3500, {
+        rejectUnauthorized: rejectUnauthorized !== undefined ? Boolean(rejectUnauthorized) : undefined
+      });
       res.json(result);
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });

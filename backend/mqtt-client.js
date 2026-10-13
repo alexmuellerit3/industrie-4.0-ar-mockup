@@ -41,7 +41,8 @@ export class MqttClientService {
         clientId: this.clientId,
         clean: true,
         connectTimeout: 4000,
-        reconnectPeriod: 5000
+        reconnectPeriod: 5000,
+        rejectUnauthorized: false
       });
 
       this.client.on("connect", () => {
@@ -247,7 +248,8 @@ export class MqttClientService {
           clientId: testId,
           clean: true,
           connectTimeout: timeoutMs,
-          reconnectPeriod: 0
+          reconnectPeriod: 0,
+          rejectUnauthorized: false
         });
 
         client.on("connect", () => {

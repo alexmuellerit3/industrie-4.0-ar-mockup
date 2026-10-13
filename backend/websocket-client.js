@@ -55,21 +55,31 @@ export class WebSocketClientService {
     if (!/^(ws|wss):\/\/.+/i.test(trimmed)) {
       console.warn(`[WS-Client] Ungültige WebSocket-URL: ${this.url}`);
       this.isConnected = false;
-      this.onStatusChange({ connected: false, url: this.url, error: "Ungültiges Protokoll" });
+      this.onStatusChange({ connected: false, url: this.url, error: "Ungültiges Protokoll", isSecure: false, protocol: "ws" });
       return;
     }
 
-    console.info(`[WS-Client] Verbinde mit Upstream-WebSocket: ${trimmed}`);
+    const isWss = /^wss:\/\//i.test(trimmed);
+    console.info(`[WS-Client] Verbinde mit Upstream-WebSocket (${isWss ? "WSS / TLS" : "WS"}): ${trimmed}`);
 
     try {
-      this.client = new WebSocket(trimmed, {
+      const wsOptions = {
         handshakeTimeout: 4000
-      });
+      };
+
+      if (isWss) {
+        // Tolerante TLS-Validierung für industrielle Edge-Gateways & Intranets mit internen Zertifikaten
+        wsOptions.rejectUnauthorized = this.rejectUnauthorized !== undefined
+          ? Boolean(this.rejectUnauthorized)
+          : (process.env.WS_REJECT_UNAUTHORIZED === "true");
+      }
+
+      this.client = new WebSocket(trimmed, wsOptions);
 
       this.client.on("open", () => {
         this.isConnected = true;
-        console.info(`[WS-Client] Erfolgreich verbunden mit ${trimmed}`);
-        this.onStatusChange({ connected: true, url: this.url });
+        console.info(`[WS-Client] Erfolgreich verbunden mit ${trimmed} (${isWss ? "WSS / TLS gesichert" : "WS"})`);
+        this.onStatusChange({ connected: true, url: this.url, protocol: isWss ? "wss" : "ws", isSecure: isWss });
       });
 
       this.client.on("message", (data) => {
@@ -95,7 +105,8 @@ export class WebSocketClientService {
 
   handleDisconnect() {
     this.isConnected = false;
-    this.onStatusChange({ connected: false, url: this.url });
+    const isWss = /^wss:\/\//i.test(String(this.url || "").trim());
+    this.onStatusChange({ connected: false, url: this.url, protocol: isWss ? "wss" : "ws", isSecure: isWss });
 
     if (!this.isManualClosed && !this.reconnectTimer) {
       this.reconnectTimer = setTimeout(() => {

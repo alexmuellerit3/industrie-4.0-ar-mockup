@@ -14,6 +14,7 @@ services:
       - PORT=${CONTAINER_PORT:-${PORT:-80}}
       - NODE_ENV=production
       - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
+      - ENABLE_WSS=${ENABLE_WSS:-false}
     volumes:
       - ./config:/app/config
     depends_on:

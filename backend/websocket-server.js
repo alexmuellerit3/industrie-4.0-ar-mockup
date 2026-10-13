@@ -24,6 +24,7 @@ export class WebSocketServerService {
     this.telemetryInterpreter = options.telemetryInterpreter || null;
     this.authManager = options.authManager || null;
     this.path = options.path || "/ws/telemetry";
+    this.isSecureOption = Boolean(options.isSecure);
     this.wss = null;
     this.clients = new Set();
     this.heartbeatInterval = null;
@@ -31,6 +32,31 @@ export class WebSocketServerService {
     if (this.httpServer) {
       this.init();
     }
+  }
+
+  /**
+   * Prüft, ob der WebSocket-Server über eine sichere Verbindung (WSS / TLS) betrieben wird
+   * @returns {boolean}
+   */
+  isSecure() {
+    if (this.isSecureOption) return true;
+    if (this.httpServer) {
+      // Prüfe auf https.Server Instanz oder Zertifikatseigenschaften
+      if (this.httpServer.cert || this.httpServer.key) return true;
+      if (this.httpServer.constructor && this.httpServer.constructor.name === "Server") {
+        // Falls _sharedCreds oder tls vorhanden
+        if (this.httpServer._sharedCreds || this.httpServer.pfx || this.httpServer.key) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Gibt das aktive WebSocket-Protokoll zurück ('wss' oder 'ws')
+   * @returns {"wss" | "ws"}
+   */
+  getProtocol() {
+    return this.isSecure() ? "wss" : "ws";
   }
 
   /**
@@ -98,6 +124,8 @@ export class WebSocketServerService {
     const initialPayload = {
       type: "init",
       timestamp: Date.now(),
+      protocol: this.getProtocol(),
+      isSecure: this.isSecure(),
       mqttConnected: this.mqttClient ? this.mqttClient.isConnected : false,
       mqttSimulated: this.mqttClient ? this.mqttClient.isSimulatorActive : true,
       summaries: this.store ? this.store.getAllSummaries() : {},
@@ -288,12 +316,14 @@ export class WebSocketServerService {
   }
 
   /**
-   * Testet die Erreichbarkeit eines beliebigen externen WebSocket-Endpunkts
+   * Testet die Erreichbarkeit eines beliebigen externen WebSocket-Endpunkts (ws:// oder wss://)
    * @param {string} wsUrl - Ziel-URL (z. B. ws://192.168.10.1:1880/ws oder wss://echo.websocket.org)
    * @param {number} [timeoutMs=3500] - Timeout in Millisekunden
-   * @returns {Promise<{success: boolean, message: string, url: string, timestamp: number}>}
+   * @param {Object} [options={}] - Optionale Verbindungs- & TLS-Optionen
+   * @param {boolean} [options.rejectUnauthorized] - Ob Zertifikate strikt validiert werden sollen
+   * @returns {Promise<{success: boolean, message: string, url: string, protocol: string, isSecure: boolean, timestamp: number}>}
    */
-  static testConnection(wsUrl, timeoutMs = 3500) {
+  static testConnection(wsUrl, timeoutMs = 3500, options = {}) {
     return new Promise((resolve) => {
       let resolved = false;
       let timer = null;
@@ -310,10 +340,13 @@ export class WebSocketServerService {
             testWs.close();
           } catch (_) {}
         }
+        const isWss = /^wss:\/\//i.test(String(wsUrl || "").trim());
         resolve({
           success,
           message,
           url: wsUrl,
+          protocol: isWss ? "wss" : "ws",
+          isSecure: isWss,
           timestamp: Date.now()
         });
       };
@@ -328,20 +361,35 @@ export class WebSocketServerService {
           return finish(false, "Ungültiges Protokoll. WebSocket-URL muss mit ws:// oder wss:// beginnen.");
         }
 
+        const isWss = /^wss:\/\//i.test(trimmed);
+
         timer = setTimeout(() => {
-          finish(false, `Timeout: WebSocket-Endpunkt antwortet nicht innerhalb von ${timeoutMs}ms.`);
+          finish(false, `Timeout: WebSocket-Endpunkt (${isWss ? "WSS / TLS" : "WS"}) antwortet nicht innerhalb von ${timeoutMs}ms.`);
         }, timeoutMs);
 
-        testWs = new WebSocket(trimmed, {
+        const wsOptions = {
           handshakeTimeout: timeoutMs
-        });
+        };
+
+        if (isWss) {
+          // In Industrie-Netzwerken und internen Gateways sind Self-Signed Zertifikate verbreitet
+          wsOptions.rejectUnauthorized = options.rejectUnauthorized !== undefined
+            ? Boolean(options.rejectUnauthorized)
+            : (process.env.WS_REJECT_UNAUTHORIZED === "true");
+        }
+
+        testWs = new WebSocket(trimmed, wsOptions);
 
         testWs.on("open", () => {
-          finish(true, `WebSocket-Verbindung erfolgreich aufgebaut: ${trimmed}`);
+          finish(true, `WebSocket-Verbindung erfolgreich aufgebaut: ${trimmed} (${isWss ? "WSS / TLS gesichert" : "WS unverschlüsselt"})`);
         });
 
         testWs.on("error", (err) => {
-          finish(false, `WebSocket-Verbindungsfehler: ${err.message}`);
+          let extraMsg = "";
+          if (err.message && (err.message.includes("CERT") || err.message.includes("certificate"))) {
+            extraMsg = " (Zertifikatsvalidierung fehlgeschlagen)";
+          }
+          finish(false, `WebSocket-Verbindungsfehler (${isWss ? "WSS" : "WS"}): ${err.message}${extraMsg}`);
         });
       } catch (err) {
         finish(false, `WebSocket-Initialisierungsfehler: ${err.message}`);

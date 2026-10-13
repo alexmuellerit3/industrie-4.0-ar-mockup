@@ -273,6 +273,11 @@ class TestHeroUiAndSevDeskStyle(unittest.TestCase):
         self.assertIn("testWebSocket", ui_controller_js)
         self.assertIn("selectedDataSource", ui_controller_js)
 
+        # 5. WSS (Secure WebSocket) Presets & Erkennung
+        self.assertIn('data-url="wss://', self.overview_html)
+        self.assertIn('data-url="wss://', self.index_html)
+        self.assertIn("wss://", overview_js)
+
 
 
 class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):

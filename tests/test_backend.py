@@ -387,6 +387,54 @@ class TestBackendServerLive(unittest.TestCase):
         except urllib.error.HTTPError as err:
             self.assertEqual(err.code, 400)
 
+        # Test 3: WSS (Secure WebSocket) Protokoll wird vollständig akzeptiert und analysiert
+        wss_payload = json.dumps({"url": "wss://127.0.0.1:9999/ws/telemetry", "timeoutMs": 400}).encode()
+        wss_req = urllib.request.Request(url, data=wss_payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(wss_req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertIn("protocol", data)
+            self.assertEqual(data["protocol"], "wss", "Endpunkt muss WSS Protokoll identifizieren")
+            self.assertTrue(data.get("isSecure"), "isSecure muss für WSS Endpunkte True sein")
+
+    def test_wss_and_https_server_capability(self):
+        """Prüft, dass WebSocketServerService und Server WSS/TLS und resolveSslConfig unterstützen."""
+        cmd = [
+            "node",
+            "-e",
+            """
+            import { resolveSslConfig } from './backend/server.js';
+            import { WebSocketServerService } from './backend/websocket-server.js';
+            import { WebSocketClientService } from './backend/websocket-client.js';
+
+            // 1. Prüfe WSS-Erkennung in WebSocketServerService
+            const wsServer = new WebSocketServerService({ isSecure: true, path: '/ws/telemetry' });
+            if (wsServer.getProtocol() !== 'wss' || !wsServer.isSecure()) {
+              console.error('WebSocketServerService erkennt WSS nicht korrekt');
+              process.exit(1);
+            }
+
+            // 2. Prüfe WSS-Support in WebSocketClientService
+            const wsClient = new WebSocketClientService({ url: 'wss://example.com/ws/telemetry' });
+            if (!wsClient.url.startsWith('wss://')) {
+              console.error('WebSocketClientService speichert WSS URL nicht korrekt');
+              process.exit(1);
+            }
+
+            // 3. Prüfe testConnection WSS Metadaten
+            WebSocketServerService.testConnection('wss://127.0.0.1:9999/ws', 200).then(res => {
+              if (res.protocol !== 'wss' || res.isSecure !== true) {
+                console.error('testConnection liefert ungültiges WSS-Ergebnis:', res);
+                process.exit(1);
+              }
+              console.log('OK');
+              process.exit(0);
+            });
+            """
+        ]
+        result = subprocess.run(cmd, cwd=BASE_DIR, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, f"WSS Server-Fähigkeiten fehlerhaft: {result.stderr}")
+
 
     def test_security_headers_present(self):
         """Backend setzt alle essenziellen Security Headers (X-Content-Type-Options, etc.)."""

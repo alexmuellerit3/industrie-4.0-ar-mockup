@@ -202,7 +202,8 @@ export class UIController {
           let url = pill.getAttribute("data-url");
           if (url && this.inputWsUrl) {
             if (url.includes("localhost:3000") && typeof window !== "undefined" && window.location.host) {
-              const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+              const isWssPreset = url.startsWith("wss://");
+              const proto = isWssPreset ? "wss:" : (window.location.protocol === "https:" ? "wss:" : "ws:");
               url = `${proto}//${window.location.host}/ws/telemetry`;
             }
             this.inputWsUrl.value = url;
