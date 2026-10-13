@@ -37,7 +37,7 @@ echo -e "${GREEN}✓ Docker und Compose gefunden ($COMPOSE_CMD)${NC}"
 
 # 2. Verzeichnisse vorbereiten
 echo -e "\n${YELLOW}[2/5] Bereite Konfiguration vor...${NC}"
-mkdir -p mosquitto config certs
+mkdir -p mosquitto config
 if [ ! -f "mosquitto/mosquitto.conf" ]; then
     echo -e "${RED}FEHLER: mosquitto/mosquitto.conf fehlt!${NC}"
     exit 1
@@ -59,8 +59,7 @@ $COMPOSE_CMD up -d
 
 # 5. Healthcheck abwarten
 echo -e "\n${YELLOW}[5/5] Warte auf Server-Bereitschaft...${NC}"
-PORT="${HTTP_PORT:-80}"
-HTTPS_PORT_VAL="${HTTPS_PORT:-443}"
+PORT="${PORT:-80}"
 MAX_RETRIES=15
 COUNTER=0
 HEALTHY=false
@@ -79,20 +78,17 @@ echo ""
 
 if [ "$HEALTHY" = true ]; then
     HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || echo "localhost")
-    HTTP_SUFFIX=""
-    [ "$PORT" != "80" ] && HTTP_SUFFIX=":${PORT}"
-    HTTPS_SUFFIX=""
-    [ "$HTTPS_PORT_VAL" != "443" ] && HTTPS_SUFFIX=":${HTTPS_PORT_VAL}"
+    PORT_SUFFIX=""
+    [ "$PORT" != "80" ] && PORT_SUFFIX=":${PORT}"
 
     echo -e "${GREEN}====================================================${NC}"
     echo -e "${GREEN}✓ Deployment erfolgreich abgeschlossen!            ${NC}"
     echo -e "${GREEN}====================================================${NC}"
-    echo -e "Anlagen-Leitstand (HTTP Port 80):  http://${HOST_IP}${HTTP_SUFFIX}/overview.html"
-    echo -e "Mobile AR-Kamera (HTTPS Port 443): https://${HOST_IP}${HTTPS_SUFFIX}/index.html"
-    echo -e "REST API Endpunkt:                http://${HOST_IP}${HTTP_SUFFIX}/api/stations"
-    echo -e "WebSocket Stream (Live):          ws://${HOST_IP}${HTTP_SUFFIX}/ws/telemetry"
-    echo -e "WebSocket Secure Stream (AR):     wss://${HOST_IP}${HTTPS_SUFFIX}/ws/telemetry"
-    echo -e "MQTT Broker:                      mqtt://${HOST_IP}:1883"
+    echo -e "Anlagen-Leitstand (ohne Marker): http://${HOST_IP}${PORT_SUFFIX}/overview.html"
+    echo -e "Mobile AR-Kameraansicht:         http://${HOST_IP}${PORT_SUFFIX}/index.html"
+    echo -e "REST API Endpunkt:               http://${HOST_IP}${PORT_SUFFIX}/api/stations"
+    echo -e "WebSocket Stream:                ws://${HOST_IP}${PORT_SUFFIX}/ws/telemetry"
+    echo -e "MQTT Broker:                     mqtt://${HOST_IP}:1883"
     echo -e "===================================================="
 else
     echo -e "${RED}WARNUNG: Server antwortete nicht rechtzeitig auf /health.${NC}"

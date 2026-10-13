@@ -8,17 +8,13 @@ services:
     container_name: cps-i40-backend
     restart: unless-stopped
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
+      - "${PORT:-80}:80"
     environment:
-      - HTTP_PORT=80
-      - HTTPS_PORT=443
       - PORT=80
       - NODE_ENV=production
       - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
     volumes:
       - ./config:/app/config
-      - ./certs:/app/certs
     depends_on:
       - mqtt-broker
     healthcheck:

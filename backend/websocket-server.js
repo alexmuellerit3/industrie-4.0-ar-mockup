@@ -12,45 +12,33 @@ import { WebSocketServer, WebSocket } from "ws";
 export class WebSocketServerService {
   /**
    * @param {Object} options
-   * @param {import('http').Server} [options.server] - HTTP-Server für Upgrade
-   * @param {import('https').Server} [options.httpsServer] - Optionaler HTTPS-Server für Upgrade
-   * @param {Array<import('http').Server|import('https').Server>} [options.servers] - Liste von Servern
+   * @param {import('http').Server} options.server - HTTP-Server für Upgrade
    * @param {import('./keyvalue-store.js').KeyValueStore} options.store - 5-Minuten KeyValueStore
    * @param {import('./mqtt-client.js').MqttClientService} [options.mqttClient] - MQTT-Client Service
    * @param {string} [options.path] - Pfad (Standard: '/ws/telemetry')
    */
   constructor(options = {}) {
     this.httpServer = options.server || null;
-    this.httpsServer = options.httpsServer || options.additionalServer || null;
-    this.servers = options.servers
-      ? [...options.servers]
-      : [this.httpServer, this.httpsServer].filter(Boolean);
     this.store = options.store;
     this.mqttClient = options.mqttClient || null;
     this.path = options.path || "/ws/telemetry";
     this.wss = null;
     this.clients = new Set();
     this.heartbeatInterval = null;
-    this.upgradeHandler = null;
 
-    if (this.servers.length > 0) {
+    if (this.httpServer) {
       this.init();
     }
   }
 
   /**
-   * Initialisiert den WebSocket-Server und bindet ihn an alle HTTP- und HTTPS-Server
+   * Initialisiert den WebSocket-Server und bindet ihn an den HTTP-Server
    */
-  init(servers = this.servers) {
-    if (!Array.isArray(servers)) {
-      servers = [servers].filter(Boolean);
-    }
-    this.servers = servers;
-    this.httpServer = servers[0] || null;
-
-    // noServer: true erlaubt das Teilen desselben WSS über Port 80 (HTTP) und Port 443 (HTTPS)
+  init(server = this.httpServer) {
+    this.httpServer = server;
     this.wss = new WebSocketServer({
-      noServer: true
+      server: this.httpServer,
+      path: this.path
     });
 
     this.wss.on("connection", (ws, req) => {
@@ -60,25 +48,6 @@ export class WebSocketServerService {
     this.wss.on("error", (err) => {
       console.warn("[WebSocket] Server-Fehler:", err.message);
     });
-
-    this.upgradeHandler = (req, socket, head) => {
-      try {
-        const pathname = (req.url || "").split("?")[0];
-        if (pathname === this.path) {
-          this.wss.handleUpgrade(req, socket, head, (ws) => {
-            this.wss.emit("connection", ws, req);
-          });
-        }
-      } catch (err) {
-        console.warn("[WebSocket] Upgrade-Fehler:", err.message);
-      }
-    };
-
-    for (const s of this.servers) {
-      if (s && typeof s.on === "function") {
-        s.on("upgrade", this.upgradeHandler);
-      }
-    }
 
     // Regelmäßiger Heartbeat zur Erkennung toter Sockets
     this.heartbeatInterval = setInterval(() => {
@@ -95,19 +64,7 @@ export class WebSocketServerService {
       }
     }, 30000);
 
-    console.info(`[WebSocket] Server initialisiert auf Pfad ${this.path} (${this.servers.length} Server gebunden)`);
-  }
-
-  /**
-   * Fügt nachträglich einen Server (z. B. HTTPS auf Port 443) hinzu
-   */
-  attachServer(server) {
-    if (server && typeof server.on === "function" && this.upgradeHandler) {
-      if (!this.servers.includes(server)) {
-        this.servers.push(server);
-      }
-      server.on("upgrade", this.upgradeHandler);
-    }
+    console.info(`[WebSocket] Server initialisiert auf Pfad ${this.path}`);
   }
 
   /**
@@ -286,13 +243,6 @@ export class WebSocketServerService {
   }
 
   close() {
-    if (this.upgradeHandler && this.servers) {
-      for (const s of this.servers) {
-        if (s && typeof s.removeListener === "function") {
-          s.removeListener("upgrade", this.upgradeHandler);
-        }
-      }
-    }
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
