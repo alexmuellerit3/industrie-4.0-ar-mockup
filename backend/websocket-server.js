@@ -8,6 +8,7 @@
  */
 
 import { WebSocketServer, WebSocket } from "ws";
+import { normalizeWsUrl } from "./websocket-client.js";
 
 export class WebSocketServerService {
   /**
@@ -356,7 +357,7 @@ export class WebSocketServerService {
           return finish(false, "Keine WebSocket-URL angegeben.");
         }
 
-        const trimmed = wsUrl.trim();
+        const trimmed = normalizeWsUrl(wsUrl.trim());
         if (!/^(ws|wss):\/\/.+/i.test(trimmed)) {
           return finish(false, "Ungültiges Protokoll. WebSocket-URL muss mit ws:// oder wss:// beginnen.");
         }

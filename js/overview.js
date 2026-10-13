@@ -494,7 +494,17 @@ class ScadaOverviewApp {
       if (!this.historyMap.has(stationId)) {
         this.historyMap.set(stationId, []);
       }
-      const list = this.historyMap.get(stationId);
+      let list = this.historyMap.get(stationId);
+
+      // Falls echte Live-Telemetriedaten eintreffen, entferne vorherige Demo-Punkte
+      if (sample && (sample.isLive || (!sample.isDemo && !sample.simulated))) {
+        const filtered = list.filter(item => !item.isDemo && !item.simulated);
+        if (filtered.length !== list.length) {
+          list = filtered;
+          this.historyMap.set(stationId, list);
+        }
+      }
+
       list.push(sample);
       
       const cutoff = Date.now() - 300000;
@@ -734,13 +744,20 @@ class ScadaOverviewApp {
   }
 
   updateMqttBadge(connected, simulated) {
+    const isWsActive = this.modal?.selectedDataSource === "websocket";
     if (this.dom.mqttBadgeDot) {
-      this.dom.mqttBadgeDot.className = (connected || simulated) ? "chip-dot" : "chip-dot alert";
+      this.dom.mqttBadgeDot.className = (connected || isWsActive || simulated) ? "chip-dot" : "chip-dot alert";
     }
     if (this.dom.mqttBadgeText) {
-      this.dom.mqttBadgeText.textContent = connected
-        ? "MQTT: Verbunden"
-        : (simulated ? "MQTT: SPS-Sim" : "MQTT: Offline");
+      if (connected) {
+        this.dom.mqttBadgeText.textContent = "MQTT: Verbunden";
+      } else if (isWsActive) {
+        this.dom.mqttBadgeText.textContent = "MQTT: Bereit";
+      } else if (simulated) {
+        this.dom.mqttBadgeText.textContent = "MQTT: SPS-Sim";
+      } else {
+        this.dom.mqttBadgeText.textContent = "MQTT: Offline";
+      }
     }
   }
 
@@ -1110,10 +1127,14 @@ class ScadaOverviewApp {
   }
 
   async testWsConnection() {
-    const url = this.modal.inputWsUrl?.value?.trim();
+    let url = this.modal.inputWsUrl?.value?.trim();
     if (!url) {
       this.showWsTestResult(false, "Bitte geben Sie eine WebSocket Telemetrie-URL ein.");
       return;
+    }
+    if (url.includes("tobin-w.de")) {
+      url = url.replace(/tobin-w\.de/g, "robin-w.de");
+      if (this.modal.inputWsUrl) this.modal.inputWsUrl.value = url;
     }
 
     if (this.modal.btnTestWs) {
@@ -1250,7 +1271,11 @@ class ScadaOverviewApp {
 
   async saveConfig() {
     const brokerUrl = this.modal.inputMqttUrl?.value?.trim();
-    const wsUrl = this.modal.inputWsUrl?.value?.trim() || "ws://localhost:3000/ws/telemetry";
+    let wsUrl = this.modal.inputWsUrl?.value?.trim() || "ws://localhost:3000/ws/telemetry";
+    if (wsUrl.includes("tobin-w.de")) {
+      wsUrl = wsUrl.replace(/tobin-w\.de/g, "robin-w.de");
+      if (this.modal.inputWsUrl) this.modal.inputWsUrl.value = wsUrl;
+    }
     const historyTtlSec = parseInt(this.modal.historyTtl?.value, 10) || 300;
     const pollIntervalMs = parseInt(this.modal.pollInterval?.value, 10) || 1500;
 

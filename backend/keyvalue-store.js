@@ -28,19 +28,66 @@ export class KeyValueStore {
       this.series.set(stationId, []);
     }
 
-    const list = this.series.get(stationId);
+    const isLiveSample = Boolean(sample.isLive || (!sample.isDemo && !sample.simulated));
+    let list = this.series.get(stationId);
+
+    // Wenn echte Live-Telemetriedaten eintreffen, ersetze eventuell vorherige Demo-/Mock-Einträge
+    if (isLiveSample) {
+      const filtered = list.filter(item => !item.isDemo && !item.simulated);
+      if (filtered.length !== list.length) {
+        list = filtered;
+        this.series.set(stationId, list);
+      }
+    }
+
     const entry = {
       timestamp,
       v1: typeof sample.v1 === 'number' ? sample.v1 : sample.v1?.val ?? 0,
       v2: typeof sample.v2 === 'number' ? sample.v2 : sample.v2?.val ?? 0,
       v3: typeof sample.v3 === 'number' ? sample.v3 : sample.v3?.val ?? 0,
       isFault: Boolean(sample.isFault),
-      status: sample.status || (sample.isFault ? 'FAULT' : 'NORMAL')
+      status: sample.status || (sample.isFault ? 'FAULT' : 'NORMAL'),
+      isLive: isLiveSample,
+      isDemo: Boolean(sample.isDemo || sample.simulated),
+      simulated: Boolean(sample.simulated)
     };
 
     list.push(entry);
     this.pruneStation(stationId, timestamp);
     return entry;
+  }
+
+  /**
+   * Löscht alle vorbefüllten Demo- bzw. Simulationsdaten
+   * @param {string} [stationId] - Optional: Nur für eine bestimmte Station
+   */
+  clearDemoData(stationId) {
+    if (stationId) {
+      const list = this.series.get(stationId);
+      if (list) {
+        this.series.set(stationId, list.filter(item => !item.isDemo && !item.simulated));
+      }
+    } else {
+      for (const [sId, list] of this.series.entries()) {
+        this.series.set(sId, list.filter(item => !item.isDemo && !item.simulated));
+      }
+    }
+  }
+
+  /**
+   * Prüft, ob noch Demo-Daten im Speicher vorhanden sind
+   * @param {string} [stationId]
+   * @returns {boolean}
+   */
+  hasDemoData(stationId) {
+    if (stationId) {
+      const list = this.series.get(stationId);
+      return list ? list.some(item => item.isDemo || item.simulated) : false;
+    }
+    for (const list of this.series.values()) {
+      if (list.some(item => item.isDemo || item.simulated)) return true;
+    }
+    return false;
   }
 
   /**

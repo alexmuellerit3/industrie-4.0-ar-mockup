@@ -60,7 +60,7 @@ export class ConfigManager {
 
   createDefaultConfig(overrides = {}) {
     const envMqtt = process.env.MQTT_BROKER_URL || "mqtt://localhost:1883";
-    const envWs = process.env.WS_SERVER_URL || "ws://localhost:3000/ws/telemetry";
+    const envWs = process.env.WS_SERVER_URL || "wss://nodered.bbk.robin-w.de/ws/opcua";
     return {
       dataSource: overrides.dataSource || "websocket",
       websocket: {

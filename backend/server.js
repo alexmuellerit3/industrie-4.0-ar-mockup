@@ -75,7 +75,7 @@ export function createApp(options = {}) {
   // 1. Initialisiere 5-Minuten In-Memory KeyValueStore (300.000 ms)
   const store = new KeyValueStore(activeConfig.api?.historyTtlMs || 5 * 60 * 1000);
 
-  // Vorbefüllung mit plausiblen historischen Datenpunkten der letzten 5 Minuten
+  // Vorbefüllung mit plausiblen historischen Datenpunkten der letzten 5 Minuten (als Demo markiert)
   const now = Date.now();
   const stepMs = 15000; // alle 15 Sekunden ein Datenpunkt = 20 Punkte
   for (let i = 20; i >= 0; i--) {
@@ -87,14 +87,18 @@ export function createApp(options = {}) {
         v1: +(st.v1.defaultVal + v1Delta).toFixed(1),
         v2: +(st.v2.defaultVal + v2Delta).toFixed(1),
         v3: st.v3.defaultVal,
-        isFault: false
+        isFault: false,
+        isDemo: true,
+        simulated: true
       }, t);
     });
   }
 
   // 2. Initialisiere MQTT-Client
+  const isWsPrimary = activeConfig.dataSource === "websocket";
   const mqttClient = new MqttClientService({
     brokerUrl: activeConfig.mqtt?.brokerUrl || process.env.MQTT_BROKER_URL || "mqtt://localhost:1883",
+    allowSimulator: !isWsPrimary,
     onTelemetry: (stationId, payload) => {
       const entry = store.push(stationId, payload);
       if (app.locals.wsServer) {
@@ -119,13 +123,22 @@ export function createApp(options = {}) {
     }
   });
 
-  // 3. Upstream WebSocket-Client (für externe WebSocket Datenquellen)
+  // 3. Upstream WebSocket-Client (für externe WebSocket Datenquellen z. B. Node-RED / OPC UA)
   const wsClient = new WebSocketClientService({
     url: activeConfig.websocket?.url,
-    onTelemetry: (stationId, payload) => {
-      const entry = store.push(stationId, payload);
+    telemetryInterpreter,
+    onTelemetry: (stationId, payload, meta) => {
+      // Wenn Live-Daten vom Upstream-WebSocket eintreffen: Demo-Simulator stoppen
+      if (mqttClient.isSimulatorActive || mqttClient.allowSimulator) {
+        mqttClient.disableSimulator();
+      }
+      const entry = store.push(stationId, {
+        ...payload,
+        isLive: true,
+        isDemo: false
+      });
       if (app.locals.wsServer) {
-        app.locals.wsServer.broadcastTelemetry(stationId, entry);
+        app.locals.wsServer.broadcastTelemetry(stationId, entry, meta);
       }
     },
     onFault: (stationId, isFault) => {
@@ -140,6 +153,10 @@ export function createApp(options = {}) {
       }
     },
     onStatusChange: (status) => {
+      if (status.connected) {
+        // Bei hergestellter Verbindung zum Upstream-WebSocket: Simulator stoppen
+        mqttClient.disableSimulator();
+      }
       if (app.locals.wsServer) {
         app.locals.wsServer.broadcastStatus({ wsUpstream: status });
       }
@@ -314,8 +331,21 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   });
   app.locals.wsServer = wsServer;
 
-  // Mit MQTT verbinden (oder internem Fallback-Simulator)
-  mqttClient.connect();
+  // Datenquellen gemäß aktiver Konfiguration verbinden
+  const activeDataSource = configManager.getConfig().dataSource || "websocket";
+  if (activeDataSource === "websocket") {
+    console.info(`[Server] Primäre Datenquelle ist Upstream-WebSocket: ${wsClient.url}`);
+    mqttClient.disableSimulator();
+    wsClient.connect();
+    // MQTT parallel ohne Simulator versuchen (für hybride Anlagen)
+    mqttClient.connect();
+  } else if (activeDataSource === "mqtt") {
+    console.info(`[Server] Primäre Datenquelle ist MQTT Broker: ${mqttClient.brokerUrl}`);
+    mqttClient.connect();
+  } else {
+    console.info("[Server] Primäre Datenquelle ist interner SPS-Simulator.");
+    mqttClient.startSimulator();
+  }
 
   server.on("error", (err) => {
     if (err.code === "EADDRINUSE" && !process.env.PORT && parsedPort === 80) {

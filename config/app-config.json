@@ -1,7 +1,7 @@
 {
   "dataSource": "websocket",
   "websocket": {
-    "url": "ws://localhost:3000/ws/telemetry",
+    "url": "wss://nodered.bbk.robin-w.de/ws/opcua",
     "clientId": "cps-backend-ws",
     "reconnectPeriod": 3500,
     "connectTimeout": 4000

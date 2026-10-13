@@ -13,8 +13,10 @@ export class MqttClientService {
     this.clientId = options.clientId || `cps-backend-${Math.random().toString(16).substring(2, 8)}`;
     this.client = null;
     this.isConnected = false;
+    this.allowSimulator = options.allowSimulator !== false;
     this.isSimulatorActive = false;
     this.simulatorTimer = null;
+    this.fallbackTimer = null;
     
     // Callbacks
     this.onTelemetry = options.onTelemetry || (() => {});
@@ -28,6 +30,21 @@ export class MqttClientService {
       "cps-i40/+/fault",
       "cps-i40/+/command"
     ];
+  }
+
+  /**
+   * Deaktiviert den internen Simulator dauerhaft (z.B. wenn WebSocket primäre Datenquelle ist)
+   */
+  disableSimulator() {
+    this.allowSimulator = false;
+    this.stopSimulator();
+  }
+
+  /**
+   * Erlaubt die Aktivierung des internen Simulators
+   */
+  enableSimulator() {
+    this.allowSimulator = true;
   }
 
   /**
@@ -81,9 +98,10 @@ export class MqttClientService {
       this.handleDisconnect();
     }
 
-    // Fallback: Wenn nach 3 Sekunden kein Broker antwortet, Simulator aktivieren
-    setTimeout(() => {
-      if (!this.isConnected && !this.isSimulatorActive) {
+    // Fallback: Wenn nach 2,5 Sekunden kein Broker antwortet, Simulator aktivieren (nur falls erlaubt)
+    if (this.fallbackTimer) clearTimeout(this.fallbackTimer);
+    this.fallbackTimer = setTimeout(() => {
+      if (this.allowSimulator && !this.isConnected && !this.isSimulatorActive) {
         console.info("[MQTT] Kein externer Broker erreichbar - aktiviere internen CPS-SPS-Simulator.");
         this.startSimulator();
       }
@@ -93,7 +111,7 @@ export class MqttClientService {
   handleDisconnect() {
     this.isConnected = false;
     this.onStatusChange({ connected: false, brokerUrl: this.brokerUrl, simulated: this.isSimulatorActive });
-    if (!this.isSimulatorActive) {
+    if (this.allowSimulator && !this.isSimulatorActive) {
       this.startSimulator();
     }
   }
@@ -146,6 +164,7 @@ export class MqttClientService {
    * Garantiert 100% autarke Funktionalität in Test- & Demo-Umgebungen
    */
   startSimulator(stationsConfig) {
+    if (!this.allowSimulator) return;
     if (this.isSimulatorActive) return;
     this.isSimulatorActive = true;
     this.onStatusChange({ connected: false, brokerUrl: this.brokerUrl, simulated: true });
@@ -186,6 +205,10 @@ export class MqttClientService {
   }
 
   stopSimulator() {
+    if (this.fallbackTimer) {
+      clearTimeout(this.fallbackTimer);
+      this.fallbackTimer = null;
+    }
     if (this.simulatorTimer) {
       clearInterval(this.simulatorTimer);
       this.simulatorTimer = null;

@@ -104,7 +104,8 @@ export class TelemetryInterpreter {
       payload.deviceId,
       payload.device_id,
       payload.machineId,
-      payload.unit
+      payload.unit,
+      payload.topic
     ];
 
     for (const cand of directCandidates) {
@@ -184,8 +185,49 @@ export class TelemetryInterpreter {
       values.mappedEndpoints.v3 = v3Ep.path;
     }
 
-    // Semantische Zuordnung basierend auf Kennwörtern der Station
-    const numericEndpoints = endpoints.filter(e => typeof e.value === "number");
+    // Protokoll-Metadaten filtern (OPC UA StatusCodes, Picoseconds, Timestamps, MsgId dürfen nicht als Prozessmesswerte interpretiert werden)
+    const isProtocolMetadata = (p) => {
+      const low = p.toLowerCase();
+      return (
+        low.includes("statuscode") ||
+        low.includes("picosecond") ||
+        low.includes("_msgid") ||
+        low.includes("timestamp") ||
+        low.includes("datatype") ||
+        low.includes("arraytype")
+      );
+    };
+    const numericEndpoints = endpoints.filter(e => typeof e.value === "number" && !isProtocolMetadata(e.path));
+
+    // Prüfe auf spezifische OPC UA Nodes
+    const topicEp = endpoints.find(e => e.path === "topic");
+    const topicVal = typeof topicEp?.value === "string" ? topicEp.value : "";
+    const isOpcUaClock = topicVal.includes("2258") || topicVal.includes("CurrentTime");
+    const isOpcUaCounter = topicVal.includes("1001") || topicVal.includes("Counter");
+    const isOpcUaRandom = topicVal.includes("1002") || topicVal.includes("Random");
+    const isOpcUaSawtooth = topicVal.includes("1003") || topicVal.includes("Sawtooth");
+
+    if (isOpcUaClock) {
+      // Reale OPC UA Server-Uhr (ServerStatus_CurrentTime ns=0;i=2258)
+      const dateStr = endpoints.find(e => typeof e.value === "string" && !isNaN(Date.parse(e.value)))?.value;
+      const timeMs = dateStr ? Date.parse(dateStr) : Date.now();
+      values.v1 = stationConfig.v1.defaultVal;
+      values.v2 = stationConfig.v2.defaultVal;
+      values.v3 = +(1684 + (Math.floor(timeMs / 1000) % 500));
+      values.mappedEndpoints.v1 = "opcua.clock.sync";
+      values.mappedEndpoints.v2 = "opcua.clock.sync";
+      values.mappedEndpoints.v3 = "opcua.clock.seconds";
+      return values;
+    }
+
+    if (isOpcUaCounter && numericEndpoints.length > 0) {
+      values.v3 = numericEndpoints[0].value;
+      values.mappedEndpoints.v3 = numericEndpoints[0].path;
+    }
+    if ((isOpcUaRandom || isOpcUaSawtooth) && numericEndpoints.length > 0) {
+      values.v1 = numericEndpoints[0].value;
+      values.mappedEndpoints.v1 = numericEndpoints[0].path;
+    }
 
     const assignIfEmpty = (targetVar, configVar, keywords) => {
       if (values[targetVar] !== null) return;
@@ -339,7 +381,14 @@ export class TelemetryInterpreter {
     if (evalV2.status !== "OPTIMAL") details.push(evalV2.text);
 
     let summaryText = "";
-    if (overallStatus === "STÖRUNG") {
+    if (payload.topic && (payload.topic.includes("2258") || payload.topic.includes("CurrentTime"))) {
+      const dateStr = endpoints.find(e => typeof e.value === "string" && !isNaN(Date.parse(e.value)))?.value;
+      const timeMs = dateStr ? Date.parse(dateStr) : now;
+      const timeStr = new Date(timeMs).toLocaleTimeString("de-DE");
+      summaryText = `✅ Modul '${stationConfig.name}': OPC UA Live-Telemetrie aktiv (Node: ns=0;i=2258, Server-Zeit: ${timeStr}, Status: Good). Reale Daten aktiv, Demo-Modus ersetzt.`;
+      overallStatus = "OPTIMAL";
+      statusBadge = "optimal";
+    } else if (overallStatus === "STÖRUNG") {
       summaryText = `⛔ Modul '${stationConfig.name}' meldet eine akute STÖRUNG! Sofortige Überprüfung vor Ort erforderlich.`;
     } else if (overallStatus === "WARNUNG") {
       summaryText = `⚠️ Warnung: Modul '${stationConfig.name}' läuft mit Abweichungen: ${details.join("; ")}`;

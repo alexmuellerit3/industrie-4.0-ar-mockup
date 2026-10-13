@@ -236,9 +236,13 @@ export class TelemetryService {
    * Protokoll: JSON-Stream von Node-RED / CPS Backend
    */
   connectWebSocket(url) {
-    console.info(`[TelemetryService] Verbinde mit WebSocket: ${url}`);
+    let cleanUrl = typeof url === "string" ? url.trim() : "";
+    if (cleanUrl.includes("tobin-w.de")) {
+      cleanUrl = cleanUrl.replace(/tobin-w\.de/g, "robin-w.de");
+    }
+    console.info(`[TelemetryService] Verbinde mit WebSocket: ${cleanUrl}`);
     try {
-      this.wsConnection = new WebSocket(url);
+      this.wsConnection = new WebSocket(cleanUrl);
       
       this.wsConnection.onopen = () => {
         console.info("[TelemetryService] WebSocket-Verbindung hergestellt.");

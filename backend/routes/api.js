@@ -12,6 +12,7 @@
 import express from "express";
 import { MqttClientService } from "../mqtt-client.js";
 import { WebSocketServerService } from "../websocket-server.js";
+import { WebSocketClientService, normalizeWsUrl } from "../websocket-client.js";
 import { AVAILABLE_PERMISSIONS } from "../auth-manager.js";
 
 export function createApiRouter({
@@ -463,12 +464,16 @@ export function createApiRouter({
       },
       wsStatus: {
         connected: wsClient ? wsClient.isConnected : true,
+        upstreamConnected: wsClient ? wsClient.isConnected : false,
         url: currentConfig.websocket?.url || "ws://localhost:3000/ws/telemetry",
         activeClients: wsServer ? wsServer.getClientCount() : 0,
         endpoint: "/ws/telemetry",
         protocol: wsServer ? wsServer.getProtocol() : "ws",
         isSecure: wsServer ? wsServer.isSecure() : false,
-        supportsWss: true
+        supportsWss: true,
+        messagesReceived: wsClient ? wsClient.messagesReceived : 0,
+        lastMessageTime: wsClient ? wsClient.lastMessageTime : null,
+        isDemoReplaced: store ? !store.hasDemoData() : false
       },
       timestamp: Date.now()
     });
@@ -492,8 +497,9 @@ export function createApiRouter({
         }
       }
 
-      // Validierung WebSocket URL
+      // Validierung WebSocket URL & Normalisierung (Tippfehler-Korrektur)
       if (updates.websocket && updates.websocket.url) {
+        updates.websocket.url = normalizeWsUrl(updates.websocket.url);
         const wsUrl = String(updates.websocket.url).trim();
         if (!/^(ws|wss):\/\/.+/i.test(wsUrl)) {
           return res.status(400).json({
@@ -511,14 +517,41 @@ export function createApiRouter({
         telemetryInterpreter.updateStations(updatedConfig.stations);
       }
 
-      // Wenn MQTT Broker URL geändert wurde, Client sofort neu verbinden
-      if (updates.mqtt && updates.mqtt.brokerUrl && mqttClient) {
-        mqttClient.updateBroker(updates.mqtt.brokerUrl);
-      }
+      const activeSource = updatedConfig.dataSource || "websocket";
 
-      // Wenn Upstream WebSocket URL geändert wurde, Client sofort neu verbinden
-      if (updates.websocket && updates.websocket.url && wsClient) {
-        wsClient.updateUrl(updates.websocket.url);
+      if (activeSource === "websocket") {
+        // WebSocket als Primärquelle: Fake-Simulator stoppen (Live-Daten ersetzen Demo-Daten im Store bei Eintreffen)
+        if (mqttClient) {
+          mqttClient.stopSimulator();
+          mqttClient.disableSimulator();
+        }
+        if (wsClient) {
+          if (updates.websocket && updates.websocket.url) {
+            wsClient.updateUrl(updates.websocket.url);
+          } else if (!wsClient.isConnected) {
+            wsClient.connect();
+          }
+        }
+      } else if (activeSource === "mqtt") {
+        if (wsClient) {
+          wsClient.close();
+        }
+        if (mqttClient) {
+          mqttClient.enableSimulator();
+          if (updates.mqtt && updates.mqtt.brokerUrl) {
+            mqttClient.updateBroker(updates.mqtt.brokerUrl);
+          } else {
+            mqttClient.connect();
+          }
+        }
+      } else if (activeSource === "simulator") {
+        if (wsClient) {
+          wsClient.close();
+        }
+        if (mqttClient) {
+          mqttClient.enableSimulator();
+          mqttClient.startSimulator(updatedConfig.stations);
+        }
       }
 
       // Broadcast an alle verbundenen WebClients
@@ -538,13 +571,16 @@ export function createApiRouter({
         mqttStatus: {
           connected: mqttClient ? mqttClient.isConnected : false,
           brokerUrl: mqttClient ? mqttClient.brokerUrl : null,
-          simulated: mqttClient ? mqttClient.isSimulatorActive : true
+          simulated: mqttClient ? mqttClient.isSimulatorActive : (activeSource === "simulator")
         },
         wsStatus: {
           connected: wsClient ? wsClient.isConnected : true,
+          upstreamConnected: wsClient ? wsClient.isConnected : false,
           url: updatedConfig.websocket?.url || "ws://localhost:3000/ws/telemetry",
           activeClients: wsServer ? wsServer.getClientCount() : 0,
-          endpoint: "/ws/telemetry"
+          endpoint: "/ws/telemetry",
+          messagesReceived: wsClient ? wsClient.messagesReceived : 0,
+          isDemoReplaced: store ? !store.hasDemoData() : false
         }
       });
     } catch (err) {

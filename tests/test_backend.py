@@ -659,7 +659,107 @@ class TestBackendServerLive(unittest.TestCase):
         self.assertGreater(len(ep_res["endpoints"]), 0)
         conn.close()
 
+    def test_opcua_websocket_ingestion_and_demo_replacement(self):
+        """Prüft, dass Node-RED OPC UA Pakete korrekt interpretiert werden und Demo-Daten im Store ersetzen."""
+        script = """
+        import { KeyValueStore } from './backend/keyvalue-store.js';
+        import { TelemetryInterpreter } from './backend/telemetry-interpreter.js';
+        import { WebSocketClientService, normalizeWsUrl } from './backend/websocket-client.js';
+
+        // 1. Initialisiere Store mit Demo-Daten
+        const store = new KeyValueStore(300000);
+        store.push('ST-010', { v1: 84, v2: -0.8, v3: 1684, isDemo: true, simulated: true });
+        store.push('ST-010', { v1: 84.2, v2: -0.8, v3: 1685, isDemo: true, simulated: true });
+        const beforeCount = store.getHistory('ST-010').length;
+        const hadDemoBefore = store.hasDemoData('ST-010');
+
+        // 2. Simuliere Node-RED OPC UA Paket (wie von wss://nodered.bbk.robin-w.de/ws/opcua empfangen)
+        const interpreter = new TelemetryInterpreter();
+        let telemetryCalled = false;
+        let lastPayload = null;
+
+        const wsClient = new WebSocketClientService({
+          url: 'wss://nodered.bbk.tobin-w.de/ws/opcua', // Test mit Tippfehler
+          telemetryInterpreter: interpreter,
+          onTelemetry: (stationId, payload, meta) => {
+            telemetryCalled = true;
+            lastPayload = payload;
+            store.push(stationId, payload);
+          }
+        });
+
+        // Test-Paket direkt an handleMessage übergeben
+        const rawOpcUaMsg = JSON.stringify({
+          topic: "ns=0;i=2258",
+          payload: {
+            value: { dataType: "DateTime", arrayType: "Scalar", value: "2026-10-13T11:45:00.123Z" },
+            statusCode: { value: 0 },
+            sourceTimestamp: "2026-10-13T11:45:00.123Z"
+          },
+          _msgid: "test-msg-123"
+        });
+
+        wsClient.handleMessage(rawOpcUaMsg);
+
+        const historyAfter = store.getHistory('ST-010');
+        const hasDemoAfter = store.hasDemoData('ST-010');
+
+        console.log(JSON.stringify({
+          normalizedUrl: wsClient.url,
+          telemetryCalled,
+          beforeCount,
+          hadDemoBefore,
+          afterCount: historyAfter.length,
+          hasDemoAfter,
+          isLive: lastPayload?.isLive,
+          isDemo: lastPayload?.isDemo,
+          stationId: 'ST-010',
+          interpretation: lastPayload?.interpretation
+        }));
+        """
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = [line.strip() for line in res.stdout.strip().split("\n") if line.strip().startswith("{") and line.strip().endswith("}")]
+        data = json.loads(lines[-1])
+        self.assertTrue(data["telemetryCalled"], "onTelemetry muss für Node-RED OPC UA Paket aufgerufen werden")
+        self.assertTrue("robin-w.de" in data["normalizedUrl"], "Tippfehler tobin-w.de muss automatisch korrigiert werden")
+        self.assertTrue(data["hadDemoBefore"], "Store sollte vor dem Empfang Demo-Daten haben")
+        self.assertEqual(data["afterCount"], 1, "Demo-Daten müssen durch das erste reale Live-Paket ersetzt werden")
+        self.assertFalse(data["hasDemoAfter"], "Store darf nach Ersetzen keine Demo-Daten mehr enthalten")
+        self.assertTrue(data["isLive"])
+        self.assertFalse(data["isDemo"])
+        self.assertIn("OPC UA", data["interpretation"])
+
+    def test_websocket_typo_domain_normalization(self):
+        """Prüft, dass normalizeWsUrl Tippfehler in Domain-Namen transparent korrigiert."""
+        script = """
+        import { normalizeWsUrl } from './backend/websocket-client.js';
+        console.log(JSON.stringify({
+          url1: normalizeWsUrl('wss://nodered.bbk.tobin-w.de/ws/opcua'),
+          url2: normalizeWsUrl('ws://nodered.bbk.tobin-w.de/ws/opcua'),
+          url3: normalizeWsUrl('wss://nodered.bbk.robin-w.de/ws/opcua')
+        }));
+        """
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = [line.strip() for line in res.stdout.strip().split("\n") if line.strip().startswith("{") and line.strip().endswith("}")]
+        data = json.loads(lines[-1])
+        self.assertEqual(data["url1"], "wss://nodered.bbk.robin-w.de/ws/opcua")
+        self.assertEqual(data["url2"], "ws://nodered.bbk.robin-w.de/ws/opcua")
+        self.assertEqual(data["url3"], "wss://nodered.bbk.robin-w.de/ws/opcua")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
