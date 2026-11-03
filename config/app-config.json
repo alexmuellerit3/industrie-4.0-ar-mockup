@@ -15,7 +15,8 @@
       "cps-i40/+/telemetry",
       "cps-i40/+/status",
       "cps-i40/+/fault",
-      "cps-i40/+/command"
+      "cps-i40/+/command",
+      "/bbk-lf/rpi04/power-house/vibration"
     ]
   },
   "api": {
@@ -26,15 +27,18 @@
   "stations": [
     {
       "id": "ST-010",
-      "name": "Modul 1: Dosen-Zuführung",
+      "name": "Pumpe 101: PowerHouse Vibration",
+      "description": "Vibrations-Sensor an Hauptantrieb",
       "plcIp": "192.168.10.11",
+      "mqttTopic": "/bbk-lf/rpi04/power-house/vibration",
+      "wsNodeId": "",
       "v1": {
         "id": "magazine_level",
-        "label": "Magazin",
-        "unit": "%",
-        "min": 82,
-        "max": 86,
-        "defaultVal": 84
+        "label": "Schwingung",
+        "unit": "mm/s",
+        "min": 1,
+        "max": 5,
+        "defaultVal": 3.2
       },
       "v2": {
         "id": "vacuum_pressure",
@@ -55,7 +59,10 @@
     {
       "id": "ST-020",
       "name": "Modul 2: Dosierung & Befüllung",
+      "description": "Präzisions-Dosierung & Befüllungsdruck",
       "plcIp": "192.168.10.12",
+      "mqttTopic": "cps-i40/ST-020/telemetry",
+      "wsNodeId": "",
       "v1": {
         "id": "fill_weight",
         "label": "Füllgewicht",
@@ -84,7 +91,10 @@
     {
       "id": "ST-030",
       "name": "Modul 3: Verschluss & Bördelung",
+      "description": "Bördeldruck & Schließmoment",
       "plcIp": "192.168.10.13",
+      "mqttTopic": "cps-i40/ST-030/telemetry",
+      "wsNodeId": "",
       "v1": {
         "id": "press_force",
         "label": "Anpressdruck",
@@ -112,7 +122,10 @@
     {
       "id": "ST-040",
       "name": "Modul 4: Qualitätskontrolle & Waage",
+      "description": "Kontrollwägung & Ausschussüberwachung",
       "plcIp": "192.168.10.14",
+      "mqttTopic": "cps-i40/ST-040/telemetry",
+      "wsNodeId": "",
       "v1": {
         "id": "check_weight",
         "label": "Kontrollgewicht",

@@ -90,6 +90,7 @@ class ScadaOverviewApp {
     this.initStationsLayout();
     this.initStandaloneHistory();
     this.initConfigModal();
+    this.initModuleEditModal();
     this.initAuth();
     this.initInterpreter();
     this.initInspector();
@@ -105,6 +106,8 @@ class ScadaOverviewApp {
       if (target) {
         if (newSt.name) target.name = newSt.name;
         if (newSt.plcIp) target.plcIp = newSt.plcIp;
+        if (newSt.mqttTopic) target.mqttTopic = newSt.mqttTopic;
+        if (newSt.description) target.description = newSt.description;
         ['v1', 'v2', 'v3'].forEach(k => {
           if (newSt[k] && target[k]) {
             if (newSt[k].min !== undefined) target[k].min = newSt[k].min;
@@ -135,14 +138,17 @@ class ScadaOverviewApp {
           <div class="station-title-group">
             <div class="station-id-avatar">${st.id.replace("ST-", "M")}</div>
             <div class="station-title-text">
-              <span class="station-main-title">${st.name}</span>
-              <span class="station-meta-sub">SPS: ${st.plcIp} • OPC UA ns=2</span>
+              <span class="station-main-title" id="title-${st.id}">${st.name}</span>
+              <span class="station-meta-sub" id="sub-${st.id}">SPS: ${st.plcIp}${st.mqttTopic ? ' • MQTT: ' + st.mqttTopic : ''}</span>
             </div>
           </div>
-          <span class="heroui-status-chip" id="pill-${st.id}">
-            <span class="chip-dot"></span>
-            <span id="pill-text-${st.id}">NORMAL</span>
-          </span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button type="button" class="heroui-btn heroui-btn-flat btn-quick-edit" data-station-id="${st.id}" title="Modul '${st.name}' umbenennen und anpassen" style="padding:4px 8px; font-size:0.75rem; border:1px solid rgba(255,255,255,0.1);">⚙️ Anpassen</button>
+            <span class="heroui-status-chip" id="pill-${st.id}">
+              <span class="chip-dot"></span>
+              <span id="pill-text-${st.id}">NORMAL</span>
+            </span>
+          </div>
         </div>
 
         <div class="metrics-scada-row">
@@ -226,10 +232,11 @@ class ScadaOverviewApp {
         </div>
       `;
 
-      this.dom.stationsContainer.appendChild(card);
-
       const btnFault = card.querySelector(`#btn-fault-${st.id}`);
-      btnFault.addEventListener("click", () => this.toggleFault(st.id));
+      if (btnFault) btnFault.addEventListener("click", () => this.toggleFault(st.id));
+
+      const btnEdit = card.querySelector(`.btn-quick-edit`);
+      if (btnEdit) btnEdit.addEventListener("click", () => this.openModuleEditModal(st.id));
     });
   }
 
@@ -450,6 +457,7 @@ class ScadaOverviewApp {
   }
 
   initStandaloneHistory() {
+    if (this.liveOnlyMode) return;
     const now = Date.now();
     const stepMs = 15000; // alle 15 Sekunden = 20 Punkte = 5 Minuten Zeitfenster
     const ttlMs = 300000;
@@ -469,7 +477,9 @@ class ScadaOverviewApp {
           v2: +(v2Def + v2Delta).toFixed(1),
           v3: v3Def,
           timestamp: t,
-          isFault: false
+          isFault: false,
+          isDemo: true,
+          simulated: true
         });
       }
       this.historyMap.set(st.id, list);
@@ -478,6 +488,7 @@ class ScadaOverviewApp {
   }
 
   tickStandaloneSimulation() {
+    if (this.liveOnlyMode) return;
     const now = Date.now();
     const ttlMs = 300000;
 
@@ -522,7 +533,9 @@ class ScadaOverviewApp {
         v2,
         v3,
         timestamp: now,
-        isFault
+        isFault,
+        isDemo: true,
+        simulated: true
       });
 
       list = list.filter(entry => (now - entry.timestamp) <= ttlMs);
@@ -1249,12 +1262,20 @@ class ScadaOverviewApp {
       card.dataset.stationId = st.id;
 
       card.innerHTML = `
-        <div class="station-cfg-header">
-          <div class="station-cfg-title">${st.id}: ${st.name}</div>
+        <div class="station-cfg-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px; flex:1; min-width:240px;">
+            <span class="station-id-avatar" style="width:28px; height:28px; font-size:0.75rem;">${st.id.replace("ST-", "M")}</span>
+            <input type="text" class="heroui-input font-bold station-cfg-name-input" data-field="name" value="${st.name}" style="flex:1; font-weight:700;" title="Modul-Name / Bezeichnung anpassen">
+          </div>
           <div style="display:flex; align-items:center; gap:6px;">
             <label style="font-size:0.7rem; color:var(--text-muted);">SPS-IP:</label>
-            <input type="text" class="heroui-input font-mono station-cfg-plc-input" data-field="plcIp" value="${st.plcIp || '192.168.10.x'}">
+            <input type="text" class="heroui-input font-mono station-cfg-plc-input" data-field="plcIp" value="${st.plcIp || '192.168.10.x'}" style="width:120px;">
           </div>
+        </div>
+
+        <div style="margin:8px 0; display:flex; align-items:center; gap:8px;">
+          <label style="font-size:0.72rem; color:var(--text-muted); white-space:nowrap;">MQTT Topic:</label>
+          <input type="text" class="heroui-input font-mono" data-field="mqttTopic" value="${st.mqttTopic || ''}" placeholder="z. B. /bbk-lf/rpi04/power-house/vibration oder cps-i40/${st.id}/telemetry" style="flex:1; font-size:0.75rem;">
         </div>
 
         <div class="sensors-cfg-grid">
@@ -1471,7 +1492,9 @@ class ScadaOverviewApp {
     stationCards.forEach(card => {
       const sId = card.dataset.stationId;
       const original = this.stations.find(s => s.id === sId) || {};
+      const sName = card.querySelector('[data-field="name"]')?.value?.trim() || original.name;
       const plcIp = card.querySelector('[data-field="plcIp"]')?.value?.trim() || original.plcIp;
+      const mqttTopic = card.querySelector('[data-field="mqttTopic"]')?.value?.trim() || original.mqttTopic;
 
       const v1Min = parseFloat(card.querySelector('[data-field="v1.min"]')?.value);
       const v1Max = parseFloat(card.querySelector('[data-field="v1.max"]')?.value);
@@ -1485,8 +1508,9 @@ class ScadaOverviewApp {
 
       updatedStations.push({
         id: sId,
-        name: original.name,
+        name: sName,
         plcIp,
+        mqttTopic,
         v1: {
           label: original.v1?.label,
           unit: original.v1?.unit,
@@ -1515,7 +1539,13 @@ class ScadaOverviewApp {
     const payload = {
       dataSource: this.modal.selectedDataSource || "websocket",
       websocket: { url: wsUrl },
-      mqtt: { brokerUrl },
+      mqtt: {
+        brokerUrl,
+        topics: this.subscribedMqttTopics || [
+          "cps-i40/+/telemetry",
+          "cps-i40/+/fault"
+        ]
+      },
       api: {
         historyTtlMs: historyTtlSec * 1000,
         pollIntervalMs
@@ -2353,6 +2383,304 @@ class ScadaOverviewApp {
     ta.select();
     try { document.execCommand("copy"); } catch (_) {}
     document.body.removeChild(ta);
+  }
+
+  /* ========================================================================
+     MODUL-ANPASSUNG & EINZELKONFIGURATION
+     ======================================================================== */
+  initModuleEditModal() {
+    const modalBackdrop = document.getElementById("module-edit-modal-backdrop");
+    const btnClose = document.getElementById("btn-close-mod-edit");
+    const btnCancel = document.getElementById("btn-cancel-mod-edit");
+    const btnSave = document.getElementById("btn-save-mod-edit");
+
+    if (btnClose) btnClose.addEventListener("click", () => this.closeModuleEditModal());
+    if (btnCancel) btnCancel.addEventListener("click", () => this.closeModuleEditModal());
+    if (btnSave) btnSave.addEventListener("click", () => this.saveModuleEditModal());
+
+    if (modalBackdrop) {
+      modalBackdrop.addEventListener("click", (e) => {
+        if (e.target === modalBackdrop) this.closeModuleEditModal();
+      });
+    }
+
+    // MQTT Subscriptions & Demo Clearance in General Config Modal
+    const btnMqttSubAdd = document.getElementById("btn-mqtt-sub-add");
+    const inputMqttNewTopic = document.getElementById("cfg-mqtt-new-topic");
+    if (btnMqttSubAdd && inputMqttNewTopic) {
+      btnMqttSubAdd.addEventListener("click", () => {
+        const topic = inputMqttNewTopic.value.trim();
+        if (topic) {
+          this.subscribeMqttTopic(topic);
+          inputMqttNewTopic.value = "";
+        }
+      });
+      inputMqttNewTopic.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          btnMqttSubAdd.click();
+        }
+      });
+    }
+
+    const btnClearDemo = document.getElementById("btn-clear-all-demo");
+    if (btnClearDemo) {
+      btnClearDemo.addEventListener("click", () => this.clearAllDemoData());
+    }
+  }
+
+  openModuleEditModal(stationId) {
+    const st = this.stations.find(s => s.id === stationId);
+    if (!st) return;
+
+    const modalBackdrop = document.getElementById("module-edit-modal-backdrop");
+    if (!modalBackdrop) return;
+
+    const idEl = document.getElementById("mod-edit-id");
+    const nameEl = document.getElementById("mod-edit-name");
+    const plcEl = document.getElementById("mod-edit-plc-ip");
+    const topicEl = document.getElementById("mod-edit-mqtt-topic");
+
+    if (idEl) idEl.value = st.id;
+    if (nameEl) nameEl.value = st.name || "";
+    if (plcEl) plcEl.value = st.plcIp || "";
+    if (topicEl) topicEl.value = st.mqttTopic || `cps-i40/${st.id}/telemetry`;
+
+    const v1Label = document.getElementById("mod-edit-v1-label");
+    const v1Unit = document.getElementById("mod-edit-v1-unit");
+    const v1Min = document.getElementById("mod-edit-v1-min");
+    const v1Max = document.getElementById("mod-edit-v1-max");
+
+    if (v1Label) v1Label.value = st.v1?.label || "";
+    if (v1Unit) v1Unit.value = st.v1?.unit || "";
+    if (v1Min) v1Min.value = st.v1?.min ?? "";
+    if (v1Max) v1Max.value = st.v1?.max ?? "";
+
+    const v2Label = document.getElementById("mod-edit-v2-label");
+    const v2Unit = document.getElementById("mod-edit-v2-unit");
+    const v2Min = document.getElementById("mod-edit-v2-min");
+    const v2Max = document.getElementById("mod-edit-v2-max");
+
+    if (v2Label) v2Label.value = st.v2?.label || "";
+    if (v2Unit) v2Unit.value = st.v2?.unit || "";
+    if (v2Min) v2Min.value = st.v2?.min ?? "";
+    if (v2Max) v2Max.value = st.v2?.max ?? "";
+
+    const v3Label = document.getElementById("mod-edit-v3-label");
+    const v3Unit = document.getElementById("mod-edit-v3-unit");
+
+    if (v3Label) v3Label.value = st.v3?.label || "";
+    if (v3Unit) v3Unit.value = st.v3?.unit || "";
+
+    const avatar = document.getElementById("mod-edit-avatar");
+    if (avatar) avatar.textContent = st.id.replace("ST-", "M");
+
+    const feedback = document.getElementById("mod-edit-feedback");
+    if (feedback) feedback.style.display = "none";
+
+    modalBackdrop.style.display = "flex";
+  }
+
+  async saveModuleEditModal() {
+    const sId = document.getElementById("mod-edit-id")?.value;
+    if (!sId) return;
+
+    const st = this.stations.find(s => s.id === sId);
+    if (!st) return;
+
+    const newName = document.getElementById("mod-edit-name")?.value?.trim() || st.name;
+    const newPlcIp = document.getElementById("mod-edit-plc-ip")?.value?.trim() || st.plcIp;
+    const newTopic = document.getElementById("mod-edit-mqtt-topic")?.value?.trim() || st.mqttTopic;
+
+    const v1Label = document.getElementById("mod-edit-v1-label")?.value?.trim() || st.v1?.label;
+    const v1Unit = document.getElementById("mod-edit-v1-unit")?.value?.trim() || st.v1?.unit;
+    const v1Min = parseFloat(document.getElementById("mod-edit-v1-min")?.value);
+    const v1Max = parseFloat(document.getElementById("mod-edit-v1-max")?.value);
+
+    const v2Label = document.getElementById("mod-edit-v2-label")?.value?.trim() || st.v2?.label;
+    const v2Unit = document.getElementById("mod-edit-v2-unit")?.value?.trim() || st.v2?.unit;
+    const v2Min = parseFloat(document.getElementById("mod-edit-v2-min")?.value);
+    const v2Max = parseFloat(document.getElementById("mod-edit-v2-max")?.value);
+
+    const v3Label = document.getElementById("mod-edit-v3-label")?.value?.trim() || st.v3?.label;
+    const v3Unit = document.getElementById("mod-edit-v3-unit")?.value?.trim() || st.v3?.unit;
+
+    // Lokales Objekt aktualisieren
+    st.name = newName;
+    st.plcIp = newPlcIp;
+    st.mqttTopic = newTopic;
+
+    if (!st.v1) st.v1 = {};
+    st.v1.label = v1Label;
+    st.v1.unit = v1Unit;
+    if (!isNaN(v1Min)) st.v1.min = v1Min;
+    if (!isNaN(v1Max)) st.v1.max = v1Max;
+
+    if (!st.v2) st.v2 = {};
+    st.v2.label = v2Label;
+    st.v2.unit = v2Unit;
+    if (!isNaN(v2Min)) st.v2.min = v2Min;
+    if (!isNaN(v2Max)) st.v2.max = v2Max;
+
+    if (!st.v3) st.v3 = {};
+    st.v3.label = v3Label;
+    st.v3.unit = v3Unit;
+
+    // Backend synchronisieren, falls erreichbar
+    try {
+      await fetch(`/api/stations/${sId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newName,
+          plcIp: newPlcIp,
+          mqttTopic: newTopic,
+          v1: st.v1,
+          v2: st.v2,
+          v3: st.v3
+        })
+      });
+    } catch (_) {}
+
+    // Wenn neues Topic, abonnieren
+    if (newTopic) {
+      this.subscribeMqttTopic(newTopic);
+    }
+
+    // In Standalone localStorage persistieren
+    this.saveStandaloneConfig();
+
+    // Re-render
+    this.initStationsLayout();
+    this.renderAll();
+
+    // Feedback & Schließen
+    const feedback = document.getElementById("mod-edit-feedback");
+    if (feedback) {
+      feedback.textContent = `✓ Modul '${newName}' erfolgreich aktualisiert!`;
+      feedback.className = "test-feedback-badge success";
+      feedback.style.display = "block";
+    }
+
+    setTimeout(() => {
+      this.closeModuleEditModal();
+    }, 500);
+  }
+
+  closeModuleEditModal() {
+    const modalBackdrop = document.getElementById("module-edit-modal-backdrop");
+    if (modalBackdrop) modalBackdrop.style.display = "none";
+  }
+
+  async subscribeMqttTopic(topic) {
+    if (!topic || typeof topic !== "string") return;
+    const trimmed = topic.trim();
+    if (!trimmed) return;
+    if (!this.subscribedMqttTopics) this.subscribedMqttTopics = [];
+    if (!this.subscribedMqttTopics.includes(trimmed)) {
+      this.subscribedMqttTopics.push(trimmed);
+    }
+
+    try {
+      await fetch("/api/mqtt/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: trimmed })
+      });
+    } catch (_) {}
+
+    this.saveStandaloneConfig();
+    this.renderMqttTopicsList();
+  }
+
+  async unsubscribeMqttTopic(topic) {
+    if (!topic || typeof topic !== "string") return;
+    const trimmed = topic.trim();
+    if (!this.subscribedMqttTopics) return;
+    this.subscribedMqttTopics = this.subscribedMqttTopics.filter(t => t !== trimmed);
+
+    try {
+      await fetch("/api/mqtt/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: trimmed })
+      });
+    } catch (_) {}
+
+    this.saveStandaloneConfig();
+    this.renderMqttTopicsList();
+  }
+
+  renderMqttTopicsList() {
+    const container = document.getElementById("cfg-mqtt-topics-list");
+    if (!container) return;
+
+    if (!this.subscribedMqttTopics || this.subscribedMqttTopics.length === 0) {
+      this.subscribedMqttTopics = [
+        "cps-i40/+/telemetry",
+        "cps-i40/+/fault"
+      ];
+      this.stations.forEach(st => {
+        if (st.mqttTopic && !this.subscribedMqttTopics.includes(st.mqttTopic)) {
+          this.subscribedMqttTopics.push(st.mqttTopic);
+        }
+      });
+    }
+
+    container.innerHTML = "";
+    this.subscribedMqttTopics.forEach(t => {
+      const pill = document.createElement("span");
+      pill.className = "preset-pill font-mono";
+      pill.style.display = "inline-flex";
+      pill.style.alignItems = "center";
+      pill.style.gap = "6px";
+      pill.innerHTML = `
+        <span>${t}</span>
+        <button type="button" class="btn-remove-topic" title="Abonnement beenden" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; font-size:0.8rem; padding:0 2px;">✕</button>
+      `;
+      const btnRemove = pill.querySelector(".btn-remove-topic");
+      if (btnRemove) {
+        btnRemove.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.unsubscribeMqttTopic(t);
+        });
+      }
+      container.appendChild(pill);
+    });
+  }
+
+  async clearAllDemoData() {
+    this.isDemoMode = false;
+    this.liveOnlyMode = true;
+
+    // Aus allen Stationshistorien Demo-Punkte entfernen
+    for (const [stId, list] of this.historyMap.entries()) {
+      this.historyMap.set(stId, list.filter(item => !item.isDemo && !item.simulated));
+      this.calculateStationSummary(stId);
+    }
+
+    if (this.standaloneTimer) {
+      clearInterval(this.standaloneTimer);
+      this.standaloneTimer = null;
+    }
+
+    try {
+      await fetch("/api/store/clear-demo", { method: "POST" });
+    } catch (_) {}
+
+    this.updateWsBadge(this.ws && this.ws.readyState === WebSocket.OPEN, "Live (Keine Demo-Daten)");
+    this.updateMqttBadge(true, false);
+    this.renderAll();
+
+    const btnClear = document.getElementById("btn-clear-all-demo");
+    if (btnClear) {
+      btnClear.textContent = "✓ Demo-Daten verworfen";
+      btnClear.style.color = "#10b981";
+      setTimeout(() => {
+        btnClear.textContent = "🗑️ Demo-Daten verwerfen";
+        btnClear.style.color = "";
+      }, 2500);
+    }
   }
 }
 

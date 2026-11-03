@@ -92,8 +92,25 @@ export class TelemetryInterpreter {
   /**
    * Ermittelt automatisch die Stations-ID aus dem ankommenden Paket
    */
-  detectStationId(payload, endpoints) {
+  detectStationId(payload, endpoints, context = {}) {
+    if (context && context.stationId) {
+      const match = this.stations.find(s => s.id === context.stationId);
+      if (match) return match.id;
+    }
+
     if (!payload || typeof payload !== "object") return "ST-010";
+
+    const topicCand = context?.topic || payload.topic || "";
+
+    // 0. Konfigurierte Topic-Bindung (mqttTopic oder wsNodeId) der Stationen prüfen
+    if (topicCand && typeof topicCand === "string") {
+      const boundStation = this.stations.find(s => 
+        (s.mqttTopic && (s.mqttTopic === topicCand || topicCand.endsWith(s.mqttTopic) || topicCand.includes(s.mqttTopic))) ||
+        (s.wsNodeId && (s.wsNodeId === topicCand || topicCand.includes(s.wsNodeId))) ||
+        (s.name && topicCand.toLowerCase().includes(s.name.toLowerCase()))
+      );
+      if (boundStation) return boundStation.id;
+    }
 
     // 1. Direkte Top-Level Felder
     const directCandidates = [
@@ -105,7 +122,8 @@ export class TelemetryInterpreter {
       payload.device_id,
       payload.machineId,
       payload.unit,
-      payload.topic
+      payload.topic,
+      topicCand
     ];
 
     for (const cand of directCandidates) {
@@ -371,9 +389,10 @@ export class TelemetryInterpreter {
   /**
    * Hauptmethode: Analysiert ein beliebiges JSON-Paket, liest Endpunkte aus und interpretiert die Daten
    * @param {Object} rawPayload - Ankommendes JSON-Paket
+   * @param {Object} [context] - Optionaler Kontext (z.B. { stationId, topic })
    * @returns {Object} Detaillierte, verständliche Interpretation
    */
-  interpret(rawPayload) {
+  interpret(rawPayload, context = {}) {
     const now = Date.now();
     const payload = typeof rawPayload === "string" ? JSON.parse(rawPayload) : rawPayload;
 
@@ -392,8 +411,8 @@ export class TelemetryInterpreter {
       });
     }
 
-    // 3. Station ermitteln
-    const stationId = this.detectStationId(payload, endpoints);
+    // 3. Station ermitteln (unterstützt manuellen Override via context.stationId oder topic)
+    const stationId = this.detectStationId(payload, endpoints, context);
     const stationConfig = this.stations.find(s => s.id === stationId) || this.stations[0];
 
     // 4. Metriken mappen

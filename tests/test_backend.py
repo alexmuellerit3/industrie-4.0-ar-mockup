@@ -828,9 +828,169 @@ class TestBackendServerLive(unittest.TestCase):
         self.assertEqual(data["updatedCount"], 4, "Alle 4 Stationen müssen durch Node-RED OPC UA Takt aktualisiert werden")
         self.assertFalse(data["demoRemaining"], "Demo-Daten müssen auf allen 4 Stationen durch echte Live-Telemetrie ersetzt werden")
 
+    def test_station_customization_and_renaming(self):
+        """Prüft, dass Module/Stationen einzeln konfiguriert, umbenannt und mit MQTT-Topics gebunden werden können."""
+        # 1. Einzelne Station abrufen
+        get_url = f"http://localhost:{self.server_port}/api/stations/ST-010"
+        with urllib.request.urlopen(get_url, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertIn("station", data)
+            self.assertEqual(data["station"]["id"], "ST-010")
+
+        # 2. Modul umbenennen und konfigurieren via PUT /api/stations/ST-010
+        custom_name = "Pumpe 101: PowerHouse Vibration"
+        custom_topic = "/bbk-lf/rpi04/power-house/vibration"
+        payload = json.dumps({
+            "name": custom_name,
+            "description": "Vibrations-Sensor an Hauptantrieb",
+            "mqttTopic": custom_topic,
+            "v1": {
+                "label": "Schwingung",
+                "unit": "mm/s",
+                "min": 1.0,
+                "max": 5.0,
+                "defaultVal": 3.2
+            }
+        }).encode()
+
+        put_req = urllib.request.Request(get_url, data=payload, headers={"Content-Type": "application/json"}, method="PUT")
+        with urllib.request.urlopen(put_req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            res_data = json.loads(resp.read().decode())
+            self.assertTrue(res_data["success"])
+            self.assertEqual(res_data["station"]["name"], custom_name)
+            self.assertEqual(res_data["station"]["mqttTopic"], custom_topic)
+            self.assertEqual(res_data["station"]["v1"]["label"], "Schwingung")
+
+        # 3. Prüfen, ob GET /api/stations den neuen Namen und die Bindung liefert
+        list_url = f"http://localhost:{self.server_port}/api/stations"
+        with urllib.request.urlopen(list_url, timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            st10 = next(s for s in data["stations"] if s["id"] == "ST-010")
+            self.assertEqual(st10["name"], custom_name)
+            self.assertEqual(st10["mqttTopic"], custom_topic)
+            self.assertEqual(st10["v1"]["label"], "Schwingung")
+
+    def test_dynamic_mqtt_topic_subscription_and_endpoints(self):
+        """Prüft, dass beliebige MQTT-Topics dynamisch über REST-Endpunkte abonniert und verwaltet werden können."""
+        # 1. Abonnierte Topics abrufen
+        topics_url = f"http://localhost:{self.server_port}/api/mqtt/topics"
+        with urllib.request.urlopen(topics_url, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertIn("subscribedTopics", data)
+
+        # 2. Neues benutzerdefiniertes Topic abonnieren
+        sub_url = f"http://localhost:{self.server_port}/api/mqtt/subscribe"
+        target_topic = "/bbk-lf/rpi04/power-house/vibration"
+        payload = json.dumps({"topic": target_topic}).encode()
+        req = urllib.request.Request(sub_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertTrue(data["success"])
+            self.assertIn(target_topic, data["subscribedTopics"])
+
+        # 3. GET /api/mqtt/topics prüfen
+        with urllib.request.urlopen(topics_url, timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            self.assertIn(target_topic, data["subscribedTopics"])
+
+        # 4. Topic de-abonnieren
+        unsub_url = f"http://localhost:{self.server_port}/api/mqtt/unsubscribe"
+        req = urllib.request.Request(unsub_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertTrue(data["success"])
+            self.assertNotIn(target_topic, data["subscribedTopics"])
+
+    def test_demo_data_clearance_endpoint(self):
+        """Prüft den POST /api/store/clear-demo Endpunkt zum Verwerfen aller Demo-Daten."""
+        url = f"http://localhost:{self.server_port}/api/store/clear-demo"
+        req = urllib.request.Request(url, data=b"{}", headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode())
+            self.assertTrue(data["success"])
+            self.assertIn("Demo-Daten erfolgreich verworfen", data["message"])
+
+    def test_custom_mqtt_topic_routing_to_configured_station(self):
+        """Prüft, dass MqttClientService Nachrichten auf benutzerdefinierten Topics direkt an die gebundene Station routet."""
+        script = """
+        import { KeyValueStore } from './backend/keyvalue-store.js';
+        import { MqttClientService } from './backend/mqtt-client.js';
+        import { TelemetryInterpreter } from './backend/telemetry-interpreter.js';
+
+        const store = new KeyValueStore(300000);
+        // Vorbefüllung mit Demo-Daten
+        store.push('ST-020', { v1: 250, v2: 5.2, v3: 32, isDemo: true, simulated: true });
+
+        const stations = [
+          {
+            id: 'ST-020',
+            name: 'PowerHouse Vibration Station',
+            mqttTopic: '/bbk-lf/rpi04/power-house/vibration',
+            v1: { id: 'vibration', label: 'Vibration', unit: 'mm/s', defaultVal: 3.0 },
+            v2: { id: 'pressure', label: 'Druck', unit: 'bar', defaultVal: 5.0 },
+            v3: { id: 'takt', label: 'Takt', unit: 'D/min', defaultVal: 30 }
+          }
+        ];
+
+        const interpreter = new TelemetryInterpreter({ stations });
+        let receivedStation = null;
+        let receivedSample = null;
+
+        const mqttClient = new MqttClientService({
+          allowSimulator: false,
+          stations,
+          telemetryInterpreter: interpreter,
+          onTelemetry: (stationId, payload, meta) => {
+            receivedStation = stationId;
+            receivedSample = payload;
+            store.push(stationId, payload);
+          }
+        });
+
+        // Simuliere Eintreffen einer Node-RED MQTT-Nachricht auf dem benutzerdefinierten Topic
+        const incomingPayload = JSON.stringify({
+          value: 3.339053,
+          sourceTimestamp: "2026-11-03T08:31:55.338Z"
+        });
+
+        mqttClient.handleMessage('/bbk-lf/rpi04/power-house/vibration', incomingPayload);
+
+        const stateAfter = store.getStationState('ST-020');
+        console.log(JSON.stringify({
+          receivedStation,
+          v1: receivedSample?.v1,
+          isLive: receivedSample?.isLive,
+          isDemo: receivedSample?.isDemo,
+          hasLive: stateAfter.hasLive,
+          hasDemo: stateAfter.hasDemo
+        }));
+        """
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = [line.strip() for line in res.stdout.strip().split("\n") if line.strip().startswith("{") and line.strip().endswith("}")]
+        data = json.loads(lines[-1])
+        self.assertEqual(data["receivedStation"], "ST-020")
+        self.assertAlmostEqual(data["v1"], 3.339053, places=3)
+        self.assertTrue(data["isLive"])
+        self.assertFalse(data["isDemo"])
+        self.assertTrue(data["hasLive"])
+        self.assertFalse(data["hasDemo"], "Demo-Daten der Station müssen durch das reale MQTT-Paket ersetzt worden sein")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 

@@ -23,13 +23,92 @@ export class MqttClientService {
     this.onFault = options.onFault || (() => {});
     this.onStatusChange = options.onStatusChange || (() => {});
 
-    // Topic Patterns
-    this.topics = [
-      "cps-i40/+/telemetry",
-      "cps-i40/+/status",
-      "cps-i40/+/fault",
-      "cps-i40/+/command"
-    ];
+    // Semantischer Interpreter & Stationskonfiguration für dynamische Topic-Bindung
+    this.interpreter = options.telemetryInterpreter || null;
+    this.stations = options.stations || options.stationsConfig || [];
+
+    // Topic Patterns (unterstützt benutzerdefinierte Topics, z. B. /bbk-lf/rpi04/power-house/vibration)
+    const initialTopics = Array.isArray(options.topics) && options.topics.length > 0
+      ? options.topics
+      : [
+          "cps-i40/+/telemetry",
+          "cps-i40/+/status",
+          "cps-i40/+/fault",
+          "cps-i40/+/command"
+        ];
+    this.topics = [...new Set(initialTopics.map(t => String(t).trim()).filter(Boolean))];
+
+    // Automatisches Abonnieren von allen stationsspezifischen MQTT-Topics
+    if (Array.isArray(this.stations)) {
+      this.stations.forEach(st => {
+        if (st.mqttTopic && !this.topics.includes(st.mqttTopic)) {
+          this.topics.push(st.mqttTopic);
+        }
+      });
+    }
+  }
+
+  /**
+   * Abonniert dynamisch ein neues MQTT-Topic zur Laufzeit
+   * @param {string} topic - z. B. '/bbk-lf/rpi04/power-house/vibration'
+   */
+  subscribe(topic) {
+    if (!topic || typeof topic !== "string") return false;
+    const trimmed = topic.trim();
+    if (!this.topics.includes(trimmed)) {
+      this.topics.push(trimmed);
+    }
+    if (this.client && this.isConnected) {
+      this.client.subscribe(trimmed, (err) => {
+        if (err) {
+          console.warn(`[MQTT] Fehler beim Abonnieren von '${trimmed}':`, err.message);
+        } else {
+          console.info(`[MQTT] Topic erfolgreich live abonniert: ${trimmed}`);
+        }
+      });
+    }
+    return true;
+  }
+
+  /**
+   * De-abonniert ein MQTT-Topic
+   * @param {string} topic
+   */
+  unsubscribe(topic) {
+    if (!topic || typeof topic !== "string") return false;
+    const trimmed = topic.trim();
+    this.topics = this.topics.filter(t => t !== trimmed);
+    if (this.client && this.isConnected) {
+      this.client.unsubscribe(trimmed, (err) => {
+        if (!err) {
+          console.info(`[MQTT] Topic de-abonniert: ${trimmed}`);
+        }
+      });
+    }
+    return true;
+  }
+
+  /**
+   * Gibt alle aktuell abonnierten Topics zurück
+   * @returns {string[]}
+   */
+  getSubscribedTopics() {
+    return [...this.topics];
+  }
+
+  /**
+   * Aktualisiert die Stationskonfiguration für Topic-Mappings
+   * @param {Array} stations
+   */
+  updateStations(stations) {
+    if (Array.isArray(stations)) {
+      this.stations = stations;
+      stations.forEach(st => {
+        if (st.mqttTopic && !this.topics.includes(st.mqttTopic)) {
+          this.subscribe(st.mqttTopic);
+        }
+      });
+    }
   }
 
   /**
@@ -117,22 +196,101 @@ export class MqttClientService {
   }
 
   /**
-   * Verarbeitet eintreffende MQTT-Nachrichten
+   * Verarbeitet eintreffende MQTT-Nachrichten (unterstützt Standard- & beliebige abonnierte Topics)
    */
   handleMessage(topic, payloadString) {
     try {
+      let payload;
+      try {
+        payload = JSON.parse(payloadString);
+      } catch (_) {
+        const num = parseFloat(payloadString);
+        if (!isNaN(num)) {
+          payload = { value: num, raw: payloadString };
+        } else {
+          payload = { value: payloadString, raw: payloadString };
+        }
+      }
+
+      // 1. Prüfe, ob eine Station direkt an dieses MQTT-Topic gebunden ist
+      let targetStation = null;
+      if (Array.isArray(this.stations)) {
+        targetStation = this.stations.find(s => s.mqttTopic && (s.mqttTopic === topic || topic.endsWith(s.mqttTopic)));
+      }
+
+      // 2. Standard CPS-i40 Format: cps-i40/{stationId}/...
       const parts = topic.split("/");
-      const stationId = parts[1]; // cps-i40/{stationId}/...
-      const subType = parts[2];   // telemetry | status | fault | command
+      if (parts[0] === "cps-i40" && parts.length >= 3) {
+        const stationId = parts[1];
+        const subType = parts[2];
+        if (subType === "telemetry") {
+          return this.onTelemetry(stationId, {
+            ...payload,
+            isLive: true,
+            isDemo: false
+          });
+        } else if (subType === "fault") {
+          return this.onFault(stationId, Boolean(payload.isFault), payload);
+        } else if (subType === "command") {
+          console.info(`[MQTT] Steuerungsbefehl empfangen für ${stationId}:`, payload);
+          return;
+        }
+      }
 
-      const payload = JSON.parse(payloadString);
+      // 3. Wenn eine Station an dieses Topic gebunden ist
+      if (targetStation) {
+        if (this.interpreter) {
+          const interpreted = this.interpreter.interpret(payload, { stationId: targetStation.id, topic });
+          if (interpreted) {
+            const v1Val = interpreted.mappedValues?.v1?.val ?? (typeof payload === "number" ? payload : payload?.value ?? 0);
+            const sample = {
+              v1: v1Val,
+              v2: interpreted.mappedValues?.v2?.val ?? targetStation.v2?.defaultVal ?? 0,
+              v3: interpreted.mappedValues?.v3?.val ?? targetStation.v3?.defaultVal ?? 0,
+              isFault: Boolean(interpreted.isFault),
+              isLive: true,
+              isDemo: false,
+              timestamp: interpreted.timestamp || Date.now(),
+              topic,
+              interpretation: interpreted.summary
+            };
+            return this.onTelemetry(targetStation.id, sample, {
+              topic,
+              interpretation: interpreted.summary
+            });
+          }
+        }
+        const numVal = typeof payload === "number" ? payload : (payload.value ?? payload.v1 ?? 0);
+        return this.onTelemetry(targetStation.id, {
+          v1: numVal,
+          isLive: true,
+          isDemo: false,
+          timestamp: Date.now(),
+          topic
+        });
+      }
 
-      if (subType === "telemetry") {
-        this.onTelemetry(stationId, payload);
-      } else if (subType === "fault") {
-        this.onFault(stationId, Boolean(payload.isFault), payload);
-      } else if (subType === "command") {
-        console.info(`[MQTT] Steuerungsbefehl empfangen für ${stationId}:`, payload);
+      // 4. Beliebiges Topic mit semantischer Telemetrie-Interpretation
+      if (this.interpreter) {
+        const interpreted = this.interpreter.interpret({ ...payload, topic });
+        if (interpreted) {
+          const sId = interpreted.stationId || "ST-010";
+          const sample = {
+            v1: interpreted.mappedValues?.v1?.val ?? 0,
+            v2: interpreted.mappedValues?.v2?.val ?? 0,
+            v3: interpreted.mappedValues?.v3?.val ?? 0,
+            isFault: Boolean(interpreted.isFault),
+            isLive: true,
+            isDemo: false,
+            timestamp: interpreted.timestamp || Date.now(),
+            topic,
+            interpretation: interpreted.summary
+          };
+          return this.onTelemetry(sId, sample, {
+            topic,
+            interpretation: interpreted.summary
+          });
+        }
       }
     } catch (e) {
       console.warn(`[MQTT] Konnte Payload nicht parsen (${topic}):`, e.message);

@@ -410,11 +410,39 @@
                 <span class="status-val font-mono" id="cfg-client-id">cps-backend</span>
               </div>
             </div>
+
+            <!-- Sektion: MQTT Dynamic Subscriptions -->
+            <div class="form-section" id="section-cfg-mqtt-subs" style="margin-top:14px; border-top:1px solid rgba(255,255,255,0.06); padding-top:14px;">
+              <div class="section-title-tag">📬 MQTT Topics abonnieren</div>
+              <label class="form-label" for="cfg-mqtt-new-topic">Neues MQTT Topic abonnieren</label>
+              <div class="input-with-action">
+                <input type="text" id="cfg-mqtt-new-topic" class="heroui-input font-mono" placeholder="z. B. /bbk-lf/rpi04/power-house/vibration oder cps-i40/#" autocomplete="off" spellcheck="false">
+                <button type="button" class="heroui-btn heroui-btn-primary" id="btn-mqtt-sub-add">+ Topic abonnieren</button>
+              </div>
+              <div class="form-hint">Empfängt Live-Pakete von Gateways, Node-RED oder externen Brokern und leitet diese an die gebundenen Module weiter.</div>
+              
+              <label class="form-sub-label" style="margin-top:12px;">Aktuell abonnierte MQTT-Topics:</label>
+              <div id="cfg-mqtt-topics-list" class="preset-pill-group" style="margin-top:6px;">
+                <!-- Dynamisch gerendert mit Abbestellen-Option -->
+              </div>
+            </div>
+
           </div>
         </div>
 
         <!-- Tab 2: Module & Toleranzen -->
         <div class="tab-pane" id="pane-tab-stations">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:8px;">
+            <div>
+              <div style="font-weight:700; color:var(--text-main); font-size:0.95rem;">Module einzeln konfigurieren & umbenennen</div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">Passe Modulnamen, SPS-IP, Messwerte und individuelle MQTT-Topic-Bindungen an.</div>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="heroui-btn heroui-btn-flat" id="btn-clear-all-demo" title="Verwirft alle vorbefüllten Demo-Daten, sodass nur noch empfangene Live-Daten angezeigt werden">
+                🗑️ Demo-Daten verwerfen
+              </button>
+            </div>
+          </div>
           <div class="stations-accordion-list" id="cfg-stations-list">
             <!-- Dynamisch gerendert aus aktiver Konfiguration -->
           </div>
@@ -713,6 +741,127 @@
       <div class="heroui-modal-footer">
         <button type="button" class="heroui-btn heroui-btn-flat" id="btn-cancel-auth">Abbrechen</button>
         <button type="button" class="heroui-btn heroui-btn-primary" id="btn-submit-login">Anmelden</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODUL KONFIGURIEREN & ANPASSEN (MODAL)
+       ======================================================================== -->
+  <div class="heroui-modal-backdrop" id="module-edit-modal-backdrop" style="display:none;">
+    <div class="heroui-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="mod-modal-title" style="max-width: 660px;">
+      
+      <div class="heroui-modal-header">
+        <div class="modal-title-group">
+          <div class="modal-avatar-badge" id="mod-edit-avatar">🏭</div>
+          <div>
+            <h2 id="mod-modal-title" class="modal-main-title">Modul konfigurieren & anpassen</h2>
+            <div class="modal-sub-title">Namen, MQTT-Topic-Bindung, Einheiten und Grenzwerte individualisieren</div>
+          </div>
+        </div>
+        <button type="button" class="heroui-modal-close" id="btn-close-mod-edit" title="Schließen">✕</button>
+      </div>
+
+      <div class="heroui-modal-body">
+        <form id="form-module-edit" onsubmit="return false;">
+          <input type="hidden" id="mod-edit-id">
+
+          <div class="form-grid-2">
+            <div class="form-section">
+              <label class="form-label" for="mod-edit-name">Modul-Name / Bezeichnung</label>
+              <input type="text" id="mod-edit-name" class="heroui-input" placeholder="z. B. PowerHouse Vibration" required>
+            </div>
+            <div class="form-section">
+              <label class="form-label" for="mod-edit-plc-ip">SPS IP-Adresse</label>
+              <input type="text" id="mod-edit-plc-ip" class="heroui-input font-mono" placeholder="192.168.10.12">
+            </div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="mod-edit-mqtt-topic">MQTT Topic-Bindung (Subscribed Topic)</label>
+            <div class="input-with-action">
+              <input type="text" id="mod-edit-mqtt-topic" class="heroui-input font-mono" placeholder="z. B. /bbk-lf/rpi04/power-house/vibration oder cps-i40/ST-020/telemetry">
+            </div>
+            <div class="form-hint">Eintreffende Nachrichten auf diesem Topic werden direkt diesem Modul zugewiesen und ersetzen dessen Demo-Daten.</div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-title-tag">📊 Messwerte & Grenzwerte (Sensoren)</div>
+            
+            <!-- Sensor 1 (Hauptwert) -->
+            <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); margin-bottom:12px;">
+              <span style="font-weight:700; font-size:0.8rem; color:#38bdf8;">Messwert 1 (Hauptwert & Trendkurve)</span>
+              <div class="form-grid-2" style="margin-top:8px;">
+                <div>
+                  <label class="form-sub-label">Bezeichnung</label>
+                  <input type="text" id="mod-edit-v1-label" class="heroui-input" placeholder="z. B. Vibration">
+                </div>
+                <div>
+                  <label class="form-sub-label">Einheit</label>
+                  <input type="text" id="mod-edit-v1-unit" class="heroui-input font-mono" placeholder="z. B. mm/s">
+                </div>
+              </div>
+              <div class="form-grid-2" style="margin-top:8px;">
+                <div>
+                  <label class="form-sub-label">Min-Toleranz</label>
+                  <input type="number" step="0.01" id="mod-edit-v1-min" class="heroui-input font-mono">
+                </div>
+                <div>
+                  <label class="form-sub-label">Max-Toleranz</label>
+                  <input type="number" step="0.01" id="mod-edit-v1-max" class="heroui-input font-mono">
+                </div>
+              </div>
+            </div>
+
+            <!-- Sensor 2 -->
+            <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.06); margin-bottom:12px;">
+              <span style="font-weight:700; font-size:0.8rem; color:#34d399;">Messwert 2</span>
+              <div class="form-grid-2" style="margin-top:8px;">
+                <div>
+                  <label class="form-sub-label">Bezeichnung</label>
+                  <input type="text" id="mod-edit-v2-label" class="heroui-input" placeholder="z. B. Druck">
+                </div>
+                <div>
+                  <label class="form-sub-label">Einheit</label>
+                  <input type="text" id="mod-edit-v2-unit" class="heroui-input font-mono" placeholder="z. B. bar">
+                </div>
+              </div>
+              <div class="form-grid-2" style="margin-top:8px;">
+                <div>
+                  <label class="form-sub-label">Min-Toleranz</label>
+                  <input type="number" step="0.01" id="mod-edit-v2-min" class="heroui-input font-mono">
+                </div>
+                <div>
+                  <label class="form-sub-label">Max-Toleranz</label>
+                  <input type="number" step="0.01" id="mod-edit-v2-max" class="heroui-input font-mono">
+                </div>
+              </div>
+            </div>
+
+            <!-- Sensor 3 -->
+            <div style="background:rgba(255,255,255,0.02); padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.06);">
+              <span style="font-weight:700; font-size:0.8rem; color:#fbbf24;">Messwert 3</span>
+              <div class="form-grid-2" style="margin-top:8px;">
+                <div>
+                  <label class="form-sub-label">Bezeichnung</label>
+                  <input type="text" id="mod-edit-v3-label" class="heroui-input" placeholder="z. B. Takt">
+                </div>
+                <div>
+                  <label class="form-sub-label">Einheit</label>
+                  <input type="text" id="mod-edit-v3-unit" class="heroui-input font-mono" placeholder="z. B. D/min">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="mod-edit-feedback" class="test-feedback-badge" style="display:none; margin-top:12px;"></div>
+        </form>
+      </div>
+
+      <div class="heroui-modal-footer">
+        <button type="button" class="heroui-btn heroui-btn-flat" id="btn-cancel-mod-edit">Abbrechen</button>
+        <button type="button" class="heroui-btn heroui-btn-primary" id="btn-save-mod-edit">💾 Änderungen speichern</button>
       </div>
 
     </div>

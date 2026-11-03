@@ -372,6 +372,33 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn('id="ar-no-marker-hint"', self.index_html)
         self.assertIn('id="btn-force-show-card"', self.index_html)
 
+    def test_module_customization_and_dynamic_mqtt_ui(self):
+        """Prüft, dass Modul-Konfiguration, Umbenennung, dynamische MQTT-Topics und Demo-Purge im UI vorhanden sind."""
+        # 1. Markup für Modul-Editor-Modal und MQTT-Dynamic-Subscriptions
+        self.assertIn('id="module-edit-modal-backdrop"', self.overview_html)
+        self.assertIn('id="mod-edit-name"', self.overview_html)
+        self.assertIn('id="mod-edit-mqtt-topic"', self.overview_html)
+        self.assertIn('id="mod-edit-plc-ip"', self.overview_html)
+        self.assertIn('id="btn-save-mod-edit"', self.overview_html)
+        self.assertIn('id="btn-cancel-mod-edit"', self.overview_html)
+        self.assertIn('id="btn-clear-all-demo"', self.overview_html)
+        self.assertIn('id="section-cfg-mqtt-subs"', self.overview_html)
+        self.assertIn('id="cfg-mqtt-new-topic"', self.overview_html)
+        self.assertIn('id="btn-mqtt-sub-add"', self.overview_html)
+        self.assertIn('id="cfg-mqtt-topics-list"', self.overview_html)
+
+        # 2. Controller-Methoden in overview.js
+        with open(os.path.join(BASE_DIR, "js", "overview.js"), "r") as f:
+            js_content = f.read()
+        self.assertIn("openModuleEditModal", js_content)
+        self.assertIn("saveModuleEditModal", js_content)
+        self.assertIn("closeModuleEditModal", js_content)
+        self.assertIn("subscribeMqttTopic", js_content)
+        self.assertIn("unsubscribeMqttTopic", js_content)
+        self.assertIn("renderMqttTopicsList", js_content)
+        self.assertIn("clearAllDemoData", js_content)
+        self.assertIn("btn-quick-edit", js_content)
+
 
 if __name__ == "__main__":
     unittest.main()

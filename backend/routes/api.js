@@ -314,13 +314,255 @@ export function createApiRouter({
     const stations = activeStations.map(st => {
       const summary = store.getSummary(st.id);
       const isFault = Boolean(store.getMeta(`fault_${st.id}`));
+      const state = store.getStationState ? store.getStationState(st.id) : null;
       return {
         ...st,
         isFault,
+        hasLive: state ? state.hasLive : (store.hasLiveTelemetry ? store.hasLiveTelemetry(st.id) : false),
+        hasDemo: state ? state.hasDemo : (store.hasDemoData ? store.hasDemoData(st.id) : false),
+        lastSample: state?.lastSample || null,
         summary
       };
     });
     res.json({ stations, timestamp: Date.now() });
+  });
+
+  // 1b. Einzelne Station / Modul abrufen
+  router.get("/stations/:id", (req, res) => {
+    const stationId = req.params.id;
+    const activeStations = configManager ? configManager.getConfig().stations : (stationsConfig || []);
+    const st = activeStations.find(s => s.id === stationId);
+    if (!st) {
+      return res.status(404).json({ error: `Station/Modul '${stationId}' nicht gefunden.` });
+    }
+    const summary = store.getSummary(st.id);
+    const isFault = Boolean(store.getMeta(`fault_${st.id}`));
+    const state = store.getStationState ? store.getStationState(st.id) : null;
+    res.json({
+      station: {
+        ...st,
+        isFault,
+        hasLive: state ? state.hasLive : false,
+        hasDemo: state ? state.hasDemo : false,
+        lastSample: state?.lastSample || null,
+        summary
+      },
+      timestamp: Date.now()
+    });
+  });
+
+  // 1c. Einzelnes Modul konfigurieren, umbenennen oder anpassen
+  const handleUpdateStation = (req, res) => {
+    try {
+      const stationId = req.params.id;
+      const updates = req.body;
+      if (!updates || typeof updates !== "object") {
+        return res.status(400).json({ error: "Gültiges Konfigurationsobjekt erforderlich." });
+      }
+
+      let updatedStation = null;
+      if (configManager) {
+        updatedStation = configManager.updateStation(stationId, updates);
+        const allStations = configManager.getConfig().stations;
+        if (telemetryInterpreter) {
+          telemetryInterpreter.updateStations(allStations);
+        }
+        if (mqttClient) {
+          mqttClient.updateStations(allStations);
+          if (updatedStation.mqttTopic) {
+            mqttClient.subscribe(updatedStation.mqttTopic);
+          }
+        }
+      } else {
+        const idx = stationsConfig.findIndex(s => s.id === stationId);
+        if (idx >= 0) {
+          stationsConfig[idx] = { ...stationsConfig[idx], ...updates };
+          updatedStation = stationsConfig[idx];
+        } else {
+          stationsConfig.push({ id: stationId, ...updates });
+          updatedStation = updates;
+        }
+      }
+
+      // Broadcast an alle Clients
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "config_updated",
+          config: configManager ? configManager.getConfig() : { stations: stationsConfig },
+          stationUpdated: updatedStation,
+          timestamp: Date.now()
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Modul '${updatedStation.name || stationId}' erfolgreich konfiguriert und aktualisiert.`,
+        station: updatedStation
+      });
+    } catch (err) {
+      console.error("[API] Fehler beim Aktualisieren des Moduls:", err);
+      res.status(500).json({ error: "Fehler beim Aktualisieren des Moduls: " + err.message });
+    }
+  };
+
+  router.put("/stations/:id", handleUpdateStation);
+  router.post("/stations/:id", handleUpdateStation);
+
+  // 1d. Neues Modul anlegen
+  router.post("/stations", (req, res) => {
+    try {
+      const newModule = req.body;
+      if (!newModule || typeof newModule !== "object") {
+        return res.status(400).json({ error: "Gültige Modul-Daten erforderlich." });
+      }
+
+      let added = null;
+      if (configManager) {
+        added = configManager.addStation(newModule);
+        const allStations = configManager.getConfig().stations;
+        if (telemetryInterpreter) telemetryInterpreter.updateStations(allStations);
+        if (mqttClient) {
+          mqttClient.updateStations(allStations);
+          if (added.mqttTopic) mqttClient.subscribe(added.mqttTopic);
+        }
+      } else {
+        stationsConfig.push(newModule);
+        added = newModule;
+      }
+
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "config_updated",
+          config: configManager ? configManager.getConfig() : { stations: stationsConfig },
+          stationAdded: added,
+          timestamp: Date.now()
+        });
+      }
+
+      res.status(201).json({
+        success: true,
+        message: `Neues Modul '${added.name || added.id}' erfolgreich angelegt.`,
+        station: added
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Fehler beim Anlegen des Moduls: " + err.message });
+    }
+  });
+
+  // 1e. Modul löschen
+  router.delete("/stations/:id", (req, res) => {
+    try {
+      const stationId = req.params.id;
+      let removed = false;
+      if (configManager) {
+        removed = configManager.deleteStation(stationId);
+      }
+      if (store && store.clearStation) {
+        store.clearStation(stationId);
+      }
+
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "config_updated",
+          config: configManager ? configManager.getConfig() : { stations: stationsConfig },
+          stationDeleted: stationId,
+          timestamp: Date.now()
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Modul '${stationId}' erfolgreich gelöscht.`
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Fehler beim Löschen des Moduls: " + err.message });
+    }
+  });
+
+  // 1f. MQTT Topics verwalten: Subscriptions abfragen und dynamisch abonnieren
+  router.get("/mqtt/topics", (req, res) => {
+    const topics = mqttClient && mqttClient.getSubscribedTopics ? mqttClient.getSubscribedTopics() : (configManager?.getConfig()?.mqtt?.topics || []);
+    res.json({
+      subscribedTopics: topics,
+      brokerUrl: mqttClient?.brokerUrl || null,
+      isConnected: mqttClient?.isConnected || false
+    });
+  });
+
+  router.post("/mqtt/subscribe", (req, res) => {
+    try {
+      const { topic, topics } = req.body;
+      const targetTopics = Array.isArray(topics) ? topics : (topic ? [topic] : []);
+
+      if (targetTopics.length === 0) {
+        return res.status(400).json({ error: "Feld 'topic' oder 'topics' ist erforderlich." });
+      }
+
+      targetTopics.forEach(t => {
+        const top = String(t).trim();
+        if (mqttClient && mqttClient.subscribe) {
+          mqttClient.subscribe(top);
+        }
+        if (configManager && configManager.subscribeTopic) {
+          configManager.subscribeTopic(top);
+        }
+      });
+
+      const currentTopics = mqttClient && mqttClient.getSubscribedTopics ? mqttClient.getSubscribedTopics() : [];
+      res.json({
+        success: true,
+        message: `${targetTopics.length} MQTT-Topic(s) erfolgreich abonniert.`,
+        subscribedTopics: currentTopics
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Fehler beim Abonnieren des Topics: " + err.message });
+    }
+  });
+
+  router.post("/mqtt/unsubscribe", (req, res) => {
+    try {
+      const { topic } = req.body;
+      if (!topic) {
+        return res.status(400).json({ error: "Feld 'topic' ist erforderlich." });
+      }
+      const top = String(topic).trim();
+      if (mqttClient && mqttClient.unsubscribe) {
+        mqttClient.unsubscribe(top);
+      }
+      if (configManager && configManager.unsubscribeTopic) {
+        configManager.unsubscribeTopic(top);
+      }
+
+      const currentTopics = mqttClient && mqttClient.getSubscribedTopics ? mqttClient.getSubscribedTopics() : [];
+      res.json({
+        success: true,
+        message: `Topic '${top}' de-abonniert.`,
+        subscribedTopics: currentTopics
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Fehler beim De-Abonnieren des Topics: " + err.message });
+    }
+  });
+
+  // 1g. Demo-Daten verwerfen (Nur noch empfangene Live-Daten behalten)
+  router.post("/store/clear-demo", (req, res) => {
+    try {
+      if (store && store.clearAllDemoData) {
+        store.clearAllDemoData();
+      }
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "demo_data_cleared",
+          timestamp: Date.now()
+        });
+      }
+      res.json({
+        success: true,
+        message: "Demo-Daten erfolgreich verworfen. Ab jetzt werden ausschließlich empfangene Live-Daten angezeigt."
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Fehler beim Verwerfen der Demo-Daten: " + err.message });
+    }
   });
 
   // 2. 5-Minuten Historie abrufen (Optional nach Station gefiltert)

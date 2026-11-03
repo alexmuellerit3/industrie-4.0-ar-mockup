@@ -75,6 +75,52 @@ export class KeyValueStore {
   }
 
   /**
+   * Löscht alle Demo- und Simulationsdaten über alle Stationen hinweg
+   */
+  clearAllDemoData() {
+    this.clearDemoData();
+  }
+
+  /**
+   * Prüft, ob für eine Station bereits echte Live-Telemetriedaten empfangen wurden
+   * @param {string} stationId
+   * @returns {boolean}
+   */
+  hasLiveTelemetry(stationId) {
+    const list = this.series.get(stationId);
+    return list ? list.some(item => item.isLive && !item.isDemo && !item.simulated) : false;
+  }
+
+  /**
+   * Gibt den detaillierten Telemetrie- und Datenzustand einer Station zurück
+   * @param {string} stationId
+   */
+  getStationState(stationId) {
+    const list = this.series.get(stationId) || [];
+    const liveItems = list.filter(item => item.isLive && !item.isDemo && !item.simulated);
+    const demoItems = list.filter(item => item.isDemo || item.simulated);
+    const lastSample = list.length > 0 ? list[list.length - 1] : null;
+    return {
+      stationId,
+      hasLive: liveItems.length > 0,
+      hasDemo: demoItems.length > 0,
+      liveCount: liveItems.length,
+      demoCount: demoItems.length,
+      totalCount: list.length,
+      lastSample,
+      lastTimestamp: lastSample ? lastSample.timestamp : null
+    };
+  }
+
+  /**
+   * Löscht alle Datenpunkte für eine bestimmte Station
+   * @param {string} stationId
+   */
+  clearStation(stationId) {
+    this.series.delete(stationId);
+  }
+
+  /**
    * Prüft, ob noch Demo-Daten im Speicher vorhanden sind
    * @param {string} [stationId]
    * @returns {boolean}

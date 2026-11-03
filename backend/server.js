@@ -94,15 +94,22 @@ export function createApp(options = {}) {
     });
   }
 
-  // 2. Initialisiere MQTT-Client
+  // 2. Initialisiere MQTT-Client (mit dynamischem Topic-Support und Stations-Binding)
   const isWsPrimary = activeConfig.dataSource === "websocket";
   const mqttClient = new MqttClientService({
     brokerUrl: activeConfig.mqtt?.brokerUrl || process.env.MQTT_BROKER_URL || "mqtt://localhost:1883",
     allowSimulator: !isWsPrimary,
-    onTelemetry: (stationId, payload) => {
-      const entry = store.push(stationId, payload);
+    topics: activeConfig.mqtt?.topics,
+    telemetryInterpreter,
+    stations: activeConfig.stations,
+    onTelemetry: (stationId, payload, meta) => {
+      const entry = store.push(stationId, {
+        ...payload,
+        isLive: true,
+        isDemo: false
+      });
       if (app.locals.wsServer) {
-        app.locals.wsServer.broadcastTelemetry(stationId, entry);
+        app.locals.wsServer.broadcastTelemetry(stationId, entry, meta);
       }
     },
     onFault: (stationId, isFault) => {
@@ -120,6 +127,16 @@ export function createApp(options = {}) {
       if (app.locals.wsServer) {
         app.locals.wsServer.broadcastStatus(status);
       }
+    }
+  });
+
+  // Konfigurationsänderungen live auf MQTT-Client übertragen
+  configManager.onChange((newCfg) => {
+    if (newCfg.stations) {
+      mqttClient.updateStations(newCfg.stations);
+    }
+    if (newCfg.mqtt && Array.isArray(newCfg.mqtt.topics)) {
+      newCfg.mqtt.topics.forEach(t => mqttClient.subscribe(t));
     }
   });
 
