@@ -319,7 +319,7 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn("github.io", self.telemetry_js)
 
     def test_github_pages_workflow_exists(self):
-        """GitHub Actions Pages Workflow muss existieren und für master, main & web-app konfiguriert sein."""
+        """GitHub Actions Pages Workflow muss existieren und ausschließlich für master konfiguriert sein."""
         pages_yml_path = os.path.join(BASE_DIR, ".github", "workflows", "pages.yml")
         self.assertTrue(os.path.isfile(pages_yml_path), ".github/workflows/pages.yml existiert nicht!")
         with open(pages_yml_path, "r") as f:
@@ -327,7 +327,9 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn("actions/deploy-pages", content)
         self.assertIn("actions/upload-pages-artifact", content)
         self.assertIn('"master"', content)
-        self.assertIn('"web-app"', content)
+        self.assertNotIn('"main"', content)
+        self.assertNotIn('"web-app"', content)
+        self.assertNotIn('"experimental"', content)
 
     def test_github_pages_live_websocket_and_resilience(self):
         """Prüft, dass WebApp auf GitHub Pages direkt mit Live-WSS verbindet und Fallback besitzt."""
