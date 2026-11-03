@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "node --watch backend/server.js",
-    "test": "python3 -m unittest discover tests -v"
+    "test": "python3 -m unittest discover tests -v",
+    "test:browser": "node tests/test_browser_github_pages.js"
   },
   "keywords": [
     "industrie4.0",
@@ -22,6 +23,7 @@
   "dependencies": {
     "express": "^4.21.2",
     "mqtt": "^5.10.3",
+    "puppeteer-core": "^25.16.0",
     "ws": "^8.18.0"
   }
 }

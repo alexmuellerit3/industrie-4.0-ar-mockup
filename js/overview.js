@@ -58,6 +58,11 @@ class ScadaOverviewApp {
     this.restFallbackTimer = null;
     this.standaloneTimer = null;
     this.isStandaloneSim = false;
+    this.isGitHubPages = typeof window !== "undefined" && window.location && (
+      window.location.hostname.endsWith("github.io") ||
+      window.location.protocol === "file:" ||
+      (window.location.port !== "3000" && !window.location.host.includes("cps-backend"))
+    );
 
     // Standalone / Offline-Persistenz: Prüfe auf zuvor gespeicherte Konfiguration
     try {
@@ -67,6 +72,9 @@ class ScadaOverviewApp {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed.stations)) {
             this.mergeSavedStationsConfig(parsed.stations);
+          }
+          if (Array.isArray(parsed.subscribedMqttTopics)) {
+            this.subscribedMqttTopics = parsed.subscribedMqttTopics;
           }
         }
       }
@@ -245,6 +253,8 @@ class ScadaOverviewApp {
 
       const btnEdit = card.querySelector(`.btn-quick-edit`);
       if (btnEdit) btnEdit.addEventListener("click", () => this.openModuleEditModal(st.id));
+
+      this.dom.stationsContainer.appendChild(card);
     });
   }
 
@@ -894,7 +904,7 @@ class ScadaOverviewApp {
       } catch (_) {}
     }
 
-    if (!this.isStandaloneSim) {
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
       fetch("/api/fault", {
         method: "POST",
         headers: authService.getAuthHeaders(),
@@ -904,7 +914,7 @@ class ScadaOverviewApp {
 
     this.setCardFaultState(stationId, targetState);
 
-    if (this.isStandaloneSim) {
+    if (this.isStandaloneSim || this.isGitHubPages) {
       this.tickStandaloneSimulation();
     } else {
       this.updateKpis();
@@ -1155,7 +1165,7 @@ class ScadaOverviewApp {
     let mqttStatus = null;
     let wsStatus = null;
 
-    if (!this.isStandaloneSim) {
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
       try {
         const res = await fetch("/api/config");
         const ct = res.headers ? (res.headers.get("content-type") || "") : "";
@@ -1372,7 +1382,7 @@ class ScadaOverviewApp {
     }
 
     let testedRemote = false;
-    if (!this.isStandaloneSim) {
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
       try {
         const res = await fetch("/api/config/test-websocket", {
           method: "POST",
@@ -1457,7 +1467,7 @@ class ScadaOverviewApp {
     }
 
     let testedRemote = false;
-    if (!this.isStandaloneSim) {
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
       try {
         const res = await fetch("/api/config/test-mqtt", {
           method: "POST",
@@ -1580,7 +1590,7 @@ class ScadaOverviewApp {
     if (this.modal.spinner) this.modal.spinner.style.display = "inline";
 
     let savedRemote = false;
-    if (!this.isStandaloneSim) {
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
       try {
         const res = await fetch("/api/config", {
           method: "POST",
@@ -1636,7 +1646,7 @@ class ScadaOverviewApp {
 
     try {
       localStorage.removeItem("cps_saved_config");
-      if (!this.isStandaloneSim) {
+      if (!this.isGitHubPages && !this.isStandaloneSim) {
         await fetch("/api/config/reset", {
           method: "POST",
           headers: authService.getAuthHeaders()
@@ -2198,11 +2208,14 @@ class ScadaOverviewApp {
     // Modul aus WebSocket-Paket erstellen
     if (this.inspDom.btnCreateModWs) {
       this.inspDom.btnCreateModWs.addEventListener("click", () => {
-        const raw = this.inspState.wsFirstPacket || this.lastRawWsMessage;
-        if (!raw) {
-          alert("Noch kein WebSocket-Paket empfangen. Bitte kurz warten, bis ein Frame eintrifft.");
-          return;
-        }
+        const raw = this.inspState.wsFirstPacket || this.lastRawWsMessage || {
+          topic: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+          payload: {
+            value: { dataType: "Double", arrayType: "Scalar", value: 0.49235 },
+            statusCode: { value: 0 },
+            sourceTimestamp: new Date().toISOString()
+          }
+        };
         const station = this.createModuleFromReceivedData(raw);
         this.showCreationNotification(station.name);
         this.scrollToStation(station.id);
@@ -2212,12 +2225,13 @@ class ScadaOverviewApp {
     // Modul aus MQTT-Paket erstellen
     if (this.inspDom.btnCreateModMqtt) {
       this.inspDom.btnCreateModMqtt.addEventListener("click", () => {
-        const raw = this.inspState.mqttFirstPacket || this.lastRawMqttMessage;
-        if (!raw) {
-          alert("Noch kein MQTT-Paket empfangen. Bitte zuerst '⚡ MQTT-Abfrage ausführen' klicken.");
-          return;
-        }
-        const station = this.createModuleFromReceivedData(raw, { topic: this.inspDom.mqttTopic?.textContent });
+        const raw = this.inspState.mqttFirstPacket || this.lastRawMqttMessage || {
+          topic: "/bbk-lf/rpi04/power-house/vibration",
+          value: { dataType: "Double", arrayType: "Scalar", value: 0.49235 },
+          statusCode: { value: 0 },
+          sourceTimestamp: new Date().toISOString()
+        };
+        const station = this.createModuleFromReceivedData(raw, { topic: this.inspDom.mqttTopic?.textContent || "/bbk-lf/rpi04/power-house/vibration" });
         this.showCreationNotification(station.name);
         this.scrollToStation(station.id);
       });
@@ -2372,22 +2386,23 @@ class ScadaOverviewApp {
     }
 
     // Erstes authentisches CPS-i40 MQTT-Paket generieren / abrufen
+    const activeTopic = (this.subscribedMqttTopics && this.subscribedMqttTopics.find(t => t.includes("power-house") || t.includes("vibration"))) || "/bbk-lf/rpi04/power-house/vibration";
     const mqttSample = {
-      topic: "cps-i40/ST-020/telemetry",
-      stationId: "ST-020",
-      stationName: "Modul 2: Dosierung & Befüllung",
+      topic: activeTopic,
+      stationId: "ST-POWERHOUSE-VIBRATION",
+      stationName: "PowerHouse: Vibration (P-101)",
       broker: "mqtt://broker.hivemq.com:1883",
-      source: "HiveMQ-Public-Broker (IOT2050)",
+      source: "Raspberry Pi 4 • Schwingungssensor (IOT2050)",
       qos: 0,
+      value: { dataType: "Double", arrayType: "Scalar", value: 0.49235 },
+      statusCode: { value: 0 },
       telemetry: {
-        fill_weight_g: 250.3,
-        pressure_bar: 5.2,
-        cycle_rate_cpm: 32.0,
-        temperature_c: 41.8
+        vibration_mms: 0.49235,
+        status_code: 0,
+        frequency_hz: 50.0
       },
       limits: {
-        v1: { min: 249.7, max: 250.6, unit: "g" },
-        v2: { min: 5.1, max: 5.3, unit: "bar" }
+        v1: { min: 0.05, max: 2.50, unit: "mm/s" }
       },
       status: "OPTIMAL",
       timestamp: now.toISOString()
@@ -2610,20 +2625,22 @@ class ScadaOverviewApp {
     st.v3.unit = v3Unit;
 
     // Backend synchronisieren, falls erreichbar
-    try {
-      await fetch(`/api/stations/${sId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newName,
-          plcIp: newPlcIp,
-          mqttTopic: newTopic,
-          v1: st.v1,
-          v2: st.v2,
-          v3: st.v3
-        })
-      });
-    } catch (_) {}
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
+      try {
+        await fetch(`/api/stations/${sId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newName,
+            plcIp: newPlcIp,
+            mqttTopic: newTopic,
+            v1: st.v1,
+            v2: st.v2,
+            v3: st.v3
+          })
+        });
+      } catch (_) {}
+    }
 
     // Wenn neues Topic, abonnieren
     if (newTopic) {
@@ -2664,13 +2681,15 @@ class ScadaOverviewApp {
       this.subscribedMqttTopics.push(trimmed);
     }
 
-    try {
-      await fetch("/api/mqtt/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: trimmed })
-      });
-    } catch (_) {}
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
+      try {
+        await fetch("/api/mqtt/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic: trimmed })
+        });
+      } catch (_) {}
+    }
 
     this.saveStandaloneConfig();
     this.renderMqttTopicsList();
@@ -2682,13 +2701,15 @@ class ScadaOverviewApp {
     if (!this.subscribedMqttTopics) return;
     this.subscribedMqttTopics = this.subscribedMqttTopics.filter(t => t !== trimmed);
 
-    try {
-      await fetch("/api/mqtt/unsubscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: trimmed })
-      });
-    } catch (_) {}
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
+      try {
+        await fetch("/api/mqtt/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic: trimmed })
+        });
+      } catch (_) {}
+    }
 
     this.saveStandaloneConfig();
     this.renderMqttTopicsList();
@@ -2747,9 +2768,11 @@ class ScadaOverviewApp {
       this.standaloneTimer = null;
     }
 
-    try {
-      await fetch("/api/store/clear-demo", { method: "POST" });
-    } catch (_) {}
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
+      try {
+        await fetch("/api/store/clear-demo", { method: "POST" });
+      } catch (_) {}
+    }
 
     this.updateWsBadge(this.ws && this.ws.readyState === WebSocket.OPEN, "Live (Keine Demo-Daten)");
     this.updateMqttBadge(true, false);
@@ -2766,7 +2789,7 @@ class ScadaOverviewApp {
     }
   }
 
-  saveStationsToLocalStorage() {
+  saveStandaloneConfig() {
     try {
       let cfg = {};
       const saved = localStorage.getItem("cps_saved_config");
@@ -2774,8 +2797,15 @@ class ScadaOverviewApp {
         try { cfg = JSON.parse(saved); } catch (_) {}
       }
       cfg.stations = this.stations;
+      if (this.subscribedMqttTopics) {
+        cfg.subscribedMqttTopics = this.subscribedMqttTopics;
+      }
       localStorage.setItem("cps_saved_config", JSON.stringify(cfg));
     } catch (_) {}
+  }
+
+  saveStationsToLocalStorage() {
+    this.saveStandaloneConfig();
   }
 
   synthesizeStationFromPacket(rawPacket, context = {}) {
@@ -3003,6 +3033,10 @@ const INTERPRETER_PRESETS = {
   }
 };
 
-window.addEventListener("DOMContentLoaded", () => {
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", () => {
+    window.__scadaApp = new ScadaOverviewApp();
+  });
+} else {
   window.__scadaApp = new ScadaOverviewApp();
-});
+}
