@@ -319,13 +319,24 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn("github.io", self.telemetry_js)
 
     def test_github_pages_workflow_exists(self):
-        """GitHub Actions Pages Workflow muss existieren und korrekt konfiguriert sein."""
+        """GitHub Actions Pages Workflow muss existieren und für master, main & web-app konfiguriert sein."""
         pages_yml_path = os.path.join(BASE_DIR, ".github", "workflows", "pages.yml")
         self.assertTrue(os.path.isfile(pages_yml_path), ".github/workflows/pages.yml existiert nicht!")
         with open(pages_yml_path, "r") as f:
             content = f.read()
         self.assertIn("actions/deploy-pages", content)
         self.assertIn("actions/upload-pages-artifact", content)
+        self.assertIn('"master"', content)
+        self.assertIn('"web-app"', content)
+
+    def test_github_pages_live_websocket_and_resilience(self):
+        """Prüft, dass WebApp auf GitHub Pages direkt mit Live-WSS verbindet und Fallback besitzt."""
+        self.assertIn("wss://nodered.bbk.robin-w.de/ws/opcua", self.overview_js)
+        self.assertIn("wss://nodered.bbk.robin-w.de/ws/opcua", self.telemetry_js)
+        # Überprüfung, dass authService für Standalone-Interpretation importiert ist
+        self.assertIn("authService", self.telemetry_js)
+        self.assertIn("standaloneInterpret", self.telemetry_js)
+        self.assertIn("standaloneInterpret", self.overview_js)
 
 
 if __name__ == "__main__":

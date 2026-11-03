@@ -11,10 +11,10 @@ export const APP_CONFIG = {
   productionLine: "CPR-01 • Bonbon-Linie",
   defaultStationIndex: 1, // Startet bei Modul 2 (Dosier- & Befüllstation)
 
-  // Schnittstellen-Endpunkte (Für spätere Live-Kopplung)
+  // Schnittstellen-Endpunkte (Echtzeit Live-Kopplung mit automatischem Fallback)
   api: {
-    mode: "mock", // "mock" | "websocket" | "rest"
-    wsEndpoint: "wss://edge-gateway.local/api/v1/telemetry",
+    mode: "websocket", // "mock" | "websocket" | "rest"
+    wsEndpoint: "wss://nodered.bbk.robin-w.de/ws/opcua",
     restEndpoint: "https://edge-gateway.local/api/v1/stations",
     pollIntervalMs: 1500,
     requestTimeoutMs: 5000

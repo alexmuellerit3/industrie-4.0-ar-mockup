@@ -231,34 +231,78 @@ class ScadaOverviewApp {
   }
 
   /**
-   * Verbindet mit dem WebSocket-Server (mit automatischem Fallback auf autarke Simulation auf GitHub Pages oder bei Offline-Betrieb)
+   * Verbindet mit dem WebSocket-Server (unterstützt direktes WSS-Streaming auf GitHub Pages mit automatischem Fallback auf autarke SPS-Simulation)
    */
   connectWebSocket() {
     if (this.ws) {
       try { this.ws.close(); } catch (_) {}
+      this.ws = null;
     }
 
     const isGitHubPages = typeof window !== "undefined" && window.location && (
       window.location.hostname.endsWith("github.io") || window.location.protocol === "file:"
     );
 
-    if (isGitHubPages) {
-      console.info("[SCADA] GitHub Pages / Statischer Host erkannt: Starte autarke SPS-Simulation.");
+    let savedWsUrl = null;
+    let savedDataSource = null;
+    try {
+      if (typeof localStorage !== "undefined") {
+        const saved = localStorage.getItem("cps_saved_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.websocket?.url) savedWsUrl = parsed.websocket.url;
+          if (parsed.dataSource) savedDataSource = parsed.dataSource;
+        }
+      }
+    } catch (_) {}
+
+    if (savedDataSource === "simulator") {
+      console.info("[SCADA] SPS-Simulator als Datenquelle gewählt: Starte autarke Simulation.");
       this.startStandaloneSimulation();
       return;
     }
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host || "localhost:3000";
-    const wsUrl = `${protocol}//${host}/ws/telemetry`;
+    let wsUrl;
+    if (isGitHubPages) {
+      // Auf GitHub Pages: Direkt mit externem Live-WSS verbinden (Node-RED OPC UA)
+      wsUrl = savedWsUrl || "wss://nodered.bbk.robin-w.de/ws/opcua";
+      if (wsUrl.includes("tobin-w.de")) {
+        wsUrl = wsUrl.replace(/tobin-w\.de/g, "robin-w.de");
+      }
+    } else {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host || "localhost:3000";
+      wsUrl = `${protocol}//${host}/ws/telemetry`;
+    }
 
     this.updateWsBadge(false, "Verbinde...");
+
+    let connectTimeout = null;
+    let hasOpened = false;
+
+    // Auf GitHub Pages / statischem Host: Autarken Simulator nach 3,5s starten falls WS nicht erreichbar ist
+    if (isGitHubPages) {
+      connectTimeout = setTimeout(() => {
+        if (!hasOpened) {
+          console.info("[SCADA] GitHub Pages / Statischer Host: WebSocket offline oder verzögert, starte autarke SPS-Simulation.");
+          this.startStandaloneSimulation();
+        }
+      }, 3500);
+    }
 
     try {
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        this.updateWsBadge(true, "Live (300s)");
+        hasOpened = true;
+        if (connectTimeout) clearTimeout(connectTimeout);
+        if (this.standaloneTimer) {
+          clearInterval(this.standaloneTimer);
+          this.standaloneTimer = null;
+        }
+        this.isStandaloneSim = false;
+        this.updateWsBadge(true, isGitHubPages ? "Live (Node-RED WSS)" : "Live (300s)");
+        this.updateMqttBadge(true, false);
         if (this.restFallbackTimer) {
           clearInterval(this.restFallbackTimer);
           this.restFallbackTimer = null;
@@ -275,29 +319,51 @@ class ScadaOverviewApp {
       };
 
       this.ws.onclose = () => {
-        this.updateWsBadge(false, "Getrennt");
-        this.scheduleReconnect();
-        this.startRestFallback();
+        if (connectTimeout) clearTimeout(connectTimeout);
+        if (isGitHubPages) {
+          this.updateWsBadge(false, "Getrennt (Sim aktiv)");
+          if (!this.isStandaloneSim) {
+            this.startStandaloneSimulation();
+          }
+          this.scheduleReconnect();
+        } else {
+          this.updateWsBadge(false, "Getrennt");
+          this.scheduleReconnect();
+          this.startRestFallback();
+        }
       };
 
       this.ws.onerror = () => {
-        this.updateWsBadge(false, "Fehler");
-        this.ws.close();
+        if (connectTimeout) clearTimeout(connectTimeout);
+        if (isGitHubPages) {
+          this.updateWsBadge(false, "Offline (Sim aktiv)");
+          if (!this.isStandaloneSim) {
+            this.startStandaloneSimulation();
+          }
+        } else {
+          this.updateWsBadge(false, "Fehler");
+          try { this.ws.close(); } catch (_) {}
+        }
       };
     } catch (e) {
-      this.updateWsBadge(false, "Offline");
-      this.scheduleReconnect();
-      this.startRestFallback();
+      if (connectTimeout) clearTimeout(connectTimeout);
+      if (isGitHubPages) {
+        console.warn("[SCADA] WebSocket konnte nicht initialisiert werden:", e);
+        this.startStandaloneSimulation();
+      } else {
+        this.updateWsBadge(false, "Offline");
+        this.scheduleReconnect();
+        this.startRestFallback();
+      }
     }
   }
 
   scheduleReconnect() {
-    if (this.isStandaloneSim) return;
     if (this.reconnectTimer) return;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.connectWebSocket();
-    }, 3500);
+    }, 4000);
   }
 
   startRestFallback() {
@@ -534,6 +600,43 @@ class ScadaOverviewApp {
       }
     } else if (msg.type === "telemetry_interpreted" && msg.interpretation) {
       this.displayInterpretationResult(msg.interpretation);
+    } else {
+      // Direkte Fremddaten / Node-RED OPC UA Frames semantisch interpretieren
+      const interpRes = authService.standaloneInterpret(msg);
+      if (interpRes && interpRes.interpretation) {
+        const interp = interpRes.interpretation;
+        const stationId = interp.stationId || "ST-020";
+        const mv = interp.mappedValues || {};
+        const sample = {
+          v1: mv.v1?.val ?? 250,
+          v2: mv.v2?.val ?? 5.0,
+          v3: mv.v3?.val ?? 32,
+          isFault: interp.status === "KRITISCH",
+          isLive: true,
+          isDemo: false,
+          timestamp: Date.now()
+        };
+        const summary = {
+          status: interp.status,
+          summary: interp.summary
+        };
+
+        if (!this.historyMap.has(stationId)) {
+          this.historyMap.set(stationId, []);
+        }
+        let list = this.historyMap.get(stationId);
+        // Vorherige Demo-Daten entfernen
+        list = list.filter(item => !item.isDemo && !item.simulated);
+        list.push(sample);
+        const cutoff = Date.now() - 300000;
+        while (list.length > 0 && list[0].timestamp < cutoff) {
+          list.shift();
+        }
+        this.historyMap.set(stationId, list);
+        this.summaryMap.set(stationId, summary);
+        this.updateStationCard(stationId, sample, summary);
+        this.updateKpis();
+      }
     }
   }
 

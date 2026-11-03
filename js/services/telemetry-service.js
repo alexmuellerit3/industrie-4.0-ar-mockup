@@ -7,6 +7,8 @@
  * 3. REST-API Polling (HTTP GET von SPS / OPC UA REST Gateway)
  */
 
+import { authService } from "./auth-service.js";
+
 export class TelemetryService {
   constructor(config) {
     this.config = config;
@@ -151,22 +153,48 @@ export class TelemetryService {
    * Startet die Telemetrie-Engine (Mock oder Live je nach Konfiguration)
    */
   start() {
+    let savedWsUrl = null;
+    let savedDataSource = null;
+    try {
+      if (typeof localStorage !== "undefined") {
+        const saved = localStorage.getItem("cps_saved_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.websocket?.url) savedWsUrl = parsed.websocket.url;
+          if (parsed.dataSource) savedDataSource = parsed.dataSource;
+        }
+      }
+    } catch (_) {}
+
+    if (savedDataSource === "simulator") {
+      this.startMockSimulation();
+      return;
+    }
+
+    // Auto-Erkennung: Falls auf GitHub Pages oder file:
+    const isGitHubPages = typeof window !== "undefined" && window.location && (
+      window.location.hostname.endsWith("github.io") || window.location.protocol === "file:"
+    );
+
+    if (isGitHubPages) {
+      // Auf GitHub Pages: Starte Mock-Simulation als sofortigen Fallback und verbinde parallel mit Node-RED WSS
+      this.startMockSimulation();
+      const targetWs = savedWsUrl || "wss://nodered.bbk.robin-w.de/ws/opcua";
+      this.connectWebSocket(targetWs);
+      return;
+    }
+
     if (this.config.api.mode === "websocket") {
-      this.connectWebSocket(this.config.api.wsEndpoint);
+      let targetWs = savedWsUrl || this.config.api.wsEndpoint;
+      if (!targetWs || targetWs.includes("edge-gateway.local")) {
+        const proto = (typeof window !== "undefined" && window.location && window.location.protocol === "https:") ? "wss:" : "ws:";
+        const host = (typeof window !== "undefined" && window.location && window.location.host) || "localhost:3000";
+        targetWs = `${proto}//${host}/ws/telemetry`;
+      }
+      this.connectWebSocket(targetWs);
     } else if (this.config.api.mode === "rest") {
       this.startRestPolling(this.config.api.restEndpoint);
     } else {
-      // Auto-Erkennung: Falls auf GitHub Pages oder file: -> direkt Mock-Simulation (kein Backend vorhanden)
-      const isGitHubPages = typeof window !== "undefined" && window.location && (
-        window.location.hostname.endsWith("github.io") || window.location.protocol === "file:"
-      );
-
-      if (isGitHubPages) {
-        console.info("[TelemetryService] GitHub Pages / Statischer Host erkannt: Starte lokale SPS-Simulation.");
-        this.startMockSimulation();
-        return;
-      }
-
       // Falls über Node.js / Docker Server geladen, mit integriertem Backend verbinden
       if (typeof window !== "undefined" && window.location && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
         const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -337,31 +365,46 @@ export class TelemetryService {
    * Übernimmt externe Daten in das interne Modell
    */
   applyExternalData(data) {
-    if (!data || !data.stationId) return;
-    const target = this.stations.find(s => s.id === data.stationId);
+    if (!data) return;
+    let targetData = data;
+    if (!targetData.stationId) {
+      const interp = authService.standaloneInterpret(data);
+      if (interp && interp.interpretation) {
+        const m = interp.interpretation.mappedValues || {};
+        targetData = {
+          stationId: interp.interpretation.stationId,
+          v1: m.v1?.val,
+          v2: m.v2?.val,
+          v3: m.v3?.val,
+          isFault: interp.interpretation.status === "KRITISCH"
+        };
+      }
+    }
+    if (!targetData.stationId) return;
+    const target = this.stations.find(s => s.id === targetData.stationId);
     if (target) {
-      if (data.v1 !== undefined) {
+      if (targetData.v1 !== undefined) {
         const prev1 = target.v1.val;
-        target.v1.val = data.v1;
+        target.v1.val = targetData.v1;
         if (!target.v1.history) target.v1.history = [];
-        target.v1.history.push(data.v1);
+        target.v1.history.push(targetData.v1);
         if (target.v1.history.length > 20) target.v1.history.shift();
-        if (data.v1 > prev1 + 0.04) target.v1.trend = "up";
-        else if (data.v1 < prev1 - 0.04) target.v1.trend = "down";
+        if (targetData.v1 > prev1 + 0.04) target.v1.trend = "up";
+        else if (targetData.v1 < prev1 - 0.04) target.v1.trend = "down";
         else target.v1.trend = "stable";
       }
-      if (data.v2 !== undefined) {
+      if (targetData.v2 !== undefined) {
         const prev2 = target.v2.val;
-        target.v2.val = data.v2;
+        target.v2.val = targetData.v2;
         if (!target.v2.history) target.v2.history = [];
-        target.v2.history.push(data.v2);
+        target.v2.history.push(targetData.v2);
         if (target.v2.history.length > 20) target.v2.history.shift();
-        if (data.v2 > prev2 + 0.04) target.v2.trend = "up";
-        else if (data.v2 < prev2 - 0.04) target.v2.trend = "down";
+        if (targetData.v2 > prev2 + 0.04) target.v2.trend = "up";
+        else if (targetData.v2 < prev2 - 0.04) target.v2.trend = "down";
         else target.v2.trend = "stable";
       }
-      if (data.v3 !== undefined) target.v3.val = data.v3;
-      if (data.isFault !== undefined) this.isFaultSimulated = data.isFault;
+      if (targetData.v3 !== undefined) target.v3.val = targetData.v3;
+      if (targetData.isFault !== undefined) this.isFaultSimulated = targetData.isFault;
       this.notify();
     }
   }
