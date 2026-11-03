@@ -407,6 +407,57 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn("createModuleFromReceivedData", js_content)
         self.assertIn("addDynamicStation", js_content)
 
+    def test_incident_ledger_and_historical_downtime(self):
+        """
+        Prüft das Vorhandensein und die Integrität der Historischen Störungs- & Ausfall-Datenbank:
+        - HTML-Markup: Incident-Ledger-Section, KPI-Kacheln, Filter, Tabelle & Melde-Modal
+        - CSS: SevDesk/HeroUI-Klassen (.incident-ledger-section, .incident-kpis-grid, etc.)
+        - JS: Lokale Persistenz (cps_incident_history), CSV/JSON-Export, MTTR & Stillstandszeit-Berechnung
+        """
+        # 1. HTML Markup
+        self.assertIn('id="incident-ledger-section"', self.overview_html)
+        self.assertIn('id="incident-history-table"', self.overview_html)
+        self.assertIn('id="incident-table-tbody"', self.overview_html)
+        self.assertIn('id="inc-badge-active-count"', self.overview_html)
+        self.assertIn('id="inc-kpi-total"', self.overview_html)
+        self.assertIn('id="inc-kpi-active"', self.overview_html)
+        self.assertIn('id="inc-kpi-downtime"', self.overview_html)
+        self.assertIn('id="inc-kpi-mttr"', self.overview_html)
+        self.assertIn('id="btn-export-incidents-csv"', self.overview_html)
+        self.assertIn('id="btn-export-incidents-json"', self.overview_html)
+        self.assertIn('id="btn-open-manual-incident"', self.overview_html)
+        self.assertIn('id="btn-clear-incidents"', self.overview_html)
+        self.assertIn('id="filter-inc-station"', self.overview_html)
+        self.assertIn('id="filter-inc-status"', self.overview_html)
+        self.assertIn('id="manual-incident-modal-backdrop"', self.overview_html)
+        self.assertIn('id="btn-save-manual-incident"', self.overview_html)
+
+        # 2. CSS Styling
+        with open(os.path.join(BASE_DIR, "css", "overview.css"), "r") as f:
+            css_content = f.read()
+        self.assertIn(".incident-ledger-section", css_content)
+        self.assertIn(".incident-ledger-card", css_content)
+        self.assertIn(".incident-kpis-grid", css_content)
+        self.assertIn(".incident-kpi-tile", css_content)
+        self.assertIn(".incident-table", css_content)
+        self.assertIn(".inc-badge-open", css_content)
+        self.assertIn(".inc-badge-resolved", css_content)
+        self.assertIn(".btn-inc-resolve", css_content)
+
+        # 3. JavaScript Controller
+        with open(os.path.join(BASE_DIR, "js", "overview.js"), "r") as f:
+            js_content = f.read()
+        self.assertIn("loadIncidentsFromStorage", js_content)
+        self.assertIn("saveIncidentsToStorage", js_content)
+        self.assertIn("initIncidentLedger", js_content)
+        self.assertIn("renderIncidentLedger", js_content)
+        self.assertIn("updateIncidentKpis", js_content)
+        self.assertIn("recordIncident", js_content)
+        self.assertIn("resolveIncident", js_content)
+        self.assertIn("downloadIncidentsCsv", js_content)
+        self.assertIn("downloadIncidentsJson", js_content)
+        self.assertIn("cps_incident_history", js_content)
+
 
 if __name__ == "__main__":
     unittest.main()

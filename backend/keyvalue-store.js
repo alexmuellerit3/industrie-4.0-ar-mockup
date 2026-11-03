@@ -15,6 +15,8 @@ export class KeyValueStore {
     this.series = new Map();
     // Generischer Key-Value Speicher für Metadaten & Anlagen-Zustand
     this.meta = new Map();
+    // Permanente Historische Störungs- & Ausfall-Datenbank (wird NICHT durch TTL 300s verworfen)
+    this.incidents = this.initDefaultIncidents();
   }
 
   /**
@@ -285,5 +287,153 @@ export class KeyValueStore {
   clear() {
     this.series.clear();
     this.meta.clear();
+  }
+
+  /* ========================================================================
+     PERMANENTE HISTORISCHE STÖRUNGS- & AUSFALL-DATENBANK (INCIDENT LEDGER)
+     ======================================================================== */
+  initDefaultIncidents() {
+    const now = Date.now();
+    return [
+      {
+        id: "INC-20261102-001",
+        stationId: "ST-010",
+        title: "Vakuumgreifer Unterdruck-Abfall (< -0.4 bar)",
+        severity: "KRITISCH",
+        status: "RESOLVED",
+        timestamp: now - 24 * 3600 * 1000,
+        resolvedAt: now - 24 * 3600 * 1000 + 14 * 60 * 1000,
+        durationSeconds: 840,
+        operator: "Instandhaltung (M. Weber)",
+        notes: "Vakuumschlauch nachgezogen & Sensor kalibriert."
+      },
+      {
+        id: "INC-20261103-001",
+        stationId: "ST-030",
+        title: "Deckel-Verschraubung Drehmoment-Schlupf (> 4.8 Nm)",
+        severity: "WARNUNG",
+        status: "RESOLVED",
+        timestamp: now - 4 * 3600 * 1000,
+        resolvedAt: now - 4 * 3600 * 1000 + 8 * 60 * 1000,
+        durationSeconds: 480,
+        operator: "Bediener A. Müller",
+        notes: "Führungsschiene gereinigt und nachjustiert."
+      },
+      {
+        id: "INC-20261103-002",
+        stationId: "ST-POWERHOUSE",
+        title: "Druckluftabfall Hauptversorgungsleitung (< 5.0 bar)",
+        severity: "KRITISCH",
+        status: "RESOLVED",
+        timestamp: now - 2 * 3600 * 1000,
+        resolvedAt: now - 2 * 3600 * 1000 + 22 * 60 * 1000,
+        durationSeconds: 1320,
+        operator: "Haustechnik",
+        notes: "Kompressor Stufe 2 zugeschaltet."
+      }
+    ];
+  }
+
+  /**
+   * Erfasst eine neue Störung
+   * @param {Object} data - { stationId, title, severity, operator, notes, timestamp }
+   */
+  addIncident(data) {
+    const now = Date.now();
+    const id = data.id || `INC-${new Date(now).toISOString().slice(0, 10).replace(/-/g, "")}-${String(this.incidents.length + 1).padStart(3, "0")}`;
+    const incident = {
+      id,
+      stationId: data.stationId || "ST-ALL",
+      title: data.title || "Unbekannte Prozessabweichung / Störung",
+      severity: data.severity || "KRITISCH",
+      status: data.status || "OPEN",
+      timestamp: data.timestamp || now,
+      resolvedAt: data.resolvedAt || null,
+      durationSeconds: data.durationSeconds || (data.status === "RESOLVED" && data.resolvedAt ? Math.round((data.resolvedAt - (data.timestamp || now)) / 1000) : 0),
+      operator: data.operator || "SCADA-Automatik",
+      notes: data.notes || ""
+    };
+
+    this.incidents.unshift(incident);
+    return incident;
+  }
+
+  /**
+   * Quittiert / behebt eine Störung per ID
+   */
+  resolveIncident(id, resolvedAt = Date.now(), operator = "System", notes = "") {
+    const inc = this.incidents.find(i => i.id === id);
+    if (!inc) return null;
+
+    inc.status = "RESOLVED";
+    inc.resolvedAt = resolvedAt;
+    inc.durationSeconds = Math.max(1, Math.round((resolvedAt - inc.timestamp) / 1000));
+    if (operator && operator !== "System") inc.operator = operator;
+    if (notes) inc.notes = notes;
+    return inc;
+  }
+
+  /**
+   * Behebt die aktuellste offene Störung einer Station
+   */
+  resolveActiveIncidentForStation(stationId, resolvedAt = Date.now(), operator = "Instandhaltung") {
+    const inc = this.incidents.find(i => i.stationId === stationId && i.status === "OPEN");
+    if (inc) {
+      return this.resolveIncident(inc.id, resolvedAt, operator);
+    }
+    return null;
+  }
+
+  /**
+   * Ruft Störungen ab (optional gefiltert)
+   */
+  getIncidents(filter = {}) {
+    let list = [...this.incidents];
+    if (filter.stationId && filter.stationId !== "all") {
+      list = list.filter(i => i.stationId === filter.stationId);
+    }
+    if (filter.status && filter.status !== "all") {
+      list = list.filter(i => i.status === filter.status);
+    }
+    if (filter.severity && filter.severity !== "all") {
+      list = list.filter(i => i.severity === filter.severity);
+    }
+    return list;
+  }
+
+  /**
+   * Berechnet Kennzahlen (KPIs) über alle Störungen
+   */
+  getIncidentKpis(now = Date.now()) {
+    const total = this.incidents.length;
+    const activeList = this.incidents.filter(i => i.status === "OPEN");
+    const active = activeList.length;
+    const resolvedList = this.incidents.filter(i => i.status === "RESOLVED");
+
+    let totalDowntimeSec = 0;
+    this.incidents.forEach(i => {
+      if (i.status === "RESOLVED") {
+        totalDowntimeSec += (i.durationSeconds || 0);
+      } else {
+        totalDowntimeSec += Math.max(0, Math.round((now - i.timestamp) / 1000));
+      }
+    });
+
+    const resolvedSec = resolvedList.reduce((sum, i) => sum + (i.durationSeconds || 0), 0);
+    const mttrMinutes = resolvedList.length > 0 ? +(resolvedSec / resolvedList.length / 60).toFixed(1) : 0;
+    const cumulativeDowntimeMinutes = +(totalDowntimeSec / 60).toFixed(1);
+
+    return {
+      total,
+      active,
+      resolved: resolvedList.length,
+      cumulativeDowntimeSeconds: totalDowntimeSec,
+      cumulativeDowntimeMinutes,
+      mttrMinutes
+    };
+  }
+
+  clearIncidents() {
+    this.incidents = [];
   }
 }

@@ -104,7 +104,7 @@ server.listen(PORT, async () => {
     await page.click(".btn-quick-edit");
     await page.waitForSelector("#module-edit-modal-backdrop", { visible: true });
     await page.$eval("#mod-edit-name", el => el.value = "Modul 1: Ultra-Dosen-Zuführung");
-    await page.click("#btn-save-mod-edit");
+    await page.$eval("#btn-save-mod-edit", el => el.click());
     await new Promise(r => setTimeout(r, 600));
     const titleUpdated = await page.$eval("#title-ST-010", el => el.textContent);
     console.log(`[4] Aktualisierter Modultitel im DOM: "${titleUpdated}"`);
@@ -191,6 +191,48 @@ server.listen(PORT, async () => {
 
     const finalCards = await page.$$eval(".heroui-station-card", els => els.length);
     console.log(`[10] Finale Stationen im Leitstand: ${finalCards}`);
+
+    // 11. Historische Störungs- & Ausfall-Datenbank (Incident Ledger)
+    console.log("[11] Teste Historische Störungs- & Ausfall-Datenbank...");
+    const incSection = await page.$("#incident-ledger-section");
+    if (!incSection) throw new Error("Incident Ledger Section #incident-ledger-section nicht im DOM");
+
+    const initialIncRows = await page.$$eval("#incident-table-tbody tr", els => els.length);
+    console.log(`[11] Initiale historische Störungen: ${initialIncRows}`);
+    if (initialIncRows < 3) throw new Error(`Erwartete mindestens 3 Störungseinträge, gefunden: ${initialIncRows}`);
+
+    const incTotalText = await page.$eval("#inc-kpi-total", el => el.textContent);
+    const incMttrText = await page.$eval("#inc-kpi-mttr", el => el.textContent);
+    console.log(`[11] Incident KPIs: Total = ${incTotalText}, MTTR = ${incMttrText}`);
+
+    // Störung manuell anlegen über Modal
+    await page.$eval("#btn-open-manual-incident", el => el.click());
+    await page.waitForSelector("#manual-incident-modal-backdrop", { visible: true });
+    await page.$eval("#manual-inc-title", el => el.value = "Test-Notstopp: Druckluftabfall Hauptleitung");
+    await page.$eval("#manual-inc-severity", el => el.value = "KRITISCH");
+    await page.$eval("#manual-inc-operator", el => el.value = "IHK-Prüfling A. Müller");
+    await page.$eval("#btn-save-manual-incident", el => el.click());
+    await new Promise(r => setTimeout(r, 400));
+
+    const activeBadge = await page.$eval("#inc-badge-active-count", el => el.textContent);
+    console.log(`[11] Aktive Störungen Badge: "${activeBadge}"`);
+    if (!activeBadge.includes("1 Aktiv") && !activeBadge.includes("Aktiv")) {
+      throw new Error("Aktiver Vorfall wurde nicht registriert");
+    }
+
+    // Störung in der Tabelle als behoben markieren
+    await page.$eval(".btn-inc-resolve", el => el.click());
+    await new Promise(r => setTimeout(r, 300));
+    const firstRowStatus = await page.$eval("#incident-table-tbody tr td:nth-child(7)", el => el.textContent);
+    console.log(`[11] Störungs-Status nach Behebung: "${firstRowStatus}"`);
+    if (!firstRowStatus.includes("Behoben")) {
+      throw new Error("Störung konnte nicht behoben werden");
+    }
+
+    // CSV & JSON Download Handler Trigger
+    await page.$eval("#btn-export-incidents-csv", el => el.click());
+    await page.$eval("#btn-export-incidents-json", el => el.click());
+    console.log("[11] CSV & JSON Export ausgelöst ohne Fehler");
 
     if (pageErrors.length > 0) {
       throw new Error(`Unerwartete Page-Errors aufgetreten: ${pageErrors.join(", ")}`);

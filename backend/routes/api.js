@@ -679,6 +679,23 @@ export function createApiRouter({
     const faultState = Boolean(isFault);
     store.setMeta(`fault_${stationId}`, faultState);
 
+    // Störungshistorie im Incident Ledger aktualisieren
+    let incident = null;
+    if (faultState) {
+      incident = store.addIncident({
+        stationId,
+        title: req.body.title || `Störung an ${stationId} ausgelöst (Not-Aus / Prozessfehler)`,
+        severity: req.body.severity || "KRITISCH",
+        operator: req.body.operator || (req.user ? req.user.username : "SCADA-Automatik")
+      });
+    } else {
+      incident = store.resolveActiveIncidentForStation(
+        stationId,
+        Date.now(),
+        req.body.operator || (req.user ? req.user.username : "Instandhaltung")
+      );
+    }
+
     // Per MQTT publishen
     if (mqttClient) {
       mqttClient.publishCommand(stationId, {
@@ -693,11 +710,12 @@ export function createApiRouter({
         type: "fault_change",
         stationId,
         isFault: faultState,
+        incident,
         timestamp: Date.now()
       });
     }
 
-    res.json({ success: true, stationId, isFault: faultState });
+    res.json({ success: true, stationId, isFault: faultState, incident });
   });
 
   // 6. Manuelle Telemetrie-Einspeisung über REST
@@ -953,6 +971,83 @@ export function createApiRouter({
     } catch (err) {
       res.status(500).json({ success: false, message: err.message });
     }
+  });
+
+  /* ========================================================================
+     HISTORISCHE STÖRUNGS- & AUSFALL-DATENBANK (INCIDENT LEDGER API)
+     ======================================================================== */
+
+  // 12. Liste historischer Störungen & KPI-Synopsis abrufen
+  router.get("/incidents", (req, res) => {
+    const filter = {
+      stationId: req.query.stationId,
+      status: req.query.status,
+      severity: req.query.severity
+    };
+    const incidents = store.getIncidents(filter);
+    const kpis = store.getIncidentKpis();
+    res.json({ success: true, incidents, kpis });
+  });
+
+  // 13. Neue Störung manuell anlegen
+  router.post("/incidents", (req, res) => {
+    const { stationId, title, severity, operator, notes } = req.body;
+    if (!title) {
+      return res.status(400).json({ error: "title is required" });
+    }
+
+    const incident = store.addIncident({
+      stationId: stationId || "ST-ALL",
+      title,
+      severity: severity || "KRITISCH",
+      operator: operator || (req.user ? req.user.username : "Instandhaltung"),
+      notes: notes || ""
+    });
+
+    if (wsServer) {
+      wsServer.broadcast({
+        type: "incident_created",
+        incident,
+        kpis: store.getIncidentKpis(),
+        timestamp: Date.now()
+      });
+    }
+
+    res.status(201).json({ success: true, incident });
+  });
+
+  // 14. Störung quittieren / als behoben markieren
+  router.post("/incidents/:id/resolve", (req, res) => {
+    const { id } = req.params;
+    const { operator, notes } = req.body;
+
+    const incident = store.resolveIncident(
+      id,
+      Date.now(),
+      operator || (req.user ? req.user.username : "Instandhaltung"),
+      notes || ""
+    );
+
+    if (!incident) {
+      return res.status(404).json({ error: `Incident '${id}' nicht gefunden` });
+    }
+
+    if (wsServer) {
+      wsServer.broadcast({
+        type: "incident_resolved",
+        incident,
+        kpis: store.getIncidentKpis(),
+        timestamp: Date.now()
+      });
+    }
+
+    res.json({ success: true, incident });
+  });
+
+  // 15. Störungshistorie leeren / zurücksetzen
+  router.delete("/incidents", (req, res) => {
+    store.clearIncidents();
+    res.json({ success: true, message: "Incident history cleared" });
   });
 
   return router;

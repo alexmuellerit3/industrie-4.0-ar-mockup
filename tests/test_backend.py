@@ -1027,6 +1027,93 @@ class TestBackendServerLive(unittest.TestCase):
         with urllib.request.urlopen(del_req, timeout=2) as resp:
             self.assertEqual(resp.status, 200)
 
+    def test_historical_incident_ledger_and_kpis(self):
+        """
+        Prüft die historische Störungs- & Ausfall-Datenbank (Incident Ledger):
+        - GET /api/incidents liefert Störungs-Liste & KPI-Synopsis
+        - POST /api/incidents legt neue manuelle Störung an (Status: OPEN)
+        - POST /api/incidents/:id/resolve quittiert Störung und berechnet Ausfallzeit
+        - POST /api/fault integriert automatisch Vorfälle in den Ledger
+        - Filter-Parameter (?status=, ?stationId=) schränken Abfrage korrekt ein
+        """
+        # 1. Initiale Störungen abrufen
+        get_url = f"http://127.0.0.1:{self.server_port}/api/incidents"
+        with urllib.request.urlopen(get_url, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data.get("success"))
+            self.assertIn("incidents", data)
+            self.assertIn("kpis", data)
+            initial_count = len(data["incidents"])
+            self.assertGreaterEqual(initial_count, 3)
+            self.assertIn("total", data["kpis"])
+            self.assertIn("active", data["kpis"])
+            self.assertIn("mttrMinutes", data["kpis"])
+            self.assertIn("cumulativeDowntimeMinutes", data["kpis"])
+
+        # 2. Neue Störung manuell melden
+        post_data = json.dumps({
+            "stationId": "ST-020",
+            "title": "Dosierventil Klemmung durch Zuckerkristallisation",
+            "severity": "KRITISCH",
+            "operator": "Prüfungs-Techniker A. Müller"
+        }).encode("utf-8")
+        req = urllib.request.Request(get_url, data=post_data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            self.assertEqual(resp.status, 201)
+            created = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(created.get("success"))
+            inc = created["incident"]
+            self.assertEqual(inc["stationId"], "ST-020")
+            self.assertEqual(inc["status"], "OPEN")
+            created_id = inc["id"]
+
+        # 3. Filter prüfen: Nur aktive/offene Störungen
+        filter_url = f"http://127.0.0.1:{self.server_port}/api/incidents?status=OPEN"
+        with urllib.request.urlopen(filter_url, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            open_data = json.loads(resp.read().decode("utf-8"))
+            open_ids = [i["id"] for i in open_data["incidents"]]
+            self.assertIn(created_id, open_ids)
+            for item in open_data["incidents"]:
+                self.assertEqual(item["status"], "OPEN")
+
+        # 4. Störung quittieren / beheben
+        resolve_url = f"http://127.0.0.1:{self.server_port}/api/incidents/{created_id}/resolve"
+        resolve_data = json.dumps({
+            "operator": "Techniker M. Weber",
+            "notes": "Dosierventil mit Heißwasser gespült."
+        }).encode("utf-8")
+        resolve_req = urllib.request.Request(resolve_url, data=resolve_data, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(resolve_req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            resolved_res = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(resolved_res.get("success"))
+            self.assertEqual(resolved_res["incident"]["status"], "RESOLVED")
+            self.assertIsNotNone(resolved_res["incident"]["resolvedAt"])
+            self.assertGreaterEqual(resolved_res["incident"]["durationSeconds"], 0)
+
+        # 5. POST /api/fault Interaktion mit Incident Ledger
+        fault_url = f"http://127.0.0.1:{self.server_port}/api/fault"
+        fault_payload = json.dumps({"stationId": "ST-010", "isFault": True}).encode("utf-8")
+        fault_req = urllib.request.Request(fault_url, data=fault_payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(fault_req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            fault_res = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(fault_res.get("success"))
+            self.assertTrue(fault_res.get("isFault"))
+            self.assertIsNotNone(fault_res.get("incident"))
+            self.assertEqual(fault_res["incident"]["status"], "OPEN")
+
+        # Quittieren über POST /api/fault
+        clear_payload = json.dumps({"stationId": "ST-010", "isFault": False}).encode("utf-8")
+        clear_req = urllib.request.Request(fault_url, data=clear_payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(clear_req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            clear_res = json.loads(resp.read().decode("utf-8"))
+            self.assertFalse(clear_res.get("isFault"))
+            self.assertEqual(clear_res["incident"]["status"], "RESOLVED")
+
 
 if __name__ == "__main__":
     unittest.main()

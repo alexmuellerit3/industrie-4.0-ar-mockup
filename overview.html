@@ -278,6 +278,114 @@
   </main>
 
   <!-- ========================================================================
+       HISTORISCHE STÖRUNGS- & AUSFALL-DATENBANK (INCIDENT LEDGER)
+       ======================================================================== -->
+  <section class="incident-ledger-section" id="incident-ledger-section">
+    <div class="incident-ledger-card">
+      <div class="incident-card-header">
+        <div class="incident-title-group">
+          <div class="incident-avatar">⚠️</div>
+          <div>
+            <div class="incident-main-title">
+              <span>Historische Störungs- & Ausfall-Datenbank</span>
+              <span class="inc-badge-open" id="inc-badge-active-count">0 Aktiv</span>
+            </div>
+            <div class="incident-subtitle">
+              Permanente Erfassung von Grenzwertverletzungen, Not-Aus-Ereignissen & Wartungsstopps (unabhängig vom 5-Minuten Ringspeicher)
+            </div>
+          </div>
+        </div>
+        <div class="incident-header-actions">
+          <button type="button" class="heroui-btn heroui-btn-sm heroui-btn-flat" id="btn-export-incidents-csv" title="Als CSV für IHK-Dokumentation exportieren">
+            📄 CSV Export
+          </button>
+          <button type="button" class="heroui-btn heroui-btn-sm heroui-btn-flat" id="btn-export-incidents-json" title="Als JSON exportieren">
+            📦 JSON
+          </button>
+          <button type="button" class="heroui-btn heroui-btn-sm heroui-btn-primary" id="btn-open-manual-incident" title="Störung manuell melden">
+            ➕ Störung melden
+          </button>
+          <button type="button" class="heroui-btn heroui-btn-sm heroui-btn-danger" id="btn-clear-incidents" title="Historie zurücksetzen">
+            🗑️ Zurücksetzen
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary -->
+      <div class="incident-kpis-grid">
+        <div class="incident-kpi-tile">
+          <span class="inc-kpi-lbl">Gesamte Störungen</span>
+          <span class="inc-kpi-num" id="inc-kpi-total">0</span>
+          <span class="inc-kpi-sub">Historisch erfasst</span>
+        </div>
+        <div class="incident-kpi-tile">
+          <span class="inc-kpi-lbl">Aktive Ausfälle</span>
+          <span class="inc-kpi-num" id="inc-kpi-active" style="color: #ef4444;">0</span>
+          <span class="inc-kpi-sub">Handlungsbedarf</span>
+        </div>
+        <div class="incident-kpi-tile">
+          <span class="inc-kpi-lbl">Kumulierte Stillstandszeit</span>
+          <span class="inc-kpi-num" id="inc-kpi-downtime">0 Min</span>
+          <span class="inc-kpi-sub">Gesamter Produktionsausfall</span>
+        </div>
+        <div class="incident-kpi-tile">
+          <span class="inc-kpi-lbl">MTTR (Ø Behebungszeit)</span>
+          <span class="inc-kpi-num" id="inc-kpi-mttr">0.0 Min</span>
+          <span class="inc-kpi-sub">Mean Time To Repair</span>
+        </div>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="incident-filter-bar">
+        <div class="inc-filter-group">
+          <label for="filter-inc-station" class="form-sub-label" style="margin:0;">Station:</label>
+          <select id="filter-inc-station" class="inc-select">
+            <option value="all">Alle Module</option>
+            <option value="ST-010">ST-010 (Dosen-Zuführung)</option>
+            <option value="ST-020">ST-020 (Dosierung & Befüllung)</option>
+            <option value="ST-030">ST-030 (Verschluss & Bördelung)</option>
+            <option value="ST-040">ST-040 (Qualitätskontrolle)</option>
+            <option value="ST-POWERHOUSE">ST-POWERHOUSE (Druckluft & Energie)</option>
+          </select>
+        </div>
+        <div class="inc-filter-group">
+          <label for="filter-inc-status" class="form-sub-label" style="margin:0;">Status:</label>
+          <select id="filter-inc-status" class="inc-select">
+            <option value="all">Alle Status</option>
+            <option value="OPEN">Nur Offen / Aktiv</option>
+            <option value="RESOLVED">Nur Behoben</option>
+          </select>
+        </div>
+        <div class="inc-filter-group" style="margin-left: auto;">
+          <span class="inc-kpi-sub" id="inc-filter-info">Zeige alle Einträge</span>
+        </div>
+      </div>
+
+      <!-- Incident Table -->
+      <div class="incident-table-wrap">
+        <table class="incident-table" id="incident-history-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Zeitpunkt</th>
+              <th>Station</th>
+              <th>Ursache / Fehlercode</th>
+              <th>Schweregrad</th>
+              <th>Dauer</th>
+              <th>Status</th>
+              <th>Erfasst von</th>
+              <th>Aktion</th>
+            </tr>
+          </thead>
+          <tbody id="incident-table-tbody">
+            <!-- Wird dynamisch befüllt -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
        SEVDESK FUSSZEILE MIT SYSTEMINFOS
        ======================================================================== -->
   <footer class="scada-page-footer">
@@ -871,6 +979,65 @@
       <div class="heroui-modal-footer">
         <button type="button" class="heroui-btn heroui-btn-flat" id="btn-cancel-mod-edit">Abbrechen</button>
         <button type="button" class="heroui-btn heroui-btn-primary" id="btn-save-mod-edit">💾 Änderungen speichern</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       MODAL: MANUELLE STÖRUNGSERFASSUNG (INCIDENT LOGGING)
+       ======================================================================== -->
+  <div class="heroui-modal-backdrop" id="manual-incident-modal-backdrop" style="display:none;">
+    <div class="heroui-modal-dialog" role="dialog" aria-modal="true" style="max-width: 520px;">
+      
+      <div class="heroui-modal-header">
+        <div class="modal-title-group">
+          <div class="modal-avatar-badge" style="background: rgba(239, 68, 68, 0.2); border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">🚨</div>
+          <div>
+            <h2 class="modal-main-title">Störung / Stillstand erfassen</h2>
+            <div class="modal-sub-title">Dokumentation ungeplanter Stillstände & technischer Fehler</div>
+          </div>
+        </div>
+        <button type="button" class="heroui-modal-close" id="btn-close-manual-incident" title="Schließen">✕</button>
+      </div>
+
+      <div class="heroui-modal-body">
+        <form id="form-manual-incident" onsubmit="return false;">
+          <div class="form-group">
+            <label class="form-label" for="manual-inc-station">Betroffenes Modul / Station</label>
+            <select id="manual-inc-station" class="heroui-select">
+              <option value="ST-010">ST-010 - Farbsortierung & Dosen-Zuführung</option>
+              <option value="ST-020">ST-020 - Präzisionsdosierung & Befüllung</option>
+              <option value="ST-030">ST-030 - Deckel-Aufpressung & Bördelung</option>
+              <option value="ST-040">ST-040 - Qualitätskontrolle & Waage</option>
+              <option value="ST-POWERHOUSE">ST-POWERHOUSE - Druckluft & Energieversorgung</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="manual-inc-severity">Schweregrad</label>
+            <select id="manual-inc-severity" class="heroui-select">
+              <option value="KRITISCH">KRITISCH (Linienstillstand / Not-Aus)</option>
+              <option value="WARNUNG">WARNUNG (Toleranzüberschreitung / Taktverlust)</option>
+              <option value="INFO">INFO (Wartungsnotiz / Rüsten)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="manual-inc-title">Fehlerbeschreibung / Störungsursache</label>
+            <input type="text" id="manual-inc-title" class="heroui-input" placeholder="z. B. Vakuumgreifer Saugnapf verschmutzt oder Überlast" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="manual-inc-operator">Erfasst durch (Bediener / Techniker)</label>
+            <input type="text" id="manual-inc-operator" class="heroui-input" placeholder="z. B. IHK-Prüfling / Instandhaltung" value="Instandhaltung">
+          </div>
+        </form>
+      </div>
+
+      <div class="heroui-modal-footer">
+        <button type="button" class="heroui-btn heroui-btn-flat" id="btn-cancel-manual-incident">Abbrechen</button>
+        <button type="button" class="heroui-btn heroui-btn-danger" id="btn-save-manual-incident">🚨 Störung anlegen</button>
       </div>
 
     </div>

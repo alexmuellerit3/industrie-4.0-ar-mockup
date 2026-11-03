@@ -81,6 +81,10 @@ class AuthService {
     return this.currentUser;
   }
 
+  getCurrentUser() {
+    return this.currentUser;
+  }
+
   loadStoredUser() {
     try {
       const data = localStorage.getItem(this.userKey);
