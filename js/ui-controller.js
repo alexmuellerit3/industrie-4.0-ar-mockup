@@ -143,6 +143,19 @@ export class UIController {
       if (this.onZoomCycle) this.onZoomCycle();
     });
 
+    const btnForce = document.getElementById("btn-force-show-card");
+    if (btnForce) {
+      bindTap(btnForce, () => {
+        if (typeof window !== "undefined" && window.fireEventMarkerFound) {
+          window.fireEventMarkerFound();
+        } else if (this.stationCard) {
+          this.stationCard.style.display = "block";
+        }
+        const hint = document.getElementById("ar-no-marker-hint");
+        if (hint) hint.style.display = "none";
+      });
+    }
+
     bindTap(this.btnOpenConfig, () => this.openConfigModal());
     bindTap(this.btnCloseConfig, () => this.closeConfigModal());
     bindTap(this.btnCancelConfig, () => this.closeConfigModal());

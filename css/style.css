@@ -1266,4 +1266,68 @@ a-scene canvas {
   text-transform: uppercase;
 }
 
+/* Hilfs-Banner bei fehlendem Marker */
+.ar-no-marker-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: rgba(18, 20, 26, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 8px 14px;
+  margin: 8px auto;
+  max-width: min(480px, 100%);
+  width: 100%;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.hint-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-hint-show {
+  background: var(--heroui-surface);
+  border: 1px solid var(--heroui-border);
+  color: #38bdf8;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-hint-show:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+}
+
+.btn-hint-leitstand {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.btn-hint-leitstand:hover {
+  background: rgba(16, 185, 129, 0.25);
+  border-color: #34d399;
+}
+
 

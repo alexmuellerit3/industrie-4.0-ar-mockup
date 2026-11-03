@@ -21,7 +21,9 @@
         const ua = navigator.userAgent || "";
         const isMobileOrTablet = /(Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Tablet|Mobile|Silk)/i.test(ua)
           || (navigator.maxTouchPoints && navigator.maxTouchPoints > 2 && /Macintosh/.test(ua));
-        if (!isMobileOrTablet && window.innerWidth >= 992) {
+        // Auf GitHub Pages: Standardmäßig zum Leitstand (overview.html) leiten, damit alle 4 Module und der JSON-Inspektor sofort sichtbar sind
+        const isGitHubPages = typeof window !== "undefined" && window.location && window.location.hostname.endsWith("github.io");
+        if (isGitHubPages || (!isMobileOrTablet && window.innerWidth >= 992)) {
           window.location.replace("overview.html");
         }
       } catch (_) {}
@@ -90,7 +92,16 @@
       <div class="viewfinder-label">Marker anvisieren</div>
     </div>
 
-    <!-- Stationskarte unten (nur bei erkanntem Marker) -->
+    <!-- Hilfs-Banner falls kein Hiro-Marker vorhanden ist -->
+    <div class="ar-no-marker-hint interactive" id="ar-no-marker-hint">
+      <span>Kein gedruckter Hiro-Marker?</span>
+      <div class="hint-btn-group">
+        <button type="button" class="btn-hint-show interactive" id="btn-force-show-card" title="Messwerte ohne Kamera-Marker einblenden">👁️ Daten einblenden</button>
+        <a href="overview.html" class="btn-hint-leitstand interactive" title="Vollständigen SCADA-Leitstand öffnen">🖥️ Leitstand ↗</a>
+      </div>
+    </div>
+
+    <!-- Stationskarte unten (bei erkanntem Marker oder per Direkt-Button) -->
     <main class="station-card interactive" id="station-card">
       
       <div class="station-head">

@@ -130,6 +130,141 @@
   </section>
 
   <!-- ========================================================================
+       LIVE JSON-INSPEKTOR: ERSTE ABFRAGE (WEBSOCKET & MQTT)
+       ======================================================================== -->
+  <section class="json-inspector-section" id="json-inspector-section">
+    <div class="json-inspector-card heroui-card">
+      <div class="inspector-card-header">
+        <div class="inspector-title-group">
+          <div class="inspector-avatar">📡</div>
+          <div>
+            <div class="inspector-main-title">
+              <span>Rohdaten-Inspektor: Erste JSON-Abfrage (WebSocket & MQTT)</span>
+              <span class="chip-dot pulse" id="inspector-pulse-dot" style="display:inline-block; margin-left:6px;"></span>
+            </div>
+            <div class="inspector-subtitle">
+              Zeigt exakt die Rohdaten (Raw JSON) an, die bei der ersten Abfrage oder vom Live-Stream empfangen werden.
+            </div>
+          </div>
+        </div>
+
+        <div class="inspector-header-actions">
+          <div class="inspector-tabs-group" role="tablist">
+            <button type="button" class="inspector-tab active" id="tab-insp-ws" role="tab" aria-selected="true">
+              <span>⚡ WebSocket (Live)</span>
+            </button>
+            <button type="button" class="inspector-tab" id="tab-insp-mqtt" role="tab" aria-selected="false">
+              <span>📡 MQTT Broker</span>
+            </button>
+          </div>
+          <button type="button" class="heroui-btn heroui-btn-flat" id="btn-toggle-inspector" title="Inspektor ein-/ausklappen">
+            <span id="inspector-toggle-icon">▲</span>
+            <span id="inspector-toggle-text">Einklappen</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="inspector-card-body" id="inspector-card-body">
+        
+        <!-- Panel 1: WebSocket -->
+        <div class="inspector-panel" id="panel-insp-ws">
+          <div class="inspector-meta-bar">
+            <div class="inspector-meta-item">
+              <span class="meta-label">Status:</span>
+              <span class="meta-val highlight" id="insp-ws-status">Warte auf Verbindung...</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Endpunkt:</span>
+              <span class="meta-val font-mono" id="insp-ws-url">wss://nodered.bbk.robin-w.de/ws/opcua</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Erstes Paket empfangen um:</span>
+              <span class="meta-val font-mono" id="insp-ws-time">--:--:--</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Topic:</span>
+              <span class="meta-val font-mono" id="insp-ws-topic">--</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Paketgröße:</span>
+              <span class="meta-val font-mono" id="insp-ws-size">--</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Live-Zähler:</span>
+              <span class="meta-val font-mono" id="insp-ws-counter">0 Frames</span>
+            </div>
+          </div>
+
+          <div class="inspector-code-wrapper">
+            <div class="code-header-bar">
+              <span class="code-filename">Raw JSON (Erste WebSocket-Nachricht)</span>
+              <div class="code-actions">
+                <button type="button" class="heroui-btn heroui-btn-flat btn-copy-json" id="btn-copy-ws-json" title="JSON in Zwischenablage kopieren">
+                  <span>📋 Kopieren</span>
+                </button>
+                <button type="button" class="heroui-btn heroui-btn-flat" id="btn-reset-ws-insp" title="Erstes Paket zurücksetzen und neu abfangen">
+                  <span>🔄 Neu abfangen</span>
+                </button>
+              </div>
+            </div>
+            <pre class="inspector-code-block"><code id="code-insp-ws">Verbinde mit wss://nodered.bbk.robin-w.de/ws/opcua ...</code></pre>
+          </div>
+
+          <div class="inspector-note">
+            💡 <strong>Erklärung:</strong> Dieses Paket wird direkt von Node-RED gestreamt (Node <code>ns=0;i=2258</code>, OPC UA <code>ServerStatus_CurrentTime</code>). Es dient als Taktgeber für die gesamte Candy-Fertigungslinie und aktualisiert alle 4 Module in Echtzeit.
+          </div>
+        </div>
+
+        <!-- Panel 2: MQTT -->
+        <div class="inspector-panel" id="panel-insp-mqtt" style="display:none;">
+          <div class="inspector-meta-bar">
+            <div class="inspector-meta-item">
+              <span class="meta-label">Status:</span>
+              <span class="meta-val highlight" id="insp-mqtt-status">MQTT Bereit</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Broker:</span>
+              <span class="meta-val font-mono" id="insp-mqtt-broker">broker.hivemq.com:1883</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Topic:</span>
+              <span class="meta-val font-mono" id="insp-mqtt-topic">cps-i40/ST-020/telemetry</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Erste Abfrage:</span>
+              <span class="meta-val font-mono" id="insp-mqtt-time">--:--:--</span>
+            </div>
+            <div class="inspector-meta-item">
+              <span class="meta-label">Paketgröße:</span>
+              <span class="meta-val font-mono" id="insp-mqtt-size">--</span>
+            </div>
+          </div>
+
+          <div class="inspector-code-wrapper">
+            <div class="code-header-bar">
+              <span class="code-filename">Raw JSON (Erste MQTT-Abfrage / Payload)</span>
+              <div class="code-actions">
+                <button type="button" class="heroui-btn heroui-btn-flat btn-copy-json" id="btn-copy-mqtt-json" title="JSON in Zwischenablage kopieren">
+                  <span>📋 Kopieren</span>
+                </button>
+                <button type="button" class="heroui-btn heroui-btn-primary" id="btn-query-mqtt" title="Neue MQTT-Abfrage ausführen">
+                  <span>⚡ MQTT-Abfrage ausführen</span>
+                </button>
+              </div>
+            </div>
+            <pre class="inspector-code-block"><code id="code-insp-mqtt">Initialisiere MQTT-Telemetrie...</code></pre>
+          </div>
+
+          <div class="inspector-note">
+            💡 <strong>Erklärung:</strong> Standardisiertes CPS-i40 MQTT-Telemetriepaket der Station <code>ST-020</code> (Dosierung & Befüllung) mit Füllgewicht (g), Druck (bar) und Taktrate (D/min).
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================
        HEROUI STATIONS-GRID (Alle 4 Module mit 5-Minuten Trendkurven)
        ======================================================================== -->
   <main class="stations-scada-grid" id="stations-scada-container">

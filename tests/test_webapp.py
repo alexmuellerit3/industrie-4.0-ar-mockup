@@ -294,6 +294,8 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
             self.ui_controller_js = f.read()
         with open(os.path.join(BASE_DIR, "js", "services", "telemetry-service.js"), "r") as f:
             self.telemetry_js = f.read()
+        with open(os.path.join(BASE_DIR, "css", "overview.css"), "r") as f:
+            self.overview_css = f.read()
 
     def test_client_device_routing_in_index_html(self):
         """index.html muss Client-seitiges Routing besitzen (Desktop -> overview.html)."""
@@ -340,9 +342,40 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn("standaloneInterpret", self.telemetry_js)
         self.assertIn("standaloneInterpret", self.overview_js)
 
+    def test_raw_json_inspector_websocket_and_mqtt(self):
+        """Prüft, dass der Rohdaten-Inspektor für die erste JSON-Abfrage (WebSocket & MQTT) vollständig integriert ist."""
+        # 1. Markup in overview.html
+        self.assertIn('id="json-inspector-section"', self.overview_html)
+        self.assertIn('id="tab-insp-ws"', self.overview_html)
+        self.assertIn('id="tab-insp-mqtt"', self.overview_html)
+        self.assertIn('id="code-insp-ws"', self.overview_html)
+        self.assertIn('id="code-insp-mqtt"', self.overview_html)
+        self.assertIn('id="btn-copy-ws-json"', self.overview_html)
+        self.assertIn('id="btn-copy-mqtt-json"', self.overview_html)
+        self.assertIn('id="btn-query-mqtt"', self.overview_html)
+
+        # 2. Styles in overview.css
+        self.assertIn(".json-inspector-section", self.overview_css)
+        self.assertIn(".inspector-code-block", self.overview_css)
+        self.assertIn(".json-key", self.overview_css)
+        self.assertIn(".json-string", self.overview_css)
+
+        # 3. Controller-Logik in overview.js
+        with open(os.path.join(BASE_DIR, "js", "overview.js"), "r") as f:
+            overview_js_content = f.read()
+        self.assertIn("initInspector", overview_js_content)
+        self.assertIn("recordWsInspectorPacket", overview_js_content)
+        self.assertIn("queryMqttFirstPacket", overview_js_content)
+        self.assertIn("syntaxHighlightJson", overview_js_content)
+
+        # 4. Hilfsbanner in index.html für markerlosen Direktzugriff
+        self.assertIn('id="ar-no-marker-hint"', self.index_html)
+        self.assertIn('id="btn-force-show-card"', self.index_html)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 
 
