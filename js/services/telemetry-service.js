@@ -366,10 +366,49 @@ export class TelemetryService {
    */
   applyExternalData(data) {
     if (!data) return;
+
+    // Sobald echte Daten eintreffen: Mock-Simulation abschalten
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
+
     let targetData = data;
     if (!targetData.stationId) {
       const interp = authService.standaloneInterpret(data);
       if (interp && interp.interpretation) {
+        if (Array.isArray(interp.interpretation.allStations) && interp.interpretation.allStations.length > 0) {
+          interp.interpretation.allStations.forEach(stData => {
+            const target = this.stations.find(s => s.id === stData.stationId);
+            if (target) {
+              if (stData.v1 !== undefined) {
+                const prev1 = target.v1.val;
+                target.v1.val = stData.v1;
+                if (!target.v1.history) target.v1.history = [];
+                target.v1.history.push(stData.v1);
+                if (target.v1.history.length > 20) target.v1.history.shift();
+                if (stData.v1 > prev1 + 0.04) target.v1.trend = "up";
+                else if (stData.v1 < prev1 - 0.04) target.v1.trend = "down";
+                else target.v1.trend = "stable";
+              }
+              if (stData.v2 !== undefined) {
+                const prev2 = target.v2.val;
+                target.v2.val = stData.v2;
+                if (!target.v2.history) target.v2.history = [];
+                target.v2.history.push(stData.v2);
+                if (target.v2.history.length > 20) target.v2.history.shift();
+                if (stData.v2 > prev2 + 0.04) target.v2.trend = "up";
+                else if (stData.v2 < prev2 - 0.04) target.v2.trend = "down";
+                else target.v2.trend = "stable";
+              }
+              if (stData.v3 !== undefined) target.v3.val = stData.v3;
+              if (stData.isFault !== undefined) this.isFaultSimulated = stData.isFault;
+            }
+          });
+          this.notify();
+          return;
+        }
+
         const m = interp.interpretation.mappedValues || {};
         targetData = {
           stationId: interp.interpretation.stationId,

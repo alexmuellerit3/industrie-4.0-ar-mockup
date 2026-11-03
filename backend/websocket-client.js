@@ -192,23 +192,43 @@ export class WebSocketClientService {
       // 2. Semantische Interpretation (Node-RED OPC UA, Milo, Prosys, beliebiges IoT JSON)
       if (this.interpreter) {
         const interpreted = this.interpreter.interpret(msg);
-        if (interpreted && interpreted.stationId) {
-          const sample = {
-            v1: interpreted.metrics?.v1?.value ?? interpreted.mappedValues?.v1?.val ?? 0,
-            v2: interpreted.metrics?.v2?.value ?? interpreted.mappedValues?.v2?.val ?? 0,
-            v3: interpreted.metrics?.v3?.value ?? interpreted.mappedValues?.v3?.val ?? 0,
-            isFault: Boolean(interpreted.isFault),
-            isLive: true,
-            isDemo: false,
-            timestamp: interpreted.timestamp || Date.now(),
-            opcuaTopic: msg.topic || null,
-            interpretation: interpreted.summaryText || interpreted.summary || null
-          };
+        if (interpreted) {
+          if (Array.isArray(interpreted.allStationsData) && interpreted.allStationsData.length > 0) {
+            for (const stData of interpreted.allStationsData) {
+              const sample = {
+                v1: stData.v1,
+                v2: stData.v2,
+                v3: stData.v3,
+                isFault: Boolean(stData.isFault),
+                isLive: true,
+                isDemo: false,
+                timestamp: stData.timestamp || Date.now(),
+                opcuaTopic: msg.topic || null,
+                interpretation: stData.interpretation || interpreted.summaryText || null
+              };
+              this.onTelemetry(stData.stationId, sample, interpreted);
+            }
+            return;
+          }
 
-          this.onTelemetry(interpreted.stationId, sample, interpreted);
+          if (interpreted.stationId) {
+            const sample = {
+              v1: interpreted.metrics?.v1?.value ?? interpreted.mappedValues?.v1?.val ?? 0,
+              v2: interpreted.metrics?.v2?.value ?? interpreted.mappedValues?.v2?.val ?? 0,
+              v3: interpreted.metrics?.v3?.value ?? interpreted.mappedValues?.v3?.val ?? 0,
+              isFault: Boolean(interpreted.isFault),
+              isLive: true,
+              isDemo: false,
+              timestamp: interpreted.timestamp || Date.now(),
+              opcuaTopic: msg.topic || null,
+              interpretation: interpreted.summaryText || interpreted.summary || null
+            };
 
-          if (interpreted.isFault !== undefined) {
-            this.onFault(interpreted.stationId, Boolean(interpreted.isFault));
+            this.onTelemetry(interpreted.stationId, sample, interpreted);
+
+            if (interpreted.isFault !== undefined) {
+              this.onFault(interpreted.stationId, Boolean(interpreted.isFault));
+            }
           }
         }
       }

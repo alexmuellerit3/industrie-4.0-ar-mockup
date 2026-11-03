@@ -758,8 +758,79 @@ class TestBackendServerLive(unittest.TestCase):
         self.assertEqual(data["url2"], "ws://nodered.bbk.robin-w.de/ws/opcua")
         self.assertEqual(data["url3"], "wss://nodered.bbk.robin-w.de/ws/opcua")
 
+    def test_opcua_multistation_clock_synchronization_and_auth_interpret(self):
+        """Prüft, dass Node-RED OPC UA Takt alle 4 Stationen synchronisiert und standaloneInterpret allStations liefert."""
+        script = """
+        import { KeyValueStore } from './backend/keyvalue-store.js';
+        import { TelemetryInterpreter } from './backend/telemetry-interpreter.js';
+        import { WebSocketClientService } from './backend/websocket-client.js';
+        import { authService } from './js/services/auth-service.js';
+
+        // 1. Prüfe authService.standaloneInterpret
+        const rawOpcUaMsg = {
+          topic: "ns=0;i=2258",
+          payload: {
+            value: { dataType: "DateTime", arrayType: "Scalar", value: "2026-11-03T07:50:06.940Z" },
+            statusCode: { value: 0 },
+            sourceTimestamp: "2026-11-03T07:50:06.940Z",
+            serverTimestamp: "2026-11-03T07:50:06.940Z"
+          },
+          _msgid: "test-heartbeat"
+        };
+
+        const clientInterp = authService.standaloneInterpret(rawOpcUaMsg);
+        const hasAllStations = Array.isArray(clientInterp?.interpretation?.allStations) && clientInterp.interpretation.allStations.length === 4;
+
+        // 2. Prüfe Backend Store Multi-Station Ersetzung
+        const store = new KeyValueStore(300000);
+        ['ST-010', 'ST-020', 'ST-030', 'ST-040'].forEach(sId => {
+          store.push(sId, { v1: 100, v2: 10, v3: 1, isDemo: true, simulated: true });
+        });
+
+        const updatedStations = [];
+        const interpreter = new TelemetryInterpreter();
+        const wsClient = new WebSocketClientService({
+          url: 'wss://nodered.bbk.robin-w.de/ws/opcua',
+          telemetryInterpreter: interpreter,
+          onTelemetry: (stationId, payload, meta) => {
+            updatedStations.push(stationId);
+            store.push(stationId, payload);
+          }
+        });
+
+        wsClient.handleMessage(JSON.stringify(rawOpcUaMsg));
+
+        const demoRemaining = ['ST-010', 'ST-020', 'ST-030', 'ST-040'].some(sId => store.hasDemoData(sId));
+
+        console.log(JSON.stringify({
+          clientSuccess: clientInterp.success,
+          clientLive: clientInterp.isLive,
+          hasAllStations,
+          stations: clientInterp?.interpretation?.allStations?.map(s => s.stationId),
+          updatedCount: updatedStations.length,
+          updatedStations,
+          demoRemaining
+        }));
+        """
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        lines = [line.strip() for line in res.stdout.strip().split("\n") if line.strip().startswith("{") and line.strip().endswith("}")]
+        data = json.loads(lines[-1])
+        self.assertTrue(data["clientSuccess"])
+        self.assertTrue(data["clientLive"])
+        self.assertTrue(data["hasAllStations"])
+        self.assertEqual(data["stations"], ["ST-010", "ST-020", "ST-030", "ST-040"])
+        self.assertEqual(data["updatedCount"], 4, "Alle 4 Stationen müssen durch Node-RED OPC UA Takt aktualisiert werden")
+        self.assertFalse(data["demoRemaining"], "Demo-Daten müssen auf allen 4 Stationen durch echte Live-Telemetrie ersetzt werden")
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

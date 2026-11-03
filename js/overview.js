@@ -88,11 +88,11 @@ class ScadaOverviewApp {
     };
 
     this.initStationsLayout();
-    this.connectWebSocket();
-    this.startClock();
     this.initConfigModal();
     this.initAuth();
     this.initInterpreter();
+    this.connectWebSocket();
+    this.startClock();
   }
 
   mergeSavedStationsConfig(savedStations) {
@@ -262,14 +262,14 @@ class ScadaOverviewApp {
       return;
     }
 
-    let wsUrl;
-    if (isGitHubPages) {
-      // Auf GitHub Pages: Direkt mit externem Live-WSS verbinden (Node-RED OPC UA)
-      wsUrl = savedWsUrl || "wss://nodered.bbk.robin-w.de/ws/opcua";
-      if (wsUrl.includes("tobin-w.de")) {
-        wsUrl = wsUrl.replace(/tobin-w\.de/g, "robin-w.de");
-      }
-    } else {
+    const defaultLiveWs = "wss://nodered.bbk.robin-w.de/ws/opcua";
+    let wsUrl = savedWsUrl || defaultLiveWs;
+    if (wsUrl.includes("tobin-w.de")) {
+      wsUrl = wsUrl.replace(/tobin-w\.de/g, "robin-w.de");
+    }
+
+    // Falls lokaler Backend-Server aktiv ist (Port 3000) und keine externe WS-URL manuell überschrieben wurde:
+    if (!isGitHubPages && !savedWsUrl && window.location && (window.location.port === "3000" || (window.location.host && window.location.host.includes("cps-backend")))) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host || "localhost:3000";
       wsUrl = `${protocol}//${host}/ws/telemetry`;
@@ -280,14 +280,14 @@ class ScadaOverviewApp {
     let connectTimeout = null;
     let hasOpened = false;
 
-    // Auf GitHub Pages / statischem Host: Autarken Simulator nach 3,5s starten falls WS nicht erreichbar ist
-    if (isGitHubPages) {
+    // Auf GitHub Pages / statischem Host: Autarken Simulator nach 4,5s starten falls WS noch nicht antwortet
+    if (isGitHubPages || window.location.protocol === "file:") {
       connectTimeout = setTimeout(() => {
-        if (!hasOpened) {
-          console.info("[SCADA] GitHub Pages / Statischer Host: WebSocket offline oder verzögert, starte autarke SPS-Simulation.");
+        if (!hasOpened && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+          console.info("[SCADA] GitHub Pages / Statischer Host: WebSocket verzögert, starte temporäre SPS-Simulation.");
           this.startStandaloneSimulation();
         }
-      }, 3500);
+      }, 4500);
     }
 
     try {
@@ -301,8 +301,13 @@ class ScadaOverviewApp {
           this.standaloneTimer = null;
         }
         this.isStandaloneSim = false;
-        this.updateWsBadge(true, isGitHubPages ? "Live (Node-RED WSS)" : "Live (300s)");
+        const isDirectNodeRed = (this.ws && this.ws.url && this.ws.url.includes("robin-w.de"));
+        this.updateWsBadge(true, isDirectNodeRed ? "Live: Node-RED OPC UA" : "Live (300s)");
         this.updateMqttBadge(true, false);
+        if (this.modal && this.modal.sourceBadgeText) {
+          this.modal.sourceBadgeText.textContent = isDirectNodeRed ? "Node-RED OPC UA (WSS)" : "WebSocket (Live)";
+          this.modal.sourceBadgeText.style.color = "#10b981";
+        }
         if (this.restFallbackTimer) {
           clearInterval(this.restFallbackTimer);
           this.restFallbackTimer = null;
@@ -311,6 +316,12 @@ class ScadaOverviewApp {
 
       this.ws.onmessage = (event) => {
         try {
+          if (this.standaloneTimer) {
+            clearInterval(this.standaloneTimer);
+            this.standaloneTimer = null;
+          }
+          this.isStandaloneSim = false;
+
           const data = JSON.parse(event.data);
           this.handleSocketMessage(data);
         } catch (e) {
@@ -400,12 +411,12 @@ class ScadaOverviewApp {
 
   startStandaloneSimulation() {
     if (this.isStandaloneSim) return;
+    // Niemals einen aktiven oder gerade verbindenden WebSocket abwürgen
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
     this.isStandaloneSim = true;
 
-    if (this.ws) {
-      try { this.ws.close(); } catch (_) {}
-      this.ws = null;
-    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -557,6 +568,12 @@ class ScadaOverviewApp {
       this.renderAll();
     } else if (msg.type === "telemetry") {
       const { stationId, sample, summary } = msg;
+      if (this.standaloneTimer) {
+        clearInterval(this.standaloneTimer);
+        this.standaloneTimer = null;
+      }
+      this.isStandaloneSim = false;
+
       if (!this.historyMap.has(stationId)) {
         this.historyMap.set(stationId, []);
       }
@@ -564,6 +581,11 @@ class ScadaOverviewApp {
 
       // Falls echte Live-Telemetriedaten eintreffen, entferne vorherige Demo-Punkte
       if (sample && (sample.isLive || (!sample.isDemo && !sample.simulated))) {
+        this.updateWsBadge(true, "Live: Node-RED OPC UA");
+        if (this.modal && this.modal.sourceBadgeText) {
+          this.modal.sourceBadgeText.textContent = "Node-RED OPC UA (WSS)";
+          this.modal.sourceBadgeText.style.color = "#10b981";
+        }
         const filtered = list.filter(item => !item.isDemo && !item.simulated);
         if (filtered.length !== list.length) {
           list = filtered;
@@ -578,11 +600,13 @@ class ScadaOverviewApp {
         list.shift();
       }
 
-      if (summary) {
-        this.summaryMap.set(stationId, summary);
+      this.calculateStationSummary(stationId);
+      const computedSummary = summary || this.summaryMap.get(stationId);
+      if (computedSummary) {
+        this.summaryMap.set(stationId, computedSummary);
       }
 
-      this.updateStationCard(stationId, sample, summary);
+      this.updateStationCard(stationId, sample, computedSummary);
       this.updateKpis();
     } else if (msg.type === "fault_change") {
       this.setCardFaultState(msg.stationId, msg.isFault);
@@ -605,6 +629,56 @@ class ScadaOverviewApp {
       const interpRes = authService.standaloneInterpret(msg);
       if (interpRes && interpRes.interpretation) {
         const interp = interpRes.interpretation;
+        if (this.standaloneTimer) {
+          clearInterval(this.standaloneTimer);
+          this.standaloneTimer = null;
+        }
+        this.isStandaloneSim = false;
+
+        this.updateWsBadge(true, "Live: Node-RED OPC UA");
+        if (this.modal && this.modal.sourceBadgeText) {
+          this.modal.sourceBadgeText.textContent = "Node-RED OPC UA (WSS)";
+          this.modal.sourceBadgeText.style.color = "#10b981";
+        }
+
+        // Mehrstationen-Update (z. B. aus OPC UA ServerStatus_CurrentTime Takt)
+        if (Array.isArray(interp.allStations) && interp.allStations.length > 0) {
+          interp.allStations.forEach(stData => {
+            const sId = stData.stationId;
+            const sample = {
+              v1: stData.v1,
+              v2: stData.v2,
+              v3: stData.v3,
+              isFault: Boolean(stData.isFault),
+              isLive: true,
+              isDemo: false,
+              timestamp: interp.timestamp || Date.now()
+            };
+
+            if (!this.historyMap.has(sId)) {
+              this.historyMap.set(sId, []);
+            }
+            let list = this.historyMap.get(sId);
+            // Vorherige Demo-Daten entfernen
+            list = list.filter(item => !item.isDemo && !item.simulated);
+            list.push(sample);
+            const cutoff = Date.now() - 300000;
+            while (list.length > 0 && list[0].timestamp < cutoff) {
+              list.shift();
+            }
+            this.historyMap.set(sId, list);
+            this.calculateStationSummary(sId);
+            const computedSummary = this.summaryMap.get(sId) || {
+              status: stData.status,
+              summary: stData.summary
+            };
+            this.updateStationCard(sId, sample, computedSummary);
+          });
+          this.updateKpis();
+          return;
+        }
+
+        // Einzelsignal für eine spezifische Station
         const stationId = interp.stationId || "ST-020";
         const mv = interp.mappedValues || {};
         const sample = {
@@ -614,11 +688,7 @@ class ScadaOverviewApp {
           isFault: interp.status === "KRITISCH",
           isLive: true,
           isDemo: false,
-          timestamp: Date.now()
-        };
-        const summary = {
-          status: interp.status,
-          summary: interp.summary
+          timestamp: interp.timestamp || Date.now()
         };
 
         if (!this.historyMap.has(stationId)) {
@@ -633,8 +703,12 @@ class ScadaOverviewApp {
           list.shift();
         }
         this.historyMap.set(stationId, list);
-        this.summaryMap.set(stationId, summary);
-        this.updateStationCard(stationId, sample, summary);
+        this.calculateStationSummary(stationId);
+        const computedSummary = this.summaryMap.get(stationId) || {
+          status: interp.status,
+          summary: interp.summary
+        };
+        this.updateStationCard(stationId, sample, computedSummary);
         this.updateKpis();
       }
     }
