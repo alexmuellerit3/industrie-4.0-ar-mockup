@@ -405,8 +405,51 @@ export function createApiRouter({
     }
   };
 
-  router.put("/stations/:id", handleUpdateStation);
-  router.post("/stations/:id", handleUpdateStation);
+  // 1d-2. Modul automatisch aus beliebigem Empfangs-Paket erstellen
+  router.post("/stations/create-from-packet", (req, res) => {
+    try {
+      const rawPacket = req.body.packet || req.body.rawPacket || req.body;
+      const context = req.body.context || { topic: req.body.topic || rawPacket?.topic };
+      if (!telemetryInterpreter) {
+        return res.status(503).json({ error: "TelemetryInterpreter nicht initialisiert." });
+      }
+
+      const synth = telemetryInterpreter.synthesizeStationFromPayload(rawPacket, context);
+      let station = null;
+      if (configManager) {
+        if (!configManager.getStation(synth.id)) {
+          station = configManager.addStation(synth);
+        } else {
+          station = configManager.updateStation(synth.id, synth);
+        }
+        const allStations = configManager.getConfig().stations;
+        if (telemetryInterpreter) telemetryInterpreter.updateStations(allStations);
+        if (mqttClient) {
+          mqttClient.updateStations(allStations);
+          if (station.mqttTopic) mqttClient.subscribe(station.mqttTopic);
+        }
+      } else {
+        station = synth;
+      }
+
+      if (wsServer) {
+        wsServer.broadcast({
+          type: "config_updated",
+          config: configManager ? configManager.getConfig() : { stations: [synth] },
+          stationAdded: station,
+          timestamp: Date.now()
+        });
+      }
+
+      res.status(201).json({
+        success: true,
+        message: `Modul '${station.name}' erfolgreich aus Empfangsdaten generiert und registriert.`,
+        station
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Fehler beim Generieren des Moduls: " + err.message });
+    }
+  });
 
   // 1d. Neues Modul anlegen
   router.post("/stations", (req, res) => {
@@ -448,6 +491,9 @@ export function createApiRouter({
       res.status(500).json({ error: "Fehler beim Anlegen des Moduls: " + err.message });
     }
   });
+
+  router.put("/stations/:id", handleUpdateStation);
+  router.post("/stations/:id", handleUpdateStation);
 
   // 1e. Modul löschen
   router.delete("/stations/:id", (req, res) => {

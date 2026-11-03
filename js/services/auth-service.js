@@ -479,15 +479,40 @@ class AuthService {
     // 3. Station ermitteln falls Einzelsignal
     let stId = "ST-020";
     let stName = "Modul 2: Dosierung & Befüllung";
+    let isDynamic = false;
+    let v1Label = "Hauptwert";
+    let v1Unit = "";
+
     if (pStr.includes("ST-010") || pStr.includes("Magazin") || pStr.includes("Vakuum") || topicStr.includes("Modul1")) {
       stId = "ST-010";
       stName = "Modul 1: Dosen-Zuführung";
+      v1Label = "Magazin";
+      v1Unit = "%";
     } else if (pStr.includes("ST-030") || pStr.includes("Drehmoment") || pStr.includes("Bördel") || topicStr.includes("Modul3")) {
       stId = "ST-030";
       stName = "Modul 3: Verschluss & Bördelung";
+      v1Label = "Druck";
+      v1Unit = "bar";
     } else if (pStr.includes("ST-040") || pStr.includes("Waage") || pStr.includes("OEE") || topicStr.includes("Modul4")) {
       stId = "ST-040";
       stName = "Modul 4: Qualitätskontrolle & Waage";
+      v1Label = "Gewicht";
+      v1Unit = "g";
+    } else if (topicStr.toLowerCase().includes("powerhouse") || topicStr.toLowerCase().includes("power-house") || topicStr.toLowerCase().includes("vibrat")) {
+      stId = "ST-POWERHOUSE-VIBRATION";
+      stName = "PowerHouse: Vibration (P-101)";
+      isDynamic = true;
+      v1Label = "Vibration";
+      v1Unit = "mm/s";
+    } else if (topicStr && !topicStr.includes("2258")) {
+      const rawParts = topicStr.replace(/^ns=\d+;[sgi]=/, "").split(/[\/\._]/);
+      const cleanSegments = rawParts.filter(p => {
+        const low = p.toLowerCase();
+        return p && !["demo", "alarms", "plant", "bbk-lf", "rpi04", "cps-i40", "telemetry", "ws", "opcua"].includes(low);
+      });
+      stName = cleanSegments.length > 0 ? cleanSegments.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(" ") : "Live Modul";
+      stId = "ST-" + (cleanSegments.length > 0 ? cleanSegments.join("-").toUpperCase().replace(/[^A-Z0-9\-]/g, "") : "LIVE");
+      isDynamic = true;
     }
 
     // 4. Robuste Extraktion von Zahlenwerten (auch verschachtelte OPC UA DataValues)
@@ -501,9 +526,9 @@ class AuthService {
       return null;
     };
 
-    let v1 = extractNum(payload.v1) ?? (stId === "ST-010" ? 84.0 : stId === "ST-020" ? 250.3 : stId === "ST-030" ? 5.2 : 250.1);
-    let v2 = extractNum(payload.v2) ?? (stId === "ST-010" ? -0.8 : stId === "ST-020" ? 5.2 : stId === "ST-030" ? 3.9 : 0.4);
-    let v3 = extractNum(payload.v3) ?? (stId === "ST-010" ? 1684 : stId === "ST-020" ? 32 : stId === "ST-030" ? 100 : 93);
+    let v1 = extractNum(payload.v1) ?? (isDynamic ? 0.0 : stId === "ST-010" ? 84.0 : stId === "ST-020" ? 250.3 : stId === "ST-030" ? 5.2 : 250.1);
+    let v2 = extractNum(payload.v2) ?? (isDynamic ? 0 : stId === "ST-010" ? -0.8 : stId === "ST-020" ? 5.2 : stId === "ST-030" ? 3.9 : 0.4);
+    let v3 = extractNum(payload.v3) ?? (isDynamic ? 100 : stId === "ST-010" ? 1684 : stId === "ST-020" ? 32 : stId === "ST-030" ? 100 : 93);
 
     if (payload.telemetry) {
       if (payload.telemetry.fill_weight_g !== undefined) v1 = extractNum(payload.telemetry.fill_weight_g) ?? v1;
@@ -522,10 +547,14 @@ class AuthService {
       }
     }
 
+    if (typeof v1 === "number") v1 = +v1.toFixed(3);
+
     // Grenzwerte bewerten
     let status = "OPTIMAL";
     let summary = `✅ Modul '${stName}' arbeitet in optimalem Prozesszustand. Alle Werte im Sollbereich.`;
-    if (stId === "ST-020") {
+    if (isDynamic) {
+      summary = `✅ Modul '${stName}' empfängt Live-Telemetrie: ${v1Label}: ${v1} ${v1Unit}. Reale Daten aktiv.`;
+    } else if (stId === "ST-020") {
       if (v2 > 6.0 && v2 < 8.0) {
         status = "WARNUNG";
         summary = `⚠️ Warnung: Modul '${stName}' läuft mit Abweichungen: Druck (${v2} bar) liegt über dem Höchstwert.`;
@@ -535,17 +564,35 @@ class AuthService {
       }
     }
 
+    const synthStation = isDynamic ? {
+      id: stId,
+      name: stName,
+      description: `Automatisch generiertes Modul aus Empfangsdaten (${topicStr})`,
+      plcIp: "192.168.10.15",
+      mqttTopic: topicStr.startsWith("/") ? topicStr : "/bbk-lf/rpi04/power-house/vibration",
+      wsNodeId: topicStr,
+      isDynamic: true,
+      isLive: true,
+      isDemo: false,
+      v1: { label: v1Label, unit: v1Unit, min: 0.05, max: 2.50, defaultVal: v1, val: v1 },
+      v2: { label: "Status", unit: "Code", min: 0, max: 0, defaultVal: 0, val: 0 },
+      v3: { label: "Signal", unit: "%", min: 90, max: 100, defaultVal: 100, val: 100 }
+    } : null;
+
     return {
       success: true,
       isLive: true,
+      isDemo: false,
+      synthesizedStation: synthStation,
       interpretation: {
         timestamp: Date.now(),
         stationId: stId,
         stationName: stName,
+        isDynamic,
         status,
         summary,
         mappedValues: {
-          v1: { label: "Hauptwert", val: v1, unit: "", status },
+          v1: { label: v1Label, val: v1, unit: v1Unit, status },
           v2: { label: "Zweitwert", val: v2, unit: "", status },
           v3: { label: "Drittwert", val: v3, unit: "", status: "NORMAL" }
         },

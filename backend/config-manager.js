@@ -280,6 +280,23 @@ export class ConfigManager {
   }
 
   /**
+   * Liefert alle konfigurierten Stationen
+   * @returns {Array}
+   */
+  getStations() {
+    return Array.isArray(this.config?.stations) ? this.config.stations : [];
+  }
+
+  /**
+   * Liefert eine Station anhand ihrer ID
+   * @param {string} stationId 
+   * @returns {Object|null}
+   */
+  getStation(stationId) {
+    return this.getStations().find(s => s.id === stationId) || null;
+  }
+
+  /**
    * Fügt ein neues Modul / Station hinzu
    * @param {Object} stationData
    */

@@ -883,7 +883,7 @@ class TestBackendServerLive(unittest.TestCase):
 
         # 2. Neues benutzerdefiniertes Topic abonnieren
         sub_url = f"http://localhost:{self.server_port}/api/mqtt/subscribe"
-        target_topic = "/bbk-lf/rpi04/power-house/vibration"
+        target_topic = "/bbk-lf/rpi04/custom-sensor-stream"
         payload = json.dumps({"topic": target_topic}).encode()
         req = urllib.request.Request(sub_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=2) as resp:
@@ -986,6 +986,46 @@ class TestBackendServerLive(unittest.TestCase):
         self.assertFalse(data["isDemo"])
         self.assertTrue(data["hasLive"])
         self.assertFalse(data["hasDemo"], "Demo-Daten der Station müssen durch das reale MQTT-Paket ersetzt worden sein")
+
+    def test_automatic_module_creation_from_unmapped_packet(self):
+        """Prüft, dass bei ungemappten empfangenen Daten automatisch ein neues Modul generiert wird."""
+        url = f"http://127.0.0.1:{self.server_port}/api/stations/create-from-packet"
+        raw_opcua_packet = {
+            "topic": "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+            "payload": {
+                "value": { "dataType": "Double", "arrayType": "Scalar", "value": 0.492353 },
+                "statusCode": { "value": 0 },
+                "sourceTimestamp": "2026-11-03T09:11:25.136Z"
+            }
+        }
+        payload = json.dumps({"packet": raw_opcua_packet}).encode("utf-8")
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            self.assertEqual(resp.status, 201)
+            res_data = json.loads(resp.read().decode("utf-8"))
+
+        self.assertTrue(res_data.get("success"))
+        created_station = res_data.get("station")
+        self.assertIsNotNone(created_station)
+        self.assertEqual(created_station["id"], "ST-POWERHOUSE-VIBRATION")
+        self.assertIn("PowerHouse", created_station["name"])
+        self.assertIn("Vibration", created_station["name"])
+        self.assertEqual(created_station["v1"]["label"], "Vibration")
+        self.assertEqual(created_station["v1"]["unit"], "mm/s")
+        self.assertAlmostEqual(created_station["v1"]["val"], 0.492, places=3)
+        self.assertTrue(created_station.get("isLive"))
+
+        # 2. Prüfen, ob das Modul über GET /api/stations abrufbar ist
+        get_url = f"http://127.0.0.1:{self.server_port}/api/stations/{created_station['id']}"
+        with urllib.request.urlopen(get_url, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
+            station_details = json.loads(resp.read().decode("utf-8"))
+            self.assertEqual(station_details["station"]["id"], "ST-POWERHOUSE-VIBRATION")
+
+        # 3. Aufräumen: Erstelltes Modul wieder löschen
+        del_req = urllib.request.Request(get_url, method="DELETE")
+        with urllib.request.urlopen(del_req, timeout=2) as resp:
+            self.assertEqual(resp.status, 200)
 
 
 if __name__ == "__main__":

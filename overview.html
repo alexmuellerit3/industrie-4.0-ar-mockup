@@ -199,6 +199,9 @@
             <div class="code-header-bar">
               <span class="code-filename">Raw JSON (Erste WebSocket-Nachricht)</span>
               <div class="code-actions">
+                <button type="button" class="heroui-btn heroui-btn-primary" id="btn-create-mod-from-ws" title="Erstellt sofort ein eigenständiges Modul aus diesem WebSocket-Paket">
+                  <span>✨ Modul aus diesen Daten erstellen</span>
+                </button>
                 <button type="button" class="heroui-btn heroui-btn-flat btn-copy-json" id="btn-copy-ws-json" title="JSON in Zwischenablage kopieren">
                   <span>📋 Kopieren</span>
                 </button>
@@ -244,6 +247,9 @@
             <div class="code-header-bar">
               <span class="code-filename">Raw JSON (Erste MQTT-Abfrage / Payload)</span>
               <div class="code-actions">
+                <button type="button" class="heroui-btn heroui-btn-primary" id="btn-create-mod-from-mqtt" title="Erstellt sofort ein eigenständiges Modul aus dieser MQTT-Nachricht">
+                  <span>✨ Modul aus diesen Daten erstellen</span>
+                </button>
                 <button type="button" class="heroui-btn heroui-btn-flat btn-copy-json" id="btn-copy-mqtt-json" title="JSON in Zwischenablage kopieren">
                   <span>📋 Kopieren</span>
                 </button>
@@ -437,7 +443,10 @@
               <div style="font-weight:700; color:var(--text-main); font-size:0.95rem;">Module einzeln konfigurieren & umbenennen</div>
               <div style="font-size:0.75rem; color:var(--text-muted);">Passe Modulnamen, SPS-IP, Messwerte und individuelle MQTT-Topic-Bindungen an.</div>
             </div>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="heroui-btn heroui-btn-primary" id="btn-create-mod-from-live" title="Erstellt sofort ein eigenständiges Modul aus den aktuell empfangenen Telemetriedaten">
+                ✨ Modul aus Empfangsdaten erstellen
+              </button>
               <button type="button" class="heroui-btn heroui-btn-flat" id="btn-clear-all-demo" title="Verwirft alle vorbefüllten Demo-Daten, sodass nur noch empfangene Live-Daten angezeigt werden">
                 🗑️ Demo-Daten verwerfen
               </button>

@@ -399,6 +399,14 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn("clearAllDemoData", js_content)
         self.assertIn("btn-quick-edit", js_content)
 
+        # 3. Modul-Generierung aus Empfangsdaten (Buttons & Controller-Methoden)
+        self.assertIn('id="btn-create-mod-from-ws"', self.overview_html)
+        self.assertIn('id="btn-create-mod-from-mqtt"', self.overview_html)
+        self.assertIn('id="btn-create-mod-from-live"', self.overview_html)
+        self.assertIn("synthesizeStationFromPacket", js_content)
+        self.assertIn("createModuleFromReceivedData", js_content)
+        self.assertIn("addDynamicStation", js_content)
+
 
 if __name__ == "__main__":
     unittest.main()

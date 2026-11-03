@@ -107,7 +107,9 @@ class ScadaOverviewApp {
         if (newSt.name) target.name = newSt.name;
         if (newSt.plcIp) target.plcIp = newSt.plcIp;
         if (newSt.mqttTopic) target.mqttTopic = newSt.mqttTopic;
+        if (newSt.wsNodeId) target.wsNodeId = newSt.wsNodeId;
         if (newSt.description) target.description = newSt.description;
+        if (newSt.isDynamic !== undefined) target.isDynamic = newSt.isDynamic;
         ['v1', 'v2', 'v3'].forEach(k => {
           if (newSt[k] && target[k]) {
             if (newSt[k].min !== undefined) target[k].min = newSt[k].min;
@@ -117,6 +119,8 @@ class ScadaOverviewApp {
             if (newSt[k].defaultVal !== undefined) target[k].val = newSt[k].defaultVal;
           }
         });
+      } else {
+        this.stations.push(newSt);
       }
     });
   }
@@ -133,13 +137,17 @@ class ScadaOverviewApp {
       card.className = "heroui-station-card";
       card.id = `card-${st.id}`;
 
+      const avatar = st.avatar || (st.id.startsWith("ST-0") ? st.id.replace("ST-0", "M") : (st.name.match(/\b([A-Z0-9])/g) || [st.id.slice(3, 5)]).slice(0, 3).join(""));
+      const isDynamicBadge = st.isDynamic ? '<span class="heroui-chip heroui-chip-success" style="font-size:0.65rem; padding:1px 6px; margin-left:6px; vertical-align:middle;">✨ LIVE</span>' : '';
+      const topicSub = st.mqttTopic ? ' • MQTT: ' + st.mqttTopic : (st.wsNodeId ? ' • OPC: ' + st.wsNodeId : '');
+
       card.innerHTML = `
         <div class="heroui-station-header">
           <div class="station-title-group">
-            <div class="station-id-avatar">${st.id.replace("ST-", "M")}</div>
+            <div class="station-id-avatar">${avatar}</div>
             <div class="station-title-text">
-              <span class="station-main-title" id="title-${st.id}">${st.name}</span>
-              <span class="station-meta-sub" id="sub-${st.id}">SPS: ${st.plcIp}${st.mqttTopic ? ' • MQTT: ' + st.mqttTopic : ''}</span>
+              <span class="station-main-title" id="title-${st.id}">${st.name}${isDynamicBadge}</span>
+              <span class="station-meta-sub" id="sub-${st.id}">SPS: ${st.plcIp}${topicSub}</span>
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px;">
@@ -595,6 +603,11 @@ class ScadaOverviewApp {
       }
       this.isStandaloneSim = false;
 
+      // Falls Station noch nicht existiert, automatisch aus Empfangsdaten anlegen
+      if (!this.stations.some(s => s.id === stationId)) {
+        this.createModuleFromReceivedData(msg, { stationId });
+      }
+
       if (!this.historyMap.has(stationId)) {
         this.historyMap.set(stationId, []);
       }
@@ -701,11 +714,21 @@ class ScadaOverviewApp {
 
         // Einzelsignal für eine spezifische Station
         const stationId = interp.stationId || "ST-020";
+
+        // Falls Station noch nicht existiert oder dynamisch ist: automatisch als neues Modul erstellen!
+        if (!this.stations.some(s => s.id === stationId)) {
+          if (interpRes.synthesizedStation) {
+            this.addDynamicStation(interpRes.synthesizedStation);
+          } else {
+            this.createModuleFromReceivedData(msg, { stationId });
+          }
+        }
+
         const mv = interp.mappedValues || {};
         const sample = {
-          v1: mv.v1?.val ?? 250,
-          v2: mv.v2?.val ?? 5.0,
-          v3: mv.v3?.val ?? 32,
+          v1: mv.v1?.val ?? interpRes.synthesizedStation?.v1?.val ?? 250,
+          v2: mv.v2?.val ?? interpRes.synthesizedStation?.v2?.val ?? 0,
+          v3: mv.v3?.val ?? interpRes.synthesizedStation?.v3?.val ?? 100,
           isFault: interp.status === "KRITISCH",
           isLive: true,
           isDemo: false,
@@ -2122,6 +2145,7 @@ class ScadaOverviewApp {
       codeWs: document.getElementById("code-insp-ws"),
       btnCopyWs: document.getElementById("btn-copy-ws-json"),
       btnResetWs: document.getElementById("btn-reset-ws-insp"),
+      btnCreateModWs: document.getElementById("btn-create-mod-from-ws"),
 
       // MQTT Elements
       mqttStatus: document.getElementById("insp-mqtt-status"),
@@ -2131,7 +2155,9 @@ class ScadaOverviewApp {
       mqttSize: document.getElementById("insp-mqtt-size"),
       codeMqtt: document.getElementById("code-insp-mqtt"),
       btnCopyMqtt: document.getElementById("btn-copy-mqtt-json"),
-      btnQueryMqtt: document.getElementById("btn-query-mqtt")
+      btnQueryMqtt: document.getElementById("btn-query-mqtt"),
+      btnCreateModMqtt: document.getElementById("btn-create-mod-from-mqtt"),
+      btnCreateModLive: document.getElementById("btn-create-mod-from-live")
     };
 
     this.inspState = {
@@ -2166,6 +2192,48 @@ class ScadaOverviewApp {
     if (this.inspDom.btnCopyMqtt) {
       this.inspDom.btnCopyMqtt.addEventListener("click", () => {
         this.copyToClipboard(this.inspState.mqttFirstPacket || this.inspDom.codeMqtt?.textContent, this.inspDom.btnCopyMqtt);
+      });
+    }
+
+    // Modul aus WebSocket-Paket erstellen
+    if (this.inspDom.btnCreateModWs) {
+      this.inspDom.btnCreateModWs.addEventListener("click", () => {
+        const raw = this.inspState.wsFirstPacket || this.lastRawWsMessage;
+        if (!raw) {
+          alert("Noch kein WebSocket-Paket empfangen. Bitte kurz warten, bis ein Frame eintrifft.");
+          return;
+        }
+        const station = this.createModuleFromReceivedData(raw);
+        this.showCreationNotification(station.name);
+        this.scrollToStation(station.id);
+      });
+    }
+
+    // Modul aus MQTT-Paket erstellen
+    if (this.inspDom.btnCreateModMqtt) {
+      this.inspDom.btnCreateModMqtt.addEventListener("click", () => {
+        const raw = this.inspState.mqttFirstPacket || this.lastRawMqttMessage;
+        if (!raw) {
+          alert("Noch kein MQTT-Paket empfangen. Bitte zuerst '⚡ MQTT-Abfrage ausführen' klicken.");
+          return;
+        }
+        const station = this.createModuleFromReceivedData(raw, { topic: this.inspDom.mqttTopic?.textContent });
+        this.showCreationNotification(station.name);
+        this.scrollToStation(station.id);
+      });
+    }
+
+    // Modul aus Live-Telemetrie erstellen (Button in Tab 2)
+    if (this.inspDom.btnCreateModLive) {
+      this.inspDom.btnCreateModLive.addEventListener("click", () => {
+        const raw = this.inspState.wsFirstPacket || this.lastRawWsMessage || this.inspState.mqttFirstPacket || {
+          topic: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+          payload: { value: { dataType: "Double", value: 0.492 } }
+        };
+        const station = this.createModuleFromReceivedData(raw);
+        this.showCreationNotification(station.name);
+        this.closeConfigModal();
+        this.scrollToStation(station.id);
       });
     }
 
@@ -2222,10 +2290,25 @@ class ScadaOverviewApp {
 
   recordWsInspectorPacket(rawString) {
     if (!this.inspDom?.codeWs) return;
+    this.lastRawWsMessage = rawString;
     this.inspState.wsFrameCount++;
     if (this.inspDom.wsCounter) {
       this.inspDom.wsCounter.textContent = `${this.inspState.wsFrameCount} Frames`;
     }
+
+    // Automatische Erstellung des Moduls bei Empfang eines neuen OPC UA / Live-Topics
+    try {
+      const parsed = JSON.parse(rawString);
+      if (parsed.topic && !parsed.topic.includes("2258") && !parsed.topic.includes("CurrentTime")) {
+        const isKnown = this.stations.some(s => 
+          (s.wsNodeId && s.wsNodeId === parsed.topic) ||
+          (s.id === "ST-POWERHOUSE-VIBRATION" && parsed.topic.includes("PowerHouse"))
+        );
+        if (!isKnown) {
+          this.createModuleFromReceivedData(parsed);
+        }
+      }
+    } catch (_) {}
 
     // Nur das allererste Paket der Abfrage speichern und anzeigen
     if (!this.inspState.wsFirstPacket) {
@@ -2680,6 +2763,194 @@ class ScadaOverviewApp {
         btnClear.textContent = "🗑️ Demo-Daten verwerfen";
         btnClear.style.color = "";
       }, 2500);
+    }
+  }
+
+  saveStationsToLocalStorage() {
+    try {
+      let cfg = {};
+      const saved = localStorage.getItem("cps_saved_config");
+      if (saved) {
+        try { cfg = JSON.parse(saved); } catch (_) {}
+      }
+      cfg.stations = this.stations;
+      localStorage.setItem("cps_saved_config", JSON.stringify(cfg));
+    } catch (_) {}
+  }
+
+  synthesizeStationFromPacket(rawPacket, context = {}) {
+    let packet = rawPacket;
+    if (typeof rawPacket === "string") {
+      try { packet = JSON.parse(rawPacket); } catch (_) { packet = {}; }
+    }
+    const topic = context.topic || packet.topic || packet.nodeId || packet._topic || "";
+
+    // Extrahiere primären Zahlenwert
+    let val = null;
+    const extractNum = (v) => {
+      if (typeof v === "number" && !isNaN(v)) return v;
+      if (typeof v === "string" && !isNaN(parseFloat(v))) return parseFloat(v);
+      if (v && typeof v === "object") {
+        if (typeof v.value === "number") return v.value;
+        if (v.value && typeof v.value.value === "number") return v.value.value;
+        if (typeof v.val === "number") return v.val;
+      }
+      return null;
+    };
+
+    if (packet.payload) {
+      if (typeof packet.payload === "number") val = packet.payload;
+      else if (packet.payload.value !== undefined) val = extractNum(packet.payload.value);
+      else if (packet.payload.v1 !== undefined) val = extractNum(packet.payload.v1);
+      else if (packet.payload.val !== undefined) val = extractNum(packet.payload.val);
+    }
+    if (val === null && packet.value !== undefined) val = extractNum(packet.value);
+    if (val === null && packet.v1 !== undefined) val = extractNum(packet.v1);
+    if (val === null) val = 0.0;
+
+    const topicLow = (topic + " " + JSON.stringify(packet)).toLowerCase();
+
+    // Spezialbehandlung: PowerHouse Vibration (Node-RED OPC UA & HiveMQ)
+    if (topicLow.includes("powerhouse") || topicLow.includes("power-house")) {
+      return {
+        id: "ST-POWERHOUSE-VIBRATION",
+        name: "PowerHouse: Vibration (P-101)",
+        description: `Automatisch generiertes Modul aus Empfangsdaten (${topic})`,
+        plcIp: "192.168.10.15",
+        mqttTopic: "/bbk-lf/rpi04/power-house/vibration",
+        wsNodeId: topic.startsWith("ns=") ? topic : "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+        isDynamic: true,
+        isLive: true,
+        isDemo: false,
+        v1: { label: "Vibration", unit: "mm/s", min: 0.05, max: 2.50, defaultVal: +Number(val).toFixed(3), val: +Number(val).toFixed(3) },
+        v2: { label: "Status-Code", unit: "Good", min: 0, max: 0, defaultVal: 0, val: 0 },
+        v3: { label: "Signal-Güte", unit: "%", min: 90, max: 100, defaultVal: 100, val: 100 }
+      };
+    }
+
+    // Generischer Generator für beliebige andere empfangene Daten
+    let cleanSegments = [];
+    if (topic) {
+      const rawParts = topic.replace(/^ns=\d+;[sgi]=/, "").split(/[\/\._]/);
+      cleanSegments = rawParts.filter(p => {
+        const low = p.toLowerCase();
+        return p && !["demo", "alarms", "plant", "bbk-lf", "rpi04", "cps-i40", "telemetry", "ws", "opcua"].includes(low);
+      });
+    }
+
+    let stationName = cleanSegments.length > 0 
+      ? cleanSegments.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(" ") 
+      : "Live Modul (Empfangsdaten)";
+
+    const slug = cleanSegments.length > 0
+      ? cleanSegments.join("-").toUpperCase().replace(/[^A-Z0-9\-]/g, "")
+      : (context.stationId || "LIVE-MOD");
+    const stationId = slug.startsWith("ST-") ? slug : "ST-" + slug;
+
+    let v1Label = "Messwert";
+    let v1Unit = "";
+    let v1Min = 0.0;
+    let v1Max = 100.0;
+
+    if (topicLow.includes("vibrat") || topicLow.includes("schwing")) {
+      v1Label = "Vibration";
+      v1Unit = "mm/s";
+      v1Min = 0.05;
+      v1Max = 2.5;
+    } else if (topicLow.includes("press") || topicLow.includes("druck") || topicLow.includes("bar")) {
+      v1Label = "Druck";
+      v1Unit = "bar";
+      v1Min = 1.0;
+      v1Max = 8.0;
+    } else if (topicLow.includes("temp") || topicLow.includes("grad") || topicLow.includes("celsius")) {
+      v1Label = "Temperatur";
+      v1Unit = "°C";
+      v1Min = 15.0;
+      v1Max = 65.0;
+    } else if (topicLow.includes("gewicht") || topicLow.includes("weight")) {
+      v1Label = "Gewicht";
+      v1Unit = "g";
+      v1Min = 240.0;
+      v1Max = 260.0;
+    }
+
+    return {
+      id: stationId,
+      name: stationName,
+      description: `Automatisch generiertes Modul aus Empfangsdaten (${topic})`,
+      plcIp: "192.168.10.15",
+      mqttTopic: topic.startsWith("/") ? topic : null,
+      wsNodeId: topic || null,
+      isDynamic: true,
+      isLive: true,
+      isDemo: false,
+      v1: { label: v1Label, unit: v1Unit, min: v1Min, max: v1Max, defaultVal: +Number(val).toFixed(3), val: +Number(val).toFixed(3) },
+      v2: { label: "Status-Code", unit: "Good", min: 0, max: 0, defaultVal: 0, val: 0 },
+      v3: { label: "Signal-Güte", unit: "%", min: 90, max: 100, defaultVal: 100, val: 100 }
+    };
+  }
+
+  addDynamicStation(station) {
+    if (!station || !station.id) return;
+    const existingIdx = this.stations.findIndex(s => s.id === station.id);
+    if (existingIdx >= 0) {
+      this.stations[existingIdx] = { ...this.stations[existingIdx], ...station, isDynamic: true, isLive: true };
+    } else {
+      this.stations.push(station);
+    }
+    if (!this.historyMap.has(station.id)) {
+      this.historyMap.set(station.id, []);
+    }
+    this.saveStationsToLocalStorage();
+    this.initStationsLayout();
+    this.renderAll();
+    this.showCreationNotification(station.name);
+
+    // Backend asynchron informieren falls erreichbar
+    if (typeof fetch === "function") {
+      fetch("/api/stations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(station)
+      }).catch(() => {});
+    }
+  }
+
+  createModuleFromReceivedData(packet, context = {}) {
+    const synth = this.synthesizeStationFromPacket(packet, context);
+    this.addDynamicStation(synth);
+    return synth;
+  }
+
+  showCreationNotification(moduleName) {
+    let toast = document.getElementById("toast-module-created");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "toast-module-created";
+      toast.style.cssText = "position:fixed; bottom:24px; right:24px; background:linear-gradient(135deg, rgba(16,185,129,0.95), rgba(5,150,105,0.95)); color:#fff; padding:12px 20px; border-radius:12px; font-weight:700; box-shadow:0 8px 32px rgba(0,0,0,0.4); z-index:999999; backdrop-filter:blur(8px); display:flex; align-items:center; gap:10px; border:1px solid rgba(255,255,255,0.2); transition:all 0.3s ease;";
+      document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<span>✨</span><span>Neues Modul <strong>${moduleName}</strong> aus Empfangsdaten erstellt!</span>`;
+    toast.style.opacity = "1";
+    toast.style.transform = "translateY(0)";
+    setTimeout(() => {
+      if (toast) {
+        toast.style.opacity = "0";
+        toast.style.transform = "translateY(12px)";
+      }
+    }, 4500);
+  }
+
+  scrollToStation(stationId) {
+    const card = document.getElementById(`card-${stationId}`);
+    if (card) {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.style.outline = "2px solid #10b981";
+      card.style.boxShadow = "0 0 24px rgba(16,185,129,0.5)";
+      setTimeout(() => {
+        card.style.outline = "";
+        card.style.boxShadow = "";
+      }, 3000);
     }
   }
 }

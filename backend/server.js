@@ -102,16 +102,7 @@ export function createApp(options = {}) {
     topics: activeConfig.mqtt?.topics,
     telemetryInterpreter,
     stations: activeConfig.stations,
-    onTelemetry: (stationId, payload, meta) => {
-      const entry = store.push(stationId, {
-        ...payload,
-        isLive: true,
-        isDemo: false
-      });
-      if (app.locals.wsServer) {
-        app.locals.wsServer.broadcastTelemetry(stationId, entry, meta);
-      }
-    },
+    onTelemetry: (stationId, payload, meta) => ingestTelemetry(stationId, payload, meta),
     onFault: (stationId, isFault) => {
       store.setMeta(`fault_${stationId}`, isFault);
       if (app.locals.wsServer) {
@@ -140,24 +131,57 @@ export function createApp(options = {}) {
     }
   });
 
+  // Zentrale Telemetrie-Einspeisung: Erstellt bei neuen Topics automatisch neue Module
+  const ingestTelemetry = (stationId, payload, meta) => {
+    // 1. Modul automatisch erstellen, falls noch nicht in Konfiguration vorhanden
+    if (!configManager.getStation(stationId)) {
+      const newStation = meta?.synthesizedStation || 
+        telemetryInterpreter.synthesizeStationFromPayload(payload, { stationId, topic: meta?.opcuaTopic || meta?.topic }) || {
+          id: stationId,
+          name: meta?.stationName || stationId,
+          plcIp: "192.168.10.15",
+          mqttTopic: meta?.topic || null,
+          wsNodeId: meta?.opcuaTopic || null,
+          isDynamic: true,
+          isLive: true,
+          isDemo: false,
+          v1: { label: "Messwert", unit: "", min: 0, max: 100, defaultVal: payload.v1, val: payload.v1 },
+          v2: { label: "Status-Code", unit: "Good", min: 0, max: 0, defaultVal: 0, val: 0 },
+          v3: { label: "Signal-Güte", unit: "%", min: 90, max: 100, defaultVal: 100, val: 100 }
+        };
+      configManager.addStation(newStation);
+      telemetryInterpreter.updateStations(configManager.getStations());
+      if (newStation.mqttTopic) {
+        mqttClient.subscribe(newStation.mqttTopic);
+      }
+      if (app.locals.wsServer) {
+        app.locals.wsServer.broadcastConfig(configManager.getConfig());
+      }
+    }
+
+    // 2. Simulator deaktivieren, da echte Felddaten ankommen
+    if (mqttClient.isSimulatorActive || mqttClient.allowSimulator) {
+      mqttClient.disableSimulator();
+    }
+
+    // 3. Im Ringspeicher speichern
+    const entry = store.push(stationId, {
+      ...payload,
+      isLive: true,
+      isDemo: false
+    });
+
+    // 4. An alle SCADA-Clients streamen
+    if (app.locals.wsServer) {
+      app.locals.wsServer.broadcastTelemetry(stationId, entry, meta);
+    }
+  };
+
   // 3. Upstream WebSocket-Client (für externe WebSocket Datenquellen z. B. Node-RED / OPC UA)
   const wsClient = new WebSocketClientService({
     url: activeConfig.websocket?.url,
     telemetryInterpreter,
-    onTelemetry: (stationId, payload, meta) => {
-      // Wenn Live-Daten vom Upstream-WebSocket eintreffen: Demo-Simulator stoppen
-      if (mqttClient.isSimulatorActive || mqttClient.allowSimulator) {
-        mqttClient.disableSimulator();
-      }
-      const entry = store.push(stationId, {
-        ...payload,
-        isLive: true,
-        isDemo: false
-      });
-      if (app.locals.wsServer) {
-        app.locals.wsServer.broadcastTelemetry(stationId, entry, meta);
-      }
-    },
+    onTelemetry: (stationId, payload, meta) => ingestTelemetry(stationId, payload, meta),
     onFault: (stationId, isFault) => {
       store.setMeta(`fault_${stationId}`, isFault);
       if (app.locals.wsServer) {

@@ -160,7 +160,173 @@ export class TelemetryInterpreter {
       return "ST-010";
     }
 
+    // 4. Dynamische Stations-Erstellung aus dem Empfangs-Topic/Paket
+    if (topicCand && typeof topicCand === "string" && !topicCand.includes("2258") && !topicCand.includes("CurrentTime")) {
+      const synth = this.synthesizeStationFromPayload(payload, context);
+      return synth.id;
+    }
+
     return "ST-010"; // Fallback auf erste Station
+  }
+
+  /**
+   * Generiert eine vollständige Modul-Definition direkt aus den ankommenden Daten
+   * @param {Object} payload 
+   * @param {Object} [context] 
+   * @returns {Object} Vollständige Stationskonfiguration
+   */
+  synthesizeStationFromPayload(payload, context = {}) {
+    let packet = payload;
+    if (typeof payload === "string") {
+      try { packet = JSON.parse(payload); } catch (_) { packet = {}; }
+    }
+    const topic = context.topic || packet.topic || packet.nodeId || packet._topic || "";
+
+    // Extrahiere primären Zahlenwert
+    let val = null;
+    const extractNum = (v) => {
+      if (typeof v === "number" && !isNaN(v)) return v;
+      if (typeof v === "string" && !isNaN(parseFloat(v))) return parseFloat(v);
+      if (v && typeof v === "object") {
+        if (typeof v.value === "number") return v.value;
+        if (v.value && typeof v.value.value === "number") return v.value.value;
+        if (typeof v.val === "number") return v.val;
+      }
+      return null;
+    };
+
+    if (packet.payload) {
+      if (typeof packet.payload === "number") val = packet.payload;
+      else if (packet.payload.value !== undefined) val = extractNum(packet.payload.value);
+      else if (packet.payload.v1 !== undefined) val = extractNum(packet.payload.v1);
+      else if (packet.payload.val !== undefined) val = extractNum(packet.payload.val);
+    }
+    if (val === null && packet.value !== undefined) val = extractNum(packet.value);
+    if (val === null && packet.v1 !== undefined) val = extractNum(packet.v1);
+    if (val === null) val = 0.0;
+
+    const topicLow = (topic + " " + JSON.stringify(packet)).toLowerCase();
+
+    // Spezialbehandlung: PowerHouse Vibration
+    if (topicLow.includes("powerhouse") || topicLow.includes("power-house")) {
+      return {
+        id: "ST-POWERHOUSE-VIBRATION",
+        name: "PowerHouse: Vibration (P-101)",
+        description: `Automatisch aus Live-Telemetrie generiertes Modul (${topic})`,
+        plcIp: "192.168.10.15",
+        mqttTopic: "/bbk-lf/rpi04/power-house/vibration",
+        wsNodeId: topic.startsWith("ns=") ? topic : "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+        isDynamic: true,
+        isLive: true,
+        isDemo: false,
+        v1: {
+          label: "Vibration",
+          unit: "mm/s",
+          min: 0.05,
+          max: 2.50,
+          defaultVal: +Number(val).toFixed(3),
+          val: +Number(val).toFixed(3)
+        },
+        v2: {
+          label: "Status-Code",
+          unit: "Good",
+          min: 0,
+          max: 0,
+          defaultVal: 0,
+          val: 0
+        },
+        v3: {
+          label: "Signal-Güte",
+          unit: "%",
+          min: 90,
+          max: 100,
+          defaultVal: 100,
+          val: 100
+        }
+      };
+    }
+
+    // Generischer Generator für beliebige andere empfangene Daten
+    let cleanSegments = [];
+    if (topic) {
+      const rawParts = topic.replace(/^ns=\d+;[sgi]=/, "").split(/[\/\._]/);
+      cleanSegments = rawParts.filter(p => {
+        const low = p.toLowerCase();
+        return p && !["demo", "alarms", "plant", "bbk-lf", "rpi04", "cps-i40", "telemetry", "ws", "opcua"].includes(low);
+      });
+    }
+
+    let stationName = cleanSegments.length > 0 
+      ? cleanSegments.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(" ") 
+      : "Live Modul (Empfangsdaten)";
+
+    const slug = cleanSegments.length > 0
+      ? cleanSegments.join("-").toUpperCase().replace(/[^A-Z0-9\-]/g, "")
+      : "LIVE-MOD";
+    const stationId = slug.startsWith("ST-") ? slug : "ST-" + slug;
+
+    let v1Label = "Messwert";
+    let v1Unit = "";
+    let v1Min = 0.0;
+    let v1Max = 100.0;
+
+    if (topicLow.includes("vibrat") || topicLow.includes("schwing")) {
+      v1Label = "Vibration";
+      v1Unit = "mm/s";
+      v1Min = 0.05;
+      v1Max = 2.5;
+    } else if (topicLow.includes("press") || topicLow.includes("druck") || topicLow.includes("bar")) {
+      v1Label = "Druck";
+      v1Unit = "bar";
+      v1Min = 1.0;
+      v1Max = 8.0;
+    } else if (topicLow.includes("temp") || topicLow.includes("grad") || topicLow.includes("celsius")) {
+      v1Label = "Temperatur";
+      v1Unit = "°C";
+      v1Min = 15.0;
+      v1Max = 65.0;
+    } else if (topicLow.includes("gewicht") || topicLow.includes("weight")) {
+      v1Label = "Gewicht";
+      v1Unit = "g";
+      v1Min = 240.0;
+      v1Max = 260.0;
+    }
+
+    return {
+      id: stationId,
+      name: stationName,
+      description: `Automatisch generiertes Modul aus Empfangsdaten (${topic})`,
+      plcIp: "192.168.10.15",
+      mqttTopic: topic.startsWith("/") ? topic : null,
+      wsNodeId: topic || null,
+      isDynamic: true,
+      isLive: true,
+      isDemo: false,
+      v1: {
+        label: v1Label,
+        unit: v1Unit,
+        min: v1Min,
+        max: v1Max,
+        defaultVal: +Number(val).toFixed(3),
+        val: +Number(val).toFixed(3)
+      },
+      v2: {
+        label: "Status-Code",
+        unit: "Good",
+        min: 0,
+        max: 0,
+        defaultVal: 0,
+        val: 0
+      },
+      v3: {
+        label: "Signal-Güte",
+        unit: "%",
+        min: 90,
+        max: 100,
+        defaultVal: 100,
+        val: 100
+      }
+    };
   }
 
   /**
@@ -413,7 +579,12 @@ export class TelemetryInterpreter {
 
     // 3. Station ermitteln (unterstützt manuellen Override via context.stationId oder topic)
     const stationId = this.detectStationId(payload, endpoints, context);
-    const stationConfig = this.stations.find(s => s.id === stationId) || this.stations[0];
+    let stationConfig = this.stations.find(s => s.id === stationId);
+    let synthesizedStation = null;
+    if (!stationConfig) {
+      synthesizedStation = this.synthesizeStationFromPayload(payload, context);
+      stationConfig = synthesizedStation;
+    }
 
     // 4. Metriken mappen
     const mapped = this.mapMetricsToStation(stationConfig, endpoints);
@@ -474,6 +645,7 @@ export class TelemetryInterpreter {
       allStationsData: mapped.allStationsData || null,
       isLive: true,
       isDemo: false,
+      synthesizedStation: synthesizedStation || null,
       station: {
         id: stationConfig.id,
         name: stationConfig.name,
