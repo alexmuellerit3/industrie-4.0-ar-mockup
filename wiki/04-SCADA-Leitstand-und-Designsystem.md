@@ -70,3 +70,24 @@ Für Schulungs- und Präsentationszwecke kann jede Station interaktiv in einen S
    * Der Zähler für aktive Alarme im SevDesk-KPI-Header inkrementiert sofort.
 3. **Quittierung:**
    * Ein Klick auf `Störung quittieren` setzt den Störstatus zurück, normalisiert die Messwerte und aktualisiert die Störungsquote.
+
+---
+
+## ⚙️ 4. Individuelle Modul-Konfiguration & Umbenennung
+
+Jedes Modul kann direkt aus der Stationskarte heraus über die Schaltfläche **`⚙️ Anpassen`** (`.btn-quick-edit`) oder über das Konfigurationsmenü editiert werden:
+
+* **Modulname & Bezeichnung:** Freie Vergabe eines individuellen Stationsnamens (z. B. *"PowerHouse Vibration"* statt *"Modul 1: Dosen-Zuführung"*).
+* **SPS IP-Adresse:** Hinterlegung der konkreten Steuerungs-IP.
+* **MQTT-Topic Bindung:** Direkte Zuordnung eines MQTT-Topics (z. B. `/bbk-lf/rpi04/power-house/vibration`). Eintreffende Messwerte auf diesem Topic werden gezielt diesem Modul zugeordnet und ersetzen dessen Demo-Werte.
+* **Sensor-Metriken & Grenzwerte (v1, v2, v3):** Anpassung der Bezeichnungen (z. B. "Vibration", "Druck", "Drehzahl"), Maßeinheiten (`mm/s`, `bar`, `U/min`) und Toleranz-Schwellwerte für die automatische Grenzwertüberwachung.
+
+---
+
+## 🗑️ 5. Striktes Datenmanagement (Live- vs. Demo-Daten)
+
+Das Gesamtsystem trennt strikt zwischen echten Feldwerten (**LIVE**) und simulierten Demodaten (**DEMO**):
+
+* **Live-Ersetzungslogik:** Sobald ein Modul echte Telemetriepakete über den konfigurierten WebSocket (`wss://nodered.bbk.robin-w.de/ws/opcua`) oder ein abonniertes MQTT-Topic empfängt, werden die simulierten Werte im 5-Minuten-Puffer vollständig durch die echten Live-Werte ersetzt.
+* **Status-Kennzeichnung:** Jede Modulkarte zeigt mit einem dezidierten Badge an, ob aktuell Live-Daten (`LIVE`) oder synthetische Demodaten (`DEMO`) dargestellt werden.
+* **Demo-Daten verwerfen:** Über die Schaltfläche **`🗑️ Demo-Daten verwerfen`** im Konfigurationsdialog (`#btn-clear-all-demo`) können sämtliche Demo- und Simulationswerte auf Knopfdruck aus dem Speicher gelöscht werden. Module ohne Live-Signal zeigen anschließend den Wartezustand `Warte auf Telemetrie...` an.

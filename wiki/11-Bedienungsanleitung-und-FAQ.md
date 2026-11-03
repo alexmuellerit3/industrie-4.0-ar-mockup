@@ -56,3 +56,16 @@
 * **Administrator:** `admin` / `admin123`
 * **Operator / Instandhalter:** `operator` / `operator123`
 * **Viewer / Werker:** `viewer` / `viewer123`
+
+### F6: Wie kann ich Module individuell umbenennen oder an ein spezifisches MQTT-Topic binden?
+* **Anleitung:**
+  1. Klicken Sie im Leitstand ([`overview.html`](file:///root/bbk_cpr/overview.html)) in der Kopfzeile der gewünschten Stationskarte auf **`⚙️ Anpassen`** (oder öffnen Sie den Reiter *Fertigungsmodule* in den Einstellungen).
+  2. Ändern Sie den Namen (z. B. auf *"PowerHouse Vibration"*), tragen Sie die SPS-IP ein und geben Sie das gewünschte MQTT-Topic ein (z. B. `/bbk-lf/rpi04/power-house/vibration`).
+  3. Bei Bedarf können Sie auch Bezeichnungen, Einheiten und Toleranzen für die 3 Messwerte konfigurieren.
+  4. Klicken Sie auf **`💾 Änderungen speichern`**. Das System abonniert das Topic sofort und ordnet eintreffende Daten diesem Modul zu.
+
+### F7: Wie kann ich neue MQTT-Topics abonnieren und Demo-Daten verwerfen?
+* **Anleitung:**
+  1. Öffnen Sie oben rechts **`⚙️ Konfiguration`** und wählen Sie den Reiter **MQTT & Broker**.
+  2. Im Bereich **Dynamische MQTT-Topics** geben Sie das gewünschte Topic ein (z. B. `/bbk-lf/rpi04/power-house/vibration`) und klicken auf **`+ Abonnieren`**.
+  3. Im Reiter **Fertigungsmodule** finden Sie die rote Schaltfläche **`🗑️ Demo-Daten verwerfen`**. Ein Klick darauf entfernt sofort alle simulierten Werte aus dem Speicher, sodass nur noch echte Felddaten sichtbar sind.

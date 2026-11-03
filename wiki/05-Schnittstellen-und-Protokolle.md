@@ -36,28 +36,37 @@ Der primäre Live-Datenstrom für die Bonbon-Fertigung wird über **Node-RED** b
 
 ---
 
-## 📡 3. Eclipse Mosquitto MQTT Broker
+## 📡 3. Eclipse Mosquitto & Externe MQTT Broker
 
-Für industrielle IoT-Gateways bietet das Backend eine vollwertige MQTT-Kopplung ([`backend/mqtt-service.js`](file:///root/bbk_cpr/backend/mqtt-service.js)):
+Das Backend bindet sich sowohl an lokale MQTT-Broker (Mosquitto) als auch an externe Broker wie HiveMQ an ([`backend/mqtt-client.js`](file:///root/bbk_cpr/backend/mqtt-client.js)):
 
 * **Broker-Ports:** Port `1883` (TCP) und Port `9001` (WebSocket)
-* **Topic-Hierarchie:**
+* **Standard-Topics:**
   * `cps-i40/<StationID>/telemetry`: Messwert-Publishing (z. B. `{ v1: 250.2, v2: 5.2, v3: 32 }`)
   * `cps-i40/<StationID>/status`: Lebenszeichen & Zustände (`NORMAL`, `ALERT`)
   * `cps-i40/<StationID>/fault`: Störungsmeldungen (`{ isFault: true }`)
-  * `cps-i40/<StationID>/command`: Steuerbefehle von Werker/Leitstand
+* **Dynamische Topic-Subscriptions:**
+  Beliebige MQTT-Topics (wie z. B. `/bbk-lf/rpi04/power-house/vibration`) können zur Laufzeit dynamisch abonniert werden. Eingehende Payloads werden automatisch entschlüsselt und dem konfigurierten Modul zugeordnet.
 
 ---
 
 ## 🔌 4. Express REST API
 
-Das Backend stellt standardisierte REST-Endpunkte für Statusabfragen und Systemkonfiguration bereit:
+Das Backend stellt standardisierte REST-Endpunkte für Statusabfragen, dynamische Topics und Systemkonfiguration bereit:
 
 | Methode | Endpunkt | Beschreibung | Authentifizierung |
-| :--- | :--- | :--- | :---: |
+| :--- | :--- | :--- | :--- |
 | `GET` | `/health` | Healthcheck (Status `ok`, Uptime, Timestamp) | öffentlich |
 | `GET` | `/api/status` | Systemstatus (MQTT-, WS- & Store-Statistiken) | öffentlich |
-| `GET` | `/api/stations` | Alle 4 Stationen inkl. 5-Minuten-Aggregationen | öffentlich |
+| `GET` | `/api/stations` | Alle Module inkl. 5-Minuten-Aggregationen, Live-/Demo-Status | öffentlich |
+| `GET` | `/api/stations/:id` | Einzelnes Modul mit Konfiguration und Datenstatus abrufen | öffentlich |
+| `PUT` / `POST` | `/api/stations/:id` | Modul einzeln anpassen (Name, SPS-IP, MQTT-Topic, Sensoren) | Operator / Admin |
+| `POST` | `/api/stations` | Neues Modul dynamisch registrieren | Operator / Admin |
+| `DELETE` | `/api/stations/:id` | Modul entfernen und Pufferdaten freigeben | Admin |
+| `GET` | `/api/mqtt/topics` | Liste aller aktiv abonnierten MQTT-Topics | öffentlich |
+| `POST` | `/api/mqtt/subscribe` | Neues MQTT-Topic dynamisch abonnieren (`{ "topic": "..." }`) | Operator / Admin |
+| `POST` | `/api/mqtt/unsubscribe`| MQTT-Topic abbestellen (`{ "topic": "..." }`) | Operator / Admin |
+| `POST` | `/api/store/clear-demo`| Verwirft sämtliche Demo-/Simulationsdaten im Store | öffentlich |
 | `GET` | `/api/history` | Zeitreihen der letzten 5 Minuten für alle Stationen | öffentlich |
 | `POST` | `/api/fault` | Störung simulieren oder quittieren (`stationId`, `isFault`) | optional |
 | `GET` | `/api/config` | Aktuelle Schnittstellen-Konfiguration abrufen | öffentlich |
