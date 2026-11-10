@@ -118,6 +118,12 @@ class ScadaOverviewApp {
   mergeSavedStationsConfig(savedStations) {
     if (!Array.isArray(savedStations)) return;
     savedStations.forEach(newSt => {
+      if (newSt.id === "ST-POWERHOUSE-VIBRATION" && this.stations.some(s => s.id === "ST-010")) {
+        return;
+      }
+      if (newSt.name && (newSt.name.includes("Dosen-Zuführung") || newSt.name.includes("Verschluss & Bördelung") || newSt.name.includes("Qualitätskontrolle & Waage") || newSt.name.includes("Bonbon-Fertigung"))) {
+        return;
+      }
       const target = this.stations.find(s => s.id === newSt.id);
       if (target) {
         if (newSt.name) target.name = newSt.name;
@@ -136,17 +142,39 @@ class ScadaOverviewApp {
           }
         });
       } else {
-        this.stations.push(newSt);
+        if (!this.stations.some(s => s.name && s.name.trim().toLowerCase() === newSt.name?.trim().toLowerCase())) {
+          this.stations.push(newSt);
+        }
       }
+    });
+
+    const seenIds = new Set();
+    const seenNames = new Set();
+    this.stations = this.stations.filter(s => {
+      const nameKey = s.name.toLowerCase().replace(/✨\s*live/g, "").trim();
+      if (seenIds.has(s.id) || seenNames.has(nameKey)) return false;
+      seenIds.add(s.id);
+      seenNames.add(nameKey);
+      return true;
     });
   }
 
   /**
-   * Erzeugt das HeroUI & SevDesk DOM-Gerüst für alle 4 Stationen
+   * Erzeugt das HeroUI & SevDesk DOM-Gerüst für alle Stationen
    */
   initStationsLayout() {
     if (!this.dom.stationsContainer) return;
     this.dom.stationsContainer.innerHTML = "";
+
+    const seenIds = new Set();
+    const seenNames = new Set();
+    this.stations = this.stations.filter(s => {
+      const nameKey = s.name.toLowerCase().replace(/✨\s*live/g, "").trim();
+      if (seenIds.has(s.id) || seenNames.has(nameKey)) return false;
+      seenIds.add(s.id);
+      seenNames.add(nameKey);
+      return true;
+    });
 
     this.stations.forEach(st => {
       const card = document.createElement("article");
@@ -2617,16 +2645,18 @@ class ScadaOverviewApp {
     if (this.inspDom.btnCreateModWs) {
       this.inspDom.btnCreateModWs.addEventListener("click", () => {
         const raw = this.inspState.wsFirstPacket || this.lastRawWsMessage || {
-          topic: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+          topic: "ns=2;s=Demo.Alarms.Plant.Packaging.P-201.Throughput",
           payload: {
-            value: { dataType: "Double", arrayType: "Scalar", value: 0.49235 },
+            value: { dataType: "Double", arrayType: "Scalar", value: 36.5 },
             statusCode: { value: 0 },
             sourceTimestamp: new Date().toISOString()
           }
         };
         const station = this.createModuleFromReceivedData(raw);
-        this.showCreationNotification(station.name);
-        this.scrollToStation(station.id);
+        if (station) {
+          this.showCreationNotification(station.name);
+          this.scrollToStation(station.id);
+        }
       });
     }
 
@@ -2634,14 +2664,18 @@ class ScadaOverviewApp {
     if (this.inspDom.btnCreateModMqtt) {
       this.inspDom.btnCreateModMqtt.addEventListener("click", () => {
         const raw = this.inspState.mqttFirstPacket || this.lastRawMqttMessage || {
-          topic: "/bbk-lf/rpi04/power-house/vibration",
-          value: { dataType: "Double", arrayType: "Scalar", value: 0.49235 },
+          topic: "/bbk-lf/rpi04/compressor/pressure",
+          stationId: "ST-020",
+          stationName: "Kompressor: Druckluft (K-201)",
+          value: { dataType: "Double", arrayType: "Scalar", value: 5.24 },
           statusCode: { value: 0 },
           sourceTimestamp: new Date().toISOString()
         };
-        const station = this.createModuleFromReceivedData(raw, { topic: this.inspDom.mqttTopic?.textContent || "/bbk-lf/rpi04/power-house/vibration" });
-        this.showCreationNotification(station.name);
-        this.scrollToStation(station.id);
+        const station = this.createModuleFromReceivedData(raw, { topic: this.inspDom.mqttTopic?.textContent || "/bbk-lf/rpi04/compressor/pressure" });
+        if (station) {
+          this.showCreationNotification(station.name);
+          this.scrollToStation(station.id);
+        }
       });
     }
 
@@ -2722,10 +2756,13 @@ class ScadaOverviewApp {
     try {
       const parsed = JSON.parse(rawString);
       if (parsed.topic && !parsed.topic.includes("2258") && !parsed.topic.includes("CurrentTime")) {
-        const isKnown = this.stations.some(s => 
-          (s.wsNodeId && s.wsNodeId === parsed.topic) ||
-          (s.id === "ST-POWERHOUSE-VIBRATION" && parsed.topic.includes("PowerHouse"))
-        );
+        const cleanTopic = parsed.topic.replace(/^ns=\d+;[sgi]=/, "").toLowerCase();
+        const isKnown = this.stations.some(s => {
+          const cleanWs = (s.wsNodeId || "").replace(/^ns=\d+;[sgi]=/, "").toLowerCase();
+          return (cleanWs && (cleanWs === cleanTopic || cleanWs.includes(cleanTopic) || cleanTopic.includes(cleanWs))) ||
+                 (s.id === "ST-010" && (cleanTopic.includes("powerhouse") || cleanTopic.includes("vibrat"))) ||
+                 (s.name && s.name.toLowerCase().includes("powerhouse") && cleanTopic.includes("powerhouse"));
+        });
         if (!isKnown) {
           this.createModuleFromReceivedData(parsed);
         }
@@ -2794,23 +2831,23 @@ class ScadaOverviewApp {
     }
 
     // Erstes authentisches CPS-i40 MQTT-Paket generieren / abrufen
-    const activeTopic = (this.subscribedMqttTopics && this.subscribedMqttTopics.find(t => t.includes("power-house") || t.includes("vibration"))) || "/bbk-lf/rpi04/power-house/vibration";
+    const activeTopic = (this.subscribedMqttTopics && this.subscribedMqttTopics.find(t => t.includes("compressor") || t.includes("pressure"))) || "/bbk-lf/rpi04/compressor/pressure";
     const mqttSample = {
       topic: activeTopic,
-      stationId: "ST-POWERHOUSE-VIBRATION",
-      stationName: "PowerHouse: Vibration (P-101)",
+      stationId: "ST-020",
+      stationName: "Kompressor: Druckluft (K-201)",
       broker: "mqtt://broker.hivemq.com:1883",
-      source: "Raspberry Pi 4 • Schwingungssensor (IOT2050)",
+      source: "Raspberry Pi 4 • Drucksensor (IOT2050)",
       qos: 0,
-      value: { dataType: "Double", arrayType: "Scalar", value: 0.49235 },
+      value: { dataType: "Double", arrayType: "Scalar", value: 5.24 },
       statusCode: { value: 0 },
       telemetry: {
-        vibration_mms: 0.49235,
+        pressure_bar: 5.24,
         status_code: 0,
         frequency_hz: 50.0
       },
       limits: {
-        v1: { min: 0.05, max: 2.50, unit: "mm/s" }
+        v1: { min: 1.0, max: 8.0, unit: "bar" }
       },
       status: "OPTIMAL",
       timestamp: now.toISOString()
@@ -3330,6 +3367,22 @@ class ScadaOverviewApp {
 
   addDynamicStation(station) {
     if (!station || !station.id) return;
+    if (station.id === "ST-POWERHOUSE-VIBRATION" && this.stations.some(s => s.id === "ST-010")) {
+      const st010 = this.stations.find(s => s.id === "ST-010");
+      if (st010) {
+        st010.isLive = true;
+        st010.isDemo = false;
+        if (station.v1?.val !== undefined) st010.v1.val = station.v1.val;
+      }
+      return;
+    }
+    const existingSameName = this.stations.find(s => s.name?.trim().toLowerCase() === station.name?.trim().toLowerCase());
+    if (existingSameName) {
+      existingSameName.isLive = true;
+      existingSameName.isDemo = false;
+      if (station.v1?.val !== undefined) existingSameName.v1.val = station.v1.val;
+      return;
+    }
     const existingIdx = this.stations.findIndex(s => s.id === station.id);
     const prepared = { ...station, isDynamic: true, isLive: true, isDemo: false };
     if (existingIdx >= 0) {

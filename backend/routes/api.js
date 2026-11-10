@@ -599,11 +599,21 @@ export function createApiRouter({
       if (store && store.clearAllDemoData) {
         store.clearAllDemoData();
       }
+      if (configManager && configManager.purgeLegacyDemoStations) {
+        configManager.purgeLegacyDemoStations();
+      }
       if (wsServer) {
         wsServer.broadcast({
           type: "demo_data_cleared",
           timestamp: Date.now()
         });
+        if (configManager) {
+          wsServer.broadcast({
+            type: "config_updated",
+            config: configManager.getConfig(),
+            timestamp: Date.now()
+          });
+        }
       }
       res.json({
         success: true,

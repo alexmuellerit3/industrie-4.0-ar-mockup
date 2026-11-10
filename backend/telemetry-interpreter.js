@@ -104,11 +104,14 @@ export class TelemetryInterpreter {
 
     // 0. Konfigurierte Topic-Bindung (mqttTopic oder wsNodeId) der Stationen prüfen
     if (topicCand && typeof topicCand === "string") {
-      const boundStation = this.stations.find(s => 
-        (s.mqttTopic && (s.mqttTopic === topicCand || topicCand.endsWith(s.mqttTopic) || topicCand.includes(s.mqttTopic))) ||
-        (s.wsNodeId && (s.wsNodeId === topicCand || topicCand.includes(s.wsNodeId))) ||
-        (s.name && topicCand.toLowerCase().includes(s.name.toLowerCase()))
-      );
+      const cleanTopic = topicCand.replace(/^ns=\d+;[sgi]=/, "").toLowerCase();
+      const boundStation = this.stations.find(s => {
+        const cleanWs = (s.wsNodeId || "").replace(/^ns=\d+;[sgi]=/, "").toLowerCase();
+        const cleanMqtt = (s.mqttTopic || "").toLowerCase();
+        return (cleanMqtt && (cleanMqtt === cleanTopic || cleanTopic.endsWith(cleanMqtt) || cleanTopic.includes(cleanMqtt))) ||
+               (cleanWs && (cleanWs === cleanTopic || cleanTopic.includes(cleanWs) || cleanWs.includes(cleanTopic))) ||
+               (s.name && cleanTopic.includes(s.name.toLowerCase()));
+      });
       if (boundStation) return boundStation.id;
     }
 
@@ -147,9 +150,10 @@ export class TelemetryInterpreter {
       }
     }
 
-    // 3. Heuristische Erkennung anhand von Messwert-Namen
+    // 3. Heuristische Erkennung anhand von Messwert-Namen & Topic
     const allPaths = endpoints.map(e => e.path.toLowerCase()).join(" ");
-    if (allPaths.includes("vibrat") || allPaths.includes("powerhouse") || allPaths.includes("power-house")) {
+    const allPathsAndVals = (allPaths + " " + endpoints.map(e => e.value).join(" ") + " " + topicCand).toLowerCase();
+    if (allPathsAndVals.includes("vibrat") || allPathsAndVals.includes("powerhouse") || allPathsAndVals.includes("power-house") || allPathsAndVals.includes("p-101")) {
       return "ST-010";
     }
     if (allPaths.includes("fill") || allPaths.includes("gewicht") || allPaths.includes("dosier") || allPaths.includes("throughput")) {

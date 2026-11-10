@@ -457,11 +457,11 @@ class AuthService {
     let v1Label = "Hauptwert";
     let v1Unit = "";
 
-    if (pStr.includes("ST-010") || pStr.includes("Magazin") || pStr.includes("Vakuum") || topicStr.includes("Modul1")) {
+    if (pStr.includes("ST-010") || topicStr.toLowerCase().includes("powerhouse") || topicStr.toLowerCase().includes("power-house") || topicStr.toLowerCase().includes("vibrat")) {
       stId = "ST-010";
-      stName = "Modul 1: Dosen-Zuführung";
-      v1Label = "Magazin";
-      v1Unit = "%";
+      stName = "PowerHouse: Vibration (P-101)";
+      v1Label = "Vibration";
+      v1Unit = "mm/s";
     } else if (pStr.includes("ST-030") || pStr.includes("Drehmoment") || pStr.includes("Bördel") || topicStr.includes("Modul3")) {
       stId = "ST-030";
       stName = "Modul 3: Verschluss & Bördelung";

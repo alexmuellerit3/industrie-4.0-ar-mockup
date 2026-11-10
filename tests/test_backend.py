@@ -1202,6 +1202,68 @@ class TestBackendServerLive(unittest.TestCase):
             self.assertTrue(problems_data.get("success"))
             self.assertIn("problems", problems_data)
 
+    def test_legacy_demo_auto_migration_and_duplicate_powerhouse_prevention(self):
+        """
+        Prüft, dass:
+        1. Veraltete Demo-Stationen (Dosen-Zuführung, Verschluss & Bördelung, etc.) in bestehenden Config-Dateien
+           beim Start automatisch bereinigt und zu ST-010 PowerHouse: Vibration (P-101) migriert werden.
+        2. Eintreffende Node-RED Pakete mit Topic 'Demo.Alarms.Plant.PowerHouse.P-101.Vibration'
+           direkt ST-010 zugeordnet werden, sodass KEIN doppeltes Modul 'ST-POWERHOUSE-VIBRATION' entsteht.
+        """
+        script = """
+        import fs from "fs";
+        import path from "path";
+        import { ConfigManager } from "./backend/config-manager.js";
+        import { TelemetryInterpreter } from "./backend/telemetry-interpreter.js";
+
+        const tempCfg = path.join("/tmp", `test-legacy-cfg-${Date.now()}.json`);
+        fs.writeFileSync(tempCfg, JSON.stringify({
+          dataSource: "websocket",
+          stations: [
+            { id: "ST-010", name: "Modul 1: Dosen-Zuführung", description: "Vakuum- und Magazinförderung", mqttTopic: "cps-i40/ST-010/telemetry", wsNodeId: "" },
+            { id: "ST-020", name: "ST-020", description: "Automatisch generiertes Modul aus Empfangsdaten (cps-i40/ST-020/telemetry)", mqttTopic: "null" },
+            { id: "ST-030", name: "Modul 3: Verschluss & Bördelung", description: "Bördeldruck & Schließmoment", mqttTopic: "cps-i40/ST-030/telemetry" },
+            { id: "ST-040", name: "Modul 4: Qualitätskontrolle & Waage", description: "Kontrollwägung", mqttTopic: "cps-i40/ST-040/telemetry" },
+            { id: "ST-POWERHOUSE-VIBRATION", name: "PowerHouse: Vibration (P-101)", description: "Auto Modul", mqttTopic: "/bbk-lf/rpi04/power-house/vibration" }
+          ]
+        }));
+
+        const cfgManager = new ConfigManager(tempCfg);
+        const stations = cfgManager.getStations();
+
+        // Interpreter Topic-Erkennung
+        const interpreter = new TelemetryInterpreter({ stations });
+        const detectedNodeRed = interpreter.detectStationId({}, [], { topic: "Demo.Alarms.Plant.PowerHouse.P-101.Vibration" });
+        const detectedMqtt = interpreter.detectStationId({}, [], { topic: "/bbk-lf/rpi04/power-house/vibration" });
+
+        fs.unlinkSync(tempCfg);
+
+        console.log(JSON.stringify({
+          stationCount: stations.length,
+          st010Name: stations.find(s => s.id === "ST-010")?.name,
+          st010Ws: stations.find(s => s.id === "ST-010")?.wsNodeId,
+          hasDuplicate: stations.some(s => s.id === "ST-POWERHOUSE-VIBRATION"),
+          hasLegacyDemo: stations.some(s => s.name?.includes("Dosen-Zuführung") || s.name?.includes("Bördelung")),
+          detectedNodeRed,
+          detectedMqtt
+        }));
+        """
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        data = json.loads(res.stdout.strip().split("\n")[-1])
+        self.assertEqual(data["stationCount"], 1, "Veraltete Demo-Stationen und Duplikate müssen bereinigt sein")
+        self.assertEqual(data["st010Name"], "PowerHouse: Vibration (P-101)")
+        self.assertIn("Demo.Alarms.Plant.PowerHouse.P-101.Vibration", data["st010Ws"])
+        self.assertFalse(data["hasDuplicate"], "ST-POWERHOUSE-VIBRATION darf nicht doppelt existieren")
+        self.assertFalse(data["hasLegacyDemo"], "Keine alten Demo-Module mehr")
+        self.assertEqual(data["detectedNodeRed"], "ST-010", "Node-RED Topic muss ST-010 zugeordnet werden")
+        self.assertEqual(data["detectedMqtt"], "ST-010", "MQTT Topic muss ST-010 zugeordnet werden")
+
 
 if __name__ == "__main__":
     unittest.main()

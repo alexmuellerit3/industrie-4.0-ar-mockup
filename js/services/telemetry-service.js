@@ -417,6 +417,10 @@ export class TelemetryService {
     }
     if (!targetData.stationId) return;
 
+    if (targetData.stationId === "ST-POWERHOUSE-VIBRATION" && this.stations.some(s => s.id === "ST-010")) {
+      targetData.stationId = "ST-010";
+    }
+
     let target = this.stations.find(s => s.id === targetData.stationId);
     if (!target) {
       if (data.synthesizedStation) {
@@ -476,6 +480,12 @@ export class TelemetryService {
   updateStationsConfig(newStations) {
     if (!Array.isArray(newStations)) return;
     newStations.forEach(newSt => {
+      if (newSt.id === "ST-POWERHOUSE-VIBRATION" && this.stations.some(s => s.id === "ST-010")) {
+        return;
+      }
+      if (newSt.name && (newSt.name.includes("Dosen-Zuführung") || newSt.name.includes("Verschluss & Bördelung") || newSt.name.includes("Qualitätskontrolle & Waage") || newSt.name.includes("Bonbon-Fertigung"))) {
+        return;
+      }
       const target = this.stations.find(s => s.id === newSt.id);
       if (target) {
         if (newSt.name) target.name = newSt.name;
@@ -486,15 +496,30 @@ export class TelemetryService {
             if (newSt[k].max !== undefined) target[k].max = newSt[k].max;
             if (newSt[k].label) target[k].label = newSt[k].label;
             if (newSt[k].unit) target[k].unit = newSt[k].unit;
-            if (newSt[k].defaultVal !== undefined) target[k].val = newSt[k].defaultVal;
+            if (newSt[k].defaultVal !== undefined && (!target.isLive || target.isDemo)) {
+              target[k].val = newSt[k].defaultVal;
+            }
           }
         });
         if (newSt.isLive) target.isLive = true;
         if (newSt.isDynamic) target.isDynamic = true;
       } else {
-        this.stations.push(JSON.parse(JSON.stringify(newSt)));
+        if (!this.stations.some(s => s.name?.trim().toLowerCase() === newSt.name?.trim().toLowerCase())) {
+          this.stations.push(JSON.parse(JSON.stringify(newSt)));
+        }
       }
     });
+
+    const seenIds = new Set();
+    const seenNames = new Set();
+    this.stations = this.stations.filter(s => {
+      const nameKey = s.name.toLowerCase().replace(/✨\s*live/g, "").trim();
+      if (seenIds.has(s.id) || seenNames.has(nameKey)) return false;
+      seenIds.add(s.id);
+      seenNames.add(nameKey);
+      return true;
+    });
+
     this.notify();
   }
 }

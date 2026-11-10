@@ -88,15 +88,63 @@ export class ConfigManager {
       if (fs.existsSync(this.filePath)) {
         const raw = fs.readFileSync(this.filePath, "utf-8");
         const parsed = JSON.parse(raw);
-        // Stelle sicher, dass essentielle Schlüssel existieren
-        return {
+        let stations = parsed.stations && Array.isArray(parsed.stations) ? parsed.stations : this.defaults.stations;
+
+        // Auto-Migration & Purge alter Demo-Stationen und Duplikate
+        let needsSave = false;
+
+        const hasLegacyDemo = stations.some(s => 
+          (s.name && (s.name.includes("Dosen-Zuführung") || s.name.includes("Bonbon-Fertigung") || s.name.includes("Verschluss & Bördelung") || s.name.includes("Qualitätskontrolle & Waage"))) ||
+          (s.description && (s.description.includes("Vakuum- und Magazinförderung") || s.description.includes("Bördeldruck & Schließmoment") || s.description.includes("Kontrollwägung"))) ||
+          (s.mqttTopic && (s.mqttTopic.includes("cps-i40/ST-010/telemetry") || s.mqttTopic === "null"))
+        );
+        const hasPowerHouseDuplicate = stations.some(s => s.id === "ST-POWERHOUSE-VIBRATION") && stations.some(s => s.id === "ST-010");
+
+        if (hasLegacyDemo || hasPowerHouseDuplicate) {
+          needsSave = true;
+          stations = stations.filter(s => {
+            if (s.id === "ST-POWERHOUSE-VIBRATION") return false;
+            if (s.name && (s.name.includes("Dosen-Zuführung") || s.name.includes("Verschluss & Bördelung") || s.name.includes("Qualitätskontrolle & Waage") || s.name.includes("Bonbon-Fertigung"))) return false;
+            if (s.description && (s.description.includes("Vakuum- und Magazinförderung") || s.description.includes("Bördeldruck & Schließmoment") || s.description.includes("Kontrollwägung"))) return false;
+            if (["ST-020", "ST-030", "ST-040"].includes(s.id) && s.mqttTopic && (s.mqttTopic.startsWith("cps-i40/ST-") || s.mqttTopic === "null")) return false;
+            return true;
+          });
+
+          const st010Idx = stations.findIndex(s => s.id === "ST-010");
+          if (st010Idx !== -1) {
+            stations[st010Idx] = {
+              ...DEFAULT_STATIONS_CONFIG[0],
+              ...stations[st010Idx],
+              id: "ST-010",
+              name: "PowerHouse: Vibration (P-101)",
+              description: "Vibrations-Sensor an Hauptantrieb P-101 (PowerHouse)",
+              mqttTopic: "/bbk-lf/rpi04/power-house/vibration",
+              wsNodeId: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+              isLive: true,
+              isDemo: false,
+              v1: { id: "vibration", label: "Vibration", unit: "mm/s", min: 0.05, max: 2.5, defaultVal: 0.8, val: 0.8 },
+              v2: { id: "status_code", label: "Status", unit: "Good", min: 0, max: 0, defaultVal: 0, val: 0 },
+              v3: { id: "signal_quality", label: "Signal", unit: "%", min: 90, max: 100, defaultVal: 100, val: 100 }
+            };
+          } else {
+            stations.unshift(JSON.parse(JSON.stringify(DEFAULT_STATIONS_CONFIG[0])));
+          }
+        }
+
+        const loaded = {
           dataSource: parsed.dataSource || this.defaults.dataSource,
           websocket: { ...this.defaults.websocket, ...(parsed.websocket || {}) },
           mqtt: { ...this.defaults.mqtt, ...(parsed.mqtt || {}) },
           api: { ...this.defaults.api, ...(parsed.api || {}) },
           mysql: { ...this.defaults.mysql, ...(parsed.mysql || {}) },
-          stations: parsed.stations && Array.isArray(parsed.stations) ? parsed.stations : this.defaults.stations
+          stations
         };
+
+        if (needsSave) {
+          this.save(loaded);
+        }
+
+        return loaded;
       }
     } catch (err) {
       console.warn(`[ConfigManager] Konnte Konfigurationsdatei nicht lesen (${this.filePath}):`, err.message);
@@ -293,6 +341,44 @@ export class ConfigManager {
   addStation(stationData) {
     const sId = stationData.id || `ST-${String(this.config.stations.length + 1).padStart(3, "0")}0`;
     return this.updateStation(sId, { ...stationData, id: sId });
+  }
+
+  /**
+   * Bereinigt veraltete Demo-Stationen und Duplikate
+   */
+  purgeLegacyDemoStations() {
+    const updated = JSON.parse(JSON.stringify(this.config));
+    if (!Array.isArray(updated.stations)) return false;
+
+    updated.stations = updated.stations.filter(s => {
+      if (s.id === "ST-POWERHOUSE-VIBRATION") return false;
+      if (s.name && (s.name.includes("Dosen-Zuführung") || s.name.includes("Verschluss & Bördelung") || s.name.includes("Qualitätskontrolle & Waage") || s.name.includes("Bonbon-Fertigung"))) return false;
+      if (s.description && (s.description.includes("Vakuum- und Magazinförderung") || s.description.includes("Bördeldruck & Schließmoment") || s.description.includes("Kontrollwägung"))) return false;
+      if (["ST-020", "ST-030", "ST-040"].includes(s.id) && s.mqttTopic && (s.mqttTopic.startsWith("cps-i40/ST-") || s.mqttTopic === "null")) return false;
+      return true;
+    });
+
+    const st010Idx = updated.stations.findIndex(s => s.id === "ST-010");
+    if (st010Idx !== -1) {
+      updated.stations[st010Idx] = {
+        ...DEFAULT_STATIONS_CONFIG[0],
+        ...updated.stations[st010Idx],
+        id: "ST-010",
+        name: "PowerHouse: Vibration (P-101)",
+        description: "Vibrations-Sensor an Hauptantrieb P-101 (PowerHouse)",
+        mqttTopic: "/bbk-lf/rpi04/power-house/vibration",
+        wsNodeId: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+        isLive: true,
+        isDemo: false
+      };
+    } else {
+      updated.stations.unshift(JSON.parse(JSON.stringify(DEFAULT_STATIONS_CONFIG[0])));
+    }
+
+    this.config = updated;
+    this.save(this.config);
+    this.notify(this.config);
+    return true;
   }
 
   /**

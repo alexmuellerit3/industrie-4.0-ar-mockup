@@ -36,13 +36,31 @@ export class CollectorService {
   async ingest(stationId, payload, meta = {}) {
     if (!stationId || !payload) return null;
 
+    let effectiveId = stationId;
+    if (effectiveId === "ST-POWERHOUSE-VIBRATION") {
+      const st010 = this.configManager.getStation("ST-010");
+      if (st010) effectiveId = "ST-010";
+    }
+
     // 1. Zabbix Low-Level Discovery (LLD) / Auto-Modul-Generierung
-    let station = this.configManager.getStation(stationId);
+    let station = this.configManager.getStation(effectiveId);
+    if (!station) {
+      // Prüfe ob bereits eine Station mit demselben Namen existiert
+      const existingSameName = this.configManager.getStations().find(s => 
+        (meta?.stationName && s.name.toLowerCase() === meta.stationName.toLowerCase()) ||
+        (meta?.synthesizedStation?.name && s.name.toLowerCase() === meta.synthesizedStation.name.toLowerCase())
+      );
+      if (existingSameName) {
+        effectiveId = existingSameName.id;
+        station = existingSameName;
+      }
+    }
+
     if (!station) {
       station = meta?.synthesizedStation ||
-        this.telemetryInterpreter.synthesizeStationFromPayload(payload, { stationId, topic: meta?.opcuaTopic || meta?.topic }) || {
-          id: stationId,
-          name: meta?.stationName || stationId,
+        this.telemetryInterpreter.synthesizeStationFromPayload(payload, { stationId: effectiveId, topic: meta?.opcuaTopic || meta?.topic }) || {
+          id: effectiveId,
+          name: meta?.stationName || effectiveId,
           plcIp: "192.168.10.15",
           mqttTopic: meta?.topic || null,
           wsNodeId: meta?.opcuaTopic || null,
@@ -65,7 +83,7 @@ export class CollectorService {
     const timestamp = payload.timestamp || Date.now();
 
     // 2. Dual-Write: 5-Minuten In-Memory KeyValueStore
-    const ramEntry = this.store.push(stationId, {
+    const ramEntry = this.store.push(effectiveId, {
       ...payload,
       isLive: true,
       isDemo: false
@@ -73,14 +91,14 @@ export class CollectorService {
 
     // 3. Dual-Write: 24-Stunden MySQL Store
     if (this.mysqlStore) {
-      this.mysqlStore.recordSample(stationId, payload, timestamp).catch(() => {});
+      this.mysqlStore.recordSample(effectiveId, payload, timestamp).catch(() => {});
     }
 
     // 4. Zabbix Trigger-Auswertung (Toleranz- und Schwellenwertprüfung)
     this.evaluateZabbixTriggers(station, payload, timestamp);
 
     // 5. Broadcast an alle verbundenen WebClients
-    this.onBroadcastTelemetry(stationId, ramEntry, meta);
+    this.onBroadcastTelemetry(effectiveId, ramEntry, meta);
 
     return ramEntry;
   }

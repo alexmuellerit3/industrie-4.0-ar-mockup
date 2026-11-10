@@ -26,12 +26,13 @@ export class KeyValueStore {
    * @param {number} [timestamp] - Unix-Zeitstempel in ms (Standard: Date.now())
    */
   push(stationId, sample, timestamp = Date.now()) {
-    if (!this.series.has(stationId)) {
-      this.series.set(stationId, []);
+    const targetId = stationId === "ST-POWERHOUSE-VIBRATION" ? "ST-010" : stationId;
+    if (!this.series.has(targetId)) {
+      this.series.set(targetId, []);
     }
 
     const isLiveSample = Boolean(sample.isLive || (!sample.isDemo && !sample.simulated));
-    let list = this.series.get(stationId);
+    let list = this.series.get(targetId);
 
     // Wenn echte Live-Telemetriedaten eintreffen, ersetze eventuell vorherige Demo-/Mock-Einträge
     if (isLiveSample) {
