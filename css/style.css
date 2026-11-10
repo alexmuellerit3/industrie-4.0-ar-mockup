@@ -161,7 +161,11 @@ a-scene canvas {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 16px;
+  box-sizing: border-box;
   background: var(--heroui-surface);
   border: 1px solid var(--heroui-border);
   border-radius: 9999px;
@@ -169,6 +173,7 @@ a-scene canvas {
   -webkit-backdrop-filter: blur(20px);
   font-size: clamp(10px, 2.8vw, 12px);
   letter-spacing: 0.3px;
+  line-height: 1;
   color: var(--text-secondary);
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
 }
@@ -196,7 +201,11 @@ a-scene canvas {
 
 /* HeroUI Pill Button für Zoom */
 .zoom-pill {
-  padding: 6px 14px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 14px;
+  box-sizing: border-box;
   background: var(--heroui-surface);
   border: 1px solid var(--heroui-border);
   border-radius: 9999px;
@@ -205,6 +214,7 @@ a-scene canvas {
   font-family: var(--font-mono);
   font-size: clamp(10px, 2.8vw, 12px);
   font-weight: 700;
+  line-height: 1;
   color: var(--text-white);
   cursor: pointer;
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
@@ -212,7 +222,6 @@ a-scene canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -225,20 +234,24 @@ a-scene canvas {
 /* HeroUI Pill Button für Konfiguration & Auth */
 .config-pill,
 .auth-pill {
-  padding: 6px 12px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 12px;
+  box-sizing: border-box;
   background: var(--heroui-surface);
   border: 1px solid var(--heroui-border);
   border-radius: 9999px;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   font-size: clamp(11px, 3vw, 13px);
+  line-height: 1;
   color: var(--text-white);
   cursor: pointer;
   box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--heroui-border);
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -251,7 +264,11 @@ a-scene canvas {
 
 /* HeroUI SevDesk Leitstand Nav Button */
 .overview-nav-btn {
-  padding: 6px 14px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0 14px;
+  box-sizing: border-box;
   background: var(--heroui-surface);
   border: 1px solid var(--heroui-border);
   border-radius: 9999px;
@@ -260,6 +277,7 @@ a-scene canvas {
   font-family: var(--font-sans);
   font-size: clamp(10px, 2.8vw, 12px);
   font-weight: 600;
+  line-height: 1;
   color: #34d399;
   text-decoration: none;
   cursor: pointer;
@@ -267,7 +285,6 @@ a-scene canvas {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
