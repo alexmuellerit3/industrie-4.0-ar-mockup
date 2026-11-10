@@ -14,47 +14,16 @@ import path from "path";
 export const DEFAULT_STATIONS_CONFIG = [
   {
     id: "ST-010",
-    name: "Modul 1: Dosen-Zuführung",
-    description: "Vakuum- und Magazinförderung",
+    name: "PowerHouse: Vibration (P-101)",
+    description: "Vibrations-Sensor an Hauptantrieb P-101 (PowerHouse)",
     plcIp: "192.168.10.11",
-    mqttTopic: "cps-i40/ST-010/telemetry",
-    wsNodeId: "",
-    v1: { id: "magazine_level", label: "Magazin", unit: "%", min: 82, max: 86, defaultVal: 84 },
-    v2: { id: "vacuum_pressure", label: "Vakuum", unit: "bar", min: -0.85, max: -0.78, defaultVal: -0.8 },
-    v3: { id: "part_counter", label: "Zähler", unit: "Stk", isFixed: true, defaultVal: 1684 }
-  },
-  {
-    id: "ST-020",
-    name: "Modul 2: Dosierung & Befüllung",
-    description: "Präzisions-Dosierung & Befüllungsdruck",
-    plcIp: "192.168.10.12",
-    mqttTopic: "cps-i40/ST-020/telemetry",
-    wsNodeId: "",
-    v1: { id: "fill_weight", label: "Füllgewicht", unit: "g", min: 249.7, max: 250.6, defaultVal: 250.3 },
-    v2: { id: "pressure", label: "Druck", unit: "bar", min: 5.1, max: 5.3, defaultVal: 5.2 },
-    v3: { id: "throughput", label: "Takt", unit: "D/min", min: 31, max: 33, defaultVal: 32 }
-  },
-  {
-    id: "ST-030",
-    name: "Modul 3: Verschluss & Bördelung",
-    description: "Bördeldruck & Schließmoment",
-    plcIp: "192.168.10.13",
-    mqttTopic: "cps-i40/ST-030/telemetry",
-    wsNodeId: "",
-    v1: { id: "press_force", label: "Anpressdruck", unit: "bar", min: 5.1, max: 5.3, defaultVal: 5.2 },
-    v2: { id: "torque", label: "Drehmoment", unit: "Nm", min: 3.8, max: 4.1, defaultVal: 3.9 },
-    v3: { id: "seal_check", label: "Prüfung", unit: "%", isFixed: true, defaultVal: 100 }
-  },
-  {
-    id: "ST-040",
-    name: "Modul 4: Qualitätskontrolle & Waage",
-    description: "Kontrollwägung & Ausschussüberwachung",
-    plcIp: "192.168.10.14",
-    mqttTopic: "cps-i40/ST-040/telemetry",
-    wsNodeId: "",
-    v1: { id: "check_weight", label: "Kontrollgewicht", unit: "g", min: 249.8, max: 250.4, defaultVal: 250.1 },
-    v2: { id: "reject_rate", label: "Ausschuss", unit: "%", min: 0.3, max: 0.5, defaultVal: 0.4 },
-    v3: { id: "oee", label: "OEE", unit: "%", isFixed: true, defaultVal: 93 }
+    mqttTopic: "/bbk-lf/rpi04/power-house/vibration",
+    wsNodeId: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+    isLive: true,
+    isDemo: false,
+    v1: { id: "vibration", label: "Vibration", unit: "mm/s", min: 0.05, max: 2.5, defaultVal: 0.8, val: 0.8 },
+    v2: { id: "status_code", label: "Status", unit: "Good", min: 0, max: 0, defaultVal: 0, val: 0 },
+    v3: { id: "signal_quality", label: "Signal", unit: "%", min: 90, max: 100, defaultVal: 100, val: 100 }
   }
 ];
 

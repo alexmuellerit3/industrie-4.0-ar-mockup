@@ -415,47 +415,17 @@ class AuthService {
       const seconds = Math.floor(timeMs / 1000);
       const timeFormatted = new Date(timeMs).toLocaleTimeString("de-DE");
 
-      // Synchronisierte Live-Prozessdaten für alle 4 Stationen generieren
+      // Synchronisierte Live-Prozessdaten generieren
       const allStations = [
         {
           stationId: "ST-010",
-          stationName: "Modul 1: Dosen-Zuführung",
-          v1: +(84.0 + Math.sin(seconds * 0.1) * 0.8).toFixed(1),
-          v2: +(-0.81 + Math.cos(seconds * 0.15) * 0.02).toFixed(2),
-          v3: +(1684 + (seconds % 500)),
-          isFault: false,
-          status: "OPTIMAL",
-          summary: `✅ Modul 1: Dosen-Zuführung aktiv (OPC UA Takt: ${timeFormatted}, Good).`
-        },
-        {
-          stationId: "ST-020",
-          stationName: "Modul 2: Dosierung & Befüllung",
-          v1: +(250.2 + Math.sin(seconds * 0.25) * 0.25).toFixed(1),
-          v2: +(5.2 + Math.cos(seconds * 0.2) * 0.05).toFixed(1),
-          v3: 32,
-          isFault: false,
-          status: "OPTIMAL",
-          summary: `✅ Modul 2: Dosierung & Befüllung im optimalen Sollbereich (${timeFormatted}).`
-        },
-        {
-          stationId: "ST-030",
-          stationName: "Modul 3: Verschluss & Bördelung",
-          v1: +(5.2 + Math.sin(seconds * 0.18) * 0.05).toFixed(1),
-          v2: +(3.9 + Math.cos(seconds * 0.22) * 0.08).toFixed(1),
+          stationName: "PowerHouse: Vibration (P-101)",
+          v1: +(0.8 + Math.sin(seconds * 0.1) * 0.05).toFixed(3),
+          v2: 0,
           v3: 100,
           isFault: false,
           status: "OPTIMAL",
-          summary: `✅ Modul 3: Verschluss & Bördelung arbeitet nominal (Dichtigkeit 100%).`
-        },
-        {
-          stationId: "ST-040",
-          stationName: "Modul 4: Qualitätskontrolle & Waage",
-          v1: +(250.1 + Math.sin(seconds * 0.25) * 0.2).toFixed(1),
-          v2: +(0.4 + (Math.sin(seconds * 0.05) > 0.8 ? 0.05 : 0.0)).toFixed(2),
-          v3: 93,
-          isFault: false,
-          status: "OPTIMAL",
-          summary: `✅ Modul 4: Qualitätskontrolle & Waage im Zielbereich (OEE: 93%).`
+          summary: `✅ PowerHouse: Vibration (P-101) aktiv (OPC UA Takt: ${timeFormatted}, Good).`
         }
       ];
 
@@ -466,14 +436,14 @@ class AuthService {
           timestamp: timeMs,
           serverTime: timeFormatted,
           stationId: "ST-010",
-          stationName: "Modul 1: Dosen-Zuführung",
+          stationName: "PowerHouse: Vibration (P-101)",
           status: "OPTIMAL",
           summary: `✅ Node-RED OPC UA Live-Telemetrie aktiv (Node: ns=0;i=2258, Server-Zeit: ${timeFormatted}). Reale Daten aktiv, Demo-Modus ersetzt.`,
           allStations,
           mappedValues: {
-            v1: { label: "Magazin", val: allStations[0].v1, unit: "%", status: "OPTIMAL" },
-            v2: { label: "Vakuum", val: allStations[0].v2, unit: "bar", status: "OPTIMAL" },
-            v3: { label: "Zähler", val: allStations[0].v3, unit: "Stk", status: "NORMAL" }
+            v1: { label: "Vibration", val: allStations[0].v1, unit: "mm/s", status: "OPTIMAL" },
+            v2: { label: "Status", val: allStations[0].v2, unit: "Good", status: "OPTIMAL" },
+            v3: { label: "Signal", val: allStations[0].v3, unit: "%", status: "NORMAL" }
           },
           extractedEndpoints: endpoints
         }
@@ -503,9 +473,9 @@ class AuthService {
       v1Label = "Gewicht";
       v1Unit = "g";
     } else if (topicStr.toLowerCase().includes("powerhouse") || topicStr.toLowerCase().includes("power-house") || topicStr.toLowerCase().includes("vibrat")) {
-      stId = "ST-POWERHOUSE-VIBRATION";
+      stId = "ST-010";
       stName = "PowerHouse: Vibration (P-101)";
-      isDynamic = true;
+      isDynamic = false;
       v1Label = "Vibration";
       v1Unit = "mm/s";
     } else if (topicStr && !topicStr.includes("2258")) {
@@ -530,9 +500,9 @@ class AuthService {
       return null;
     };
 
-    let v1 = extractNum(payload.v1) ?? (isDynamic ? 0.0 : stId === "ST-010" ? 84.0 : stId === "ST-020" ? 250.3 : stId === "ST-030" ? 5.2 : 250.1);
-    let v2 = extractNum(payload.v2) ?? (isDynamic ? 0 : stId === "ST-010" ? -0.8 : stId === "ST-020" ? 5.2 : stId === "ST-030" ? 3.9 : 0.4);
-    let v3 = extractNum(payload.v3) ?? (isDynamic ? 100 : stId === "ST-010" ? 1684 : stId === "ST-020" ? 32 : stId === "ST-030" ? 100 : 93);
+    let v1 = extractNum(payload.v1) ?? (isDynamic ? 0.0 : stId === "ST-010" ? 0.8 : 250.0);
+    let v2 = extractNum(payload.v2) ?? 0;
+    let v3 = extractNum(payload.v3) ?? 100;
 
     if (payload.telemetry) {
       if (payload.telemetry.fill_weight_g !== undefined) v1 = extractNum(payload.telemetry.fill_weight_g) ?? v1;

@@ -27,9 +27,13 @@ export class TelemetryService {
       if (typeof localStorage !== "undefined") {
         const saved = localStorage.getItem("cps_saved_config");
         if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed.stations)) {
-            this.updateStationsConfig(parsed.stations);
+          if (saved.includes("Dosen-Zuführung") || saved.includes("Dosierung & Befüllung") || saved.includes("Bördelung") || saved.includes("ST-020") || saved.includes("ST-030") || saved.includes("ST-040")) {
+            localStorage.removeItem("cps_saved_config");
+          } else {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed.stations)) {
+              this.updateStationsConfig(parsed.stations);
+            }
           }
         }
       }

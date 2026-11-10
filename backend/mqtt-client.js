@@ -328,10 +328,7 @@ export class MqttClientService {
     this.onStatusChange({ connected: false, brokerUrl: this.brokerUrl, simulated: true });
 
     const stations = stationsConfig || [
-      { id: "ST-010", v1: { val: 84, min: 82, max: 86 }, v2: { val: -0.8, min: -0.85, max: -0.78 }, v3: { val: 1684 } },
-      { id: "ST-020", v1: { val: 250.3, min: 249.7, max: 250.6 }, v2: { val: 5.2, min: 5.1, max: 5.3 }, v3: { val: 32, min: 31, max: 33 } },
-      { id: "ST-030", v1: { val: 5.2, min: 5.1, max: 5.3 }, v2: { val: 3.9, min: 3.8, max: 4.1 }, v3: { val: 100 } },
-      { id: "ST-040", v1: { val: 250.1, min: 249.8, max: 250.4 }, v2: { val: 0.4, min: 0.3, max: 0.5 }, v3: { val: 93 } }
+      { id: "ST-010", v1: { val: 0.8, min: 0.05, max: 2.5 }, v2: { val: 0, min: 0, max: 0 }, v3: { val: 100 } }
     ];
 
     let tick = 0;

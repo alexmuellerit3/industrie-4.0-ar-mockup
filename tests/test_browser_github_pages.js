@@ -62,7 +62,7 @@ server.listen(PORT, async () => {
 
     const initialCards = await page.$$eval(".heroui-station-card", els => els.length);
     console.log(`[1] Initiale Fertigungsmodule im SCADA Grid: ${initialCards}`);
-    if (initialCards < 4) throw new Error(`Erwartete mindestens 4 Stationen, gefunden: ${initialCards}`);
+    if (initialCards < 1) throw new Error(`Erwartete mindestens 1 Station, gefunden: ${initialCards}`);
 
     // 2. Störungssimulation & Quittierung
     const btnFaultText1 = await page.$eval("#btn-fault-ST-010", el => el.textContent);

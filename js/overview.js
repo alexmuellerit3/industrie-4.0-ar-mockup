@@ -15,35 +15,15 @@ import { authService } from "./services/auth-service.js";
 const STATIONS_DEFAULT = [
   {
     id: "ST-010",
-    name: "Modul 1: Dosen-Zuführung",
+    name: "PowerHouse: Vibration (P-101)",
     plcIp: "192.168.10.11",
-    v1: { label: "Magazin", unit: "%", val: 84 },
-    v2: { label: "Vakuum", unit: "bar", val: -0.8 },
-    v3: { label: "Zähler", unit: "Stk", val: 1684 }
-  },
-  {
-    id: "ST-020",
-    name: "Modul 2: Dosierung & Befüllung",
-    plcIp: "192.168.10.12",
-    v1: { label: "Füllgewicht", unit: "g", val: 250.3 },
-    v2: { label: "Druck", unit: "bar", val: 5.2 },
-    v3: { label: "Takt", unit: "D/min", val: 32 }
-  },
-  {
-    id: "ST-030",
-    name: "Modul 3: Verschluss & Bördelung",
-    plcIp: "192.168.10.13",
-    v1: { label: "Anpressdruck", unit: "bar", val: 5.2 },
-    v2: { label: "Drehmoment", unit: "Nm", val: 3.9 },
-    v3: { label: "Prüfung", unit: "%", val: 100 }
-  },
-  {
-    id: "ST-040",
-    name: "Modul 4: Qualitätskontrolle & Waage",
-    plcIp: "192.168.10.14",
-    v1: { label: "Kontrollgewicht", unit: "g", val: 250.1 },
-    v2: { label: "Ausschuss", unit: "%", val: 0.4 },
-    v3: { label: "OEE", unit: "%", val: 93 }
+    mqttTopic: "/bbk-lf/rpi04/power-house/vibration",
+    wsNodeId: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+    isLive: true,
+    isDemo: false,
+    v1: { label: "Vibration", unit: "mm/s", val: 0.8 },
+    v2: { label: "Status", unit: "Good", val: 0 },
+    v3: { label: "Signal", unit: "%", val: 100 }
   }
 ];
 
@@ -68,12 +48,16 @@ class ScadaOverviewApp {
       if (typeof localStorage !== "undefined") {
         const saved = localStorage.getItem("cps_saved_config");
         if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed.stations)) {
-            this.mergeSavedStationsConfig(parsed.stations);
-          }
-          if (Array.isArray(parsed.subscribedMqttTopics)) {
-            this.subscribedMqttTopics = parsed.subscribedMqttTopics;
+          if (saved.includes("Dosen-Zuführung") || saved.includes("Dosierung & Befüllung") || saved.includes("Bördelung") || saved.includes("ST-020") || saved.includes("ST-030") || saved.includes("ST-040")) {
+            localStorage.removeItem("cps_saved_config");
+          } else {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed.stations)) {
+              this.mergeSavedStationsConfig(parsed.stations);
+            }
+            if (Array.isArray(parsed.subscribedMqttTopics)) {
+              this.subscribedMqttTopics = parsed.subscribedMqttTopics;
+            }
           }
         }
       }

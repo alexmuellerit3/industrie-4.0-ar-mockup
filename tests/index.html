@@ -655,7 +655,7 @@
       try {
         const ts = new TelemetryService(APP_CONFIG);
         const cur = ts.getCurrentStation();
-        if (cur.name !== "Modul 2: Dosierung & Befüllung") {
+        if (!cur.name || (!cur.name.includes("PowerHouse") && !cur.name.includes("Vibration"))) {
           throw new Error(`Unerwartete Start-Station: ${cur.name}`);
         }
         if (typeof cur.v1.val !== "number" || typeof cur.v2.val !== "number") {

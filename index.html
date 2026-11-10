@@ -71,7 +71,7 @@
     <header class="top-bar interactive">
       <div class="top-indicator interactive">
         <span class="status-dot" id="status-dot"></span>
-        <span>CPS-i40 • <strong>Bonbon-Fertigung</strong> <span id="ar-source-tag" class="ar-source-tag">WebSocket</span></span>
+        <span>CPS-i40 • <strong>Live-Telemetrie</strong> <span id="ar-source-tag" class="ar-source-tag">WebSocket</span></span>
       </div>
       <div class="ar-zabbix-strip" id="ar-zabbix-strip" title="Zabbix & MySQL 24h Status">
         <span class="ar-zbx-badge zbx-active" id="ar-zbx-badge" title="Zabbix Host Monitoring & LLD">ZBX</span>
@@ -110,8 +110,8 @@
       
       <div class="station-head">
         <div>
-          <div class="station-title" id="st-name">Modul 2: Dosierung & Befüllung</div>
-          <div class="station-sub" id="st-sub">Gekoppelt via Marker</div>
+          <div class="station-title" id="st-name">PowerHouse: Vibration (P-101)</div>
+          <div class="station-sub" id="st-sub">Vibrations-Sensor P-101</div>
         </div>
         <div class="head-actions">
           <div class="station-status-tag" id="st-tag">NORMAL</div>
@@ -128,10 +128,10 @@
             
             <div class="sensor-item" id="cell-v1">
               <div class="sensor-top">
-                <span class="sensor-name" id="v1-lbl">Füllgewicht</span>
+                <span class="sensor-name" id="v1-lbl">Vibration</span>
                 <span class="sensor-trend" id="v1-trend">→</span>
               </div>
-              <div class="sensor-value"><span id="v1-val">250.3</span> <span class="sensor-unit" id="v1-unit">g</span></div>
+              <div class="sensor-value"><span id="v1-val">0.8</span> <span class="sensor-unit" id="v1-unit">mm/s</span></div>
               <div class="sensor-sparkline-wrap">
                 <svg class="sensor-sparkline" id="v1-spark" viewBox="0 0 100 24" preserveAspectRatio="none">
                   <polyline points="" fill="none" stroke="currentColor" stroke-width="2" />
@@ -141,10 +141,10 @@
 
             <div class="sensor-item" id="cell-v2">
               <div class="sensor-top">
-                <span class="sensor-name" id="v2-lbl">Druck</span>
+                <span class="sensor-name" id="v2-lbl">Status</span>
                 <span class="sensor-trend" id="v2-trend">→</span>
               </div>
-              <div class="sensor-value"><span id="v2-val">5.2</span> <span class="sensor-unit" id="v2-unit">bar</span></div>
+              <div class="sensor-value"><span id="v2-val">Normal</span> <span class="sensor-unit" id="v2-unit"></span></div>
               <div class="sensor-sparkline-wrap">
                 <svg class="sensor-sparkline" id="v2-spark" viewBox="0 0 100 24" preserveAspectRatio="none">
                   <polyline points="" fill="none" stroke="currentColor" stroke-width="2" />
@@ -154,10 +154,10 @@
 
             <div class="sensor-item" id="cell-v3">
               <div class="sensor-top">
-                <span class="sensor-name" id="v3-lbl">Takt</span>
+                <span class="sensor-name" id="v3-lbl">Signal</span>
                 <span class="sensor-trend" id="v3-trend">→</span>
               </div>
-              <div class="sensor-value"><span id="v3-val">32</span> <span class="sensor-unit" id="v3-unit">D/min</span></div>
+              <div class="sensor-value"><span id="v3-val">100</span> <span class="sensor-unit" id="v3-unit">%</span></div>
               <div class="sensor-sparkline-wrap">
                 <svg class="sensor-sparkline" id="v3-spark" viewBox="0 0 100 24" preserveAspectRatio="none">
                   <polyline points="" fill="none" stroke="currentColor" stroke-width="2" />
@@ -169,7 +169,7 @@
 
           <!-- Störungsmeldung -->
           <div class="alert-strip" id="alert-strip">
-            Störung: Pneumatik-Druckabfall (< 4.5 bar)
+            Störung: Schwingungs-Schwellenwert überschritten (&gt; 2.5 mm/s)
           </div>
 
           <!-- Aktionen -->
@@ -189,7 +189,7 @@
           <div class="detail-grid">
             <div class="detail-card">
               <div class="detail-lbl">SPS / Edge-IP</div>
-              <div class="detail-val" id="tab-plc">192.168.10.12</div>
+              <div class="detail-val" id="tab-plc">192.168.10.11</div>
             </div>
             <div class="detail-card">
               <div class="detail-lbl">OPC UA Status</div>
@@ -197,11 +197,11 @@
             </div>
             <div class="detail-card">
               <div class="detail-lbl">Toleranzband (v1)</div>
-              <div class="detail-val" id="tab-tol1">249.7 - 250.6 g</div>
+              <div class="detail-val" id="tab-tol1">0.05 - 2.50 mm/s</div>
             </div>
             <div class="detail-card">
               <div class="detail-lbl">Toleranzband (v2)</div>
-              <div class="detail-val" id="tab-tol2">5.1 - 5.3 bar</div>
+              <div class="detail-val" id="tab-tol2">0 (Normal)</div>
             </div>
           </div>
 

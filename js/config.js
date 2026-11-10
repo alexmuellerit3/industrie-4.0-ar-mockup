@@ -8,8 +8,8 @@
 export const APP_CONFIG = {
   appName: "CPS-i40 AR Telemetrie",
   version: "1.2.0-modular",
-  productionLine: "CPR-01 • Bonbon-Linie",
-  defaultStationIndex: 1, // Startet bei Modul 2 (Dosier- & Befüllstation)
+  productionLine: "PowerHouse • P-101",
+  defaultStationIndex: 0, // Startet bei ST-010 (PowerHouse: Vibration P-101)
 
   // Schnittstellen-Endpunkte (Echtzeit Live-Kopplung mit automatischem Fallback)
   api: {
@@ -31,126 +31,38 @@ export const APP_CONFIG = {
   stations: [
     {
       id: "ST-010",
-      name: "Modul 1: Dosen-Zuführung",
+      name: "PowerHouse: Vibration (P-101)",
       plcIp: "192.168.10.11",
+      mqttTopic: "/bbk-lf/rpi04/power-house/vibration",
+      wsNodeId: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+      isLive: true,
+      isDemo: false,
       v1: {
-        id: "magazine_level",
-        nodeId: "ns=2;s=Modul1.MagazineLevel",
-        label: "Magazin",
-        val: 84,
-        unit: "%",
-        min: 82,
-        max: 86
+        id: "vibration",
+        nodeId: "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+        label: "Vibration",
+        val: 0.8,
+        unit: "mm/s",
+        min: 0.05,
+        max: 2.5
       },
       v2: {
-        id: "vacuum_pressure",
-        nodeId: "ns=2;s=Modul1.VacuumPressure",
-        label: "Vakuum",
-        val: -0.8,
-        unit: "bar",
-        min: -0.85,
-        max: -0.78
+        id: "status_code",
+        nodeId: "",
+        label: "Status",
+        val: 0,
+        unit: "Good",
+        min: 0,
+        max: 0
       },
       v3: {
-        id: "part_counter",
-        nodeId: "ns=2;s=Modul1.PartCounter",
-        label: "Zähler",
-        val: 1684,
-        unit: "Stk",
-        isFixed: true
-      }
-    },
-    {
-      id: "ST-020",
-      name: "Modul 2: Dosierung & Befüllung",
-      plcIp: "192.168.10.12",
-      v1: {
-        id: "fill_weight",
-        nodeId: "ns=2;s=Modul2.FillWeight_Actual",
-        label: "Füllgewicht",
-        val: 250.3,
-        unit: "g",
-        min: 249.7,
-        max: 250.6
-      },
-      v2: {
-        id: "pressure",
-        nodeId: "ns=2;s=Modul2.OperatingPressure",
-        label: "Druck",
-        val: 5.2,
-        unit: "bar",
-        min: 5.1,
-        max: 5.3
-      },
-      v3: {
-        id: "throughput",
-        nodeId: "ns=2;s=Modul2.ThroughputRate",
-        label: "Takt",
-        val: 32,
-        unit: "D/min",
-        min: 31,
-        max: 33
-      }
-    },
-    {
-      id: "ST-030",
-      name: "Modul 3: Verschluss & Bördelung",
-      plcIp: "192.168.10.13",
-      v1: {
-        id: "press_force",
-        nodeId: "ns=2;s=Modul3.RollerPressure",
-        label: "Anpressdruck",
-        val: 5.2,
-        unit: "bar",
-        min: 5.1,
-        max: 5.3
-      },
-      v2: {
-        id: "torque",
-        nodeId: "ns=2;s=Modul3.SealingTorque",
-        label: "Drehmoment",
-        val: 3.9,
-        unit: "Nm",
-        min: 3.8,
-        max: 4.1
-      },
-      v3: {
-        id: "seal_check",
-        nodeId: "ns=2;s=Modul3.QualityCheckOK",
-        label: "Prüfung",
+        id: "signal_quality",
+        nodeId: "",
+        label: "Signal",
         val: 100,
         unit: "%",
-        isFixed: true
-      }
-    },
-    {
-      id: "ST-040",
-      name: "Modul 4: Qualitätskontrolle & Waage",
-      plcIp: "192.168.10.14",
-      v1: {
-        id: "check_weight",
-        nodeId: "ns=2;s=Modul4.WeightCheck_Actual",
-        label: "Kontrollgewicht",
-        val: 250.1,
-        unit: "g",
-        min: 249.8,
-        max: 250.4
-      },
-      v2: {
-        id: "reject_rate",
-        nodeId: "ns=2;s=Modul4.RejectRate_Percent",
-        label: "Ausschuss",
-        val: 0.4,
-        unit: "%",
-        min: 0.3,
-        max: 0.5
-      },
-      v3: {
-        id: "oee",
-        nodeId: "ns=2;s=Modul4.OverallOEE",
-        label: "OEE",
-        val: 93,
-        unit: "%",
+        min: 90,
+        max: 100,
         isFixed: true
       }
     }

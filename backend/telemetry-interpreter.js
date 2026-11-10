@@ -130,6 +130,7 @@ export class TelemetryInterpreter {
       if (cand && typeof cand === "string") {
         const match = this.stations.find(s => s.id.toLowerCase() === cand.toLowerCase() || cand.toUpperCase().includes(s.id));
         if (match) return match.id;
+        if (/^ST-[A-Z0-9_\-]+$/i.test(cand.trim())) return cand.trim().toUpperCase();
       }
     }
 
@@ -142,11 +143,15 @@ export class TelemetryInterpreter {
             return st.id;
           }
         }
+        if (/^ST-[A-Z0-9_\-]+$/i.test(valUpper.trim())) return valUpper.trim();
       }
     }
 
     // 3. Heuristische Erkennung anhand von Messwert-Namen
     const allPaths = endpoints.map(e => e.path.toLowerCase()).join(" ");
+    if (allPaths.includes("vibrat") || allPaths.includes("powerhouse") || allPaths.includes("power-house")) {
+      return "ST-010";
+    }
     if (allPaths.includes("fill") || allPaths.includes("gewicht") || allPaths.includes("dosier") || allPaths.includes("throughput")) {
       return "ST-020";
     }
@@ -256,13 +261,14 @@ export class TelemetryInterpreter {
       });
     }
 
+    const candidateId = context.stationId || payload.stationId || payload.station_id || payload.id || payload.deviceId || payload.device?.module;
     let stationName = cleanSegments.length > 0 
       ? cleanSegments.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(" ") 
-      : "Live Modul (Empfangsdaten)";
+      : (candidateId ? `Modul ${candidateId}` : "Live Modul (Empfangsdaten)");
 
     const slug = cleanSegments.length > 0
       ? cleanSegments.join("-").toUpperCase().replace(/[^A-Z0-9\-]/g, "")
-      : "LIVE-MOD";
+      : (candidateId || "LIVE-MOD");
     const stationId = slug.startsWith("ST-") ? slug : "ST-" + slug;
 
     let v1Label = "Messwert";
@@ -292,6 +298,40 @@ export class TelemetryInterpreter {
       v1Max = 260.0;
     }
 
+    let v2Val = extractNum(packet.v2 ?? packet.payload?.v2 ?? packet.telemetry?.pressure_bar) ?? 0;
+    let v2Min = 0;
+    let v2Max = 0;
+    let v2Label = "Status-Code";
+    let v2Unit = "Good";
+
+    let v3Val = extractNum(packet.v3 ?? packet.payload?.v3 ?? packet.telemetry?.cycle_rate_cpm) ?? 100;
+    let v3Min = 90;
+    let v3Max = 100;
+    let v3Label = "Signal-Güte";
+    let v3Unit = "%";
+
+    if (candidateId === "ST-020" || (val > 100 && val < 500)) {
+      if (candidateId === "ST-020") stationName = "Modul 2: Dosierung & Befüllung";
+      v1Label = "Füllgewicht";
+      v1Unit = "g";
+      v1Min = 249.7;
+      v1Max = 250.6;
+      v2Label = "Druck";
+      v2Unit = "bar";
+      v2Min = 5.1;
+      v2Max = 5.3;
+      v3Label = "Takt";
+      v3Unit = "D/min";
+      v3Min = 31;
+      v3Max = 33;
+      if (v3Val === 100) v3Val = 32;
+    } else if (v2Val > 0 || topicLow.includes("press") || topicLow.includes("druck") || topicLow.includes("bar")) {
+      v2Label = "Druck";
+      v2Unit = "bar";
+      v2Min = +(v2Val * 0.95).toFixed(1);
+      v2Max = +(v2Val * 1.05).toFixed(1);
+    }
+
     return {
       id: stationId,
       name: stationName,
@@ -311,20 +351,20 @@ export class TelemetryInterpreter {
         val: +Number(val).toFixed(3)
       },
       v2: {
-        label: "Status-Code",
-        unit: "Good",
-        min: 0,
-        max: 0,
-        defaultVal: 0,
-        val: 0
+        label: v2Label,
+        unit: v2Unit,
+        min: v2Min,
+        max: v2Max,
+        defaultVal: +Number(v2Val).toFixed(3),
+        val: +Number(v2Val).toFixed(3)
       },
       v3: {
-        label: "Signal-Güte",
-        unit: "%",
-        min: 90,
-        max: 100,
-        defaultVal: 100,
-        val: 100
+        label: v3Label,
+        unit: v3Unit,
+        min: v3Min,
+        max: v3Max,
+        defaultVal: +Number(v3Val).toFixed(3),
+        val: +Number(v3Val).toFixed(3)
       }
     };
   }
@@ -399,28 +439,18 @@ export class TelemetryInterpreter {
       const seconds = Math.floor(timeMs / 1000);
       const timeStr = new Date(timeMs).toLocaleTimeString("de-DE");
 
-      // Erzeuge synchronisierte Live-Prozessdaten für alle 4 Stationen aus dem OPC UA Takt
+      // Erzeuge synchronisierte Live-Prozessdaten für registrierte Stationen aus dem OPC UA Takt
       const allStationsData = this.stations.map(st => {
-        let v1 = st.v1.defaultVal;
-        let v2 = st.v2.defaultVal;
-        let v3 = st.v3.defaultVal;
+        let v1 = st.v1?.defaultVal ?? 0.8;
+        let v2 = st.v2?.defaultVal ?? 0;
+        let v3 = st.v3?.defaultVal ?? 100;
 
         if (st.id === "ST-010") {
-          v1 = +(st.v1.defaultVal + Math.sin(seconds * 0.1) * 0.8).toFixed(1);
-          v2 = +(st.v2.defaultVal + Math.cos(seconds * 0.15) * 0.02).toFixed(2);
-          v3 = +(st.v3.defaultVal + (seconds % 500));
-        } else if (st.id === "ST-020") {
-          v1 = +(st.v1.defaultVal + Math.sin(seconds * 0.25) * 0.25).toFixed(1);
-          v2 = +(st.v2.defaultVal + Math.cos(seconds * 0.2) * 0.05).toFixed(1);
-          v3 = st.v3.defaultVal;
-        } else if (st.id === "ST-030") {
-          v1 = +(st.v1.defaultVal + Math.sin(seconds * 0.18) * 0.05).toFixed(1);
-          v2 = +(st.v2.defaultVal + Math.cos(seconds * 0.22) * 0.08).toFixed(1);
-          v3 = st.v3.defaultVal;
-        } else if (st.id === "ST-040") {
-          v1 = +(st.v1.defaultVal + Math.sin(seconds * 0.25) * 0.2).toFixed(1);
-          v2 = +(st.v2.defaultVal + (Math.sin(seconds * 0.05) > 0.8 ? 0.05 : 0.0)).toFixed(2);
-          v3 = st.v3.defaultVal;
+          v1 = +(v1 + Math.sin(seconds * 0.1) * 0.05).toFixed(3);
+          v2 = 0;
+          v3 = 100;
+        } else if (st.v1 && st.v1.defaultVal !== undefined) {
+          v1 = +(st.v1.defaultVal + Math.sin(seconds * 0.25) * 0.1).toFixed(2);
         }
 
         return {
@@ -437,9 +467,9 @@ export class TelemetryInterpreter {
         };
       });
 
-      values.v1 = +(stationConfig.v1.defaultVal + Math.sin(seconds * 0.1) * 0.8).toFixed(1);
-      values.v2 = +(stationConfig.v2.defaultVal + Math.cos(seconds * 0.15) * 0.02).toFixed(2);
-      values.v3 = +(stationConfig.v3.defaultVal + (seconds % 500));
+      values.v1 = +(stationConfig.v1.defaultVal + Math.sin(seconds * 0.1) * 0.05).toFixed(3);
+      values.v2 = stationConfig.v2?.defaultVal ?? 0;
+      values.v3 = stationConfig.v3?.defaultVal ?? 100;
       values.mappedEndpoints.v1 = "opcua.clock.sync";
       values.mappedEndpoints.v2 = "opcua.clock.sync";
       values.mappedEndpoints.v3 = "opcua.clock.seconds";
@@ -474,9 +504,9 @@ export class TelemetryInterpreter {
 
     // Modul-spezifische Schlüsselwörter
     if (stationConfig.id === "ST-010") {
-      assignIfEmpty("v1", stationConfig.v1, ["magazin", "level", "füll", "fill", "capacity"]);
-      assignIfEmpty("v2", stationConfig.v2, ["vakuum", "vacuum", "bar", "pressure", "druck"]);
-      assignIfEmpty("v3", stationConfig.v3, ["zähler", "counter", "count", "parts", "dosen"]);
+      assignIfEmpty("v1", stationConfig.v1, ["vibrat", "schwing", "magazin", "level", "füll", "fill", "capacity"]);
+      assignIfEmpty("v2", stationConfig.v2, ["status", "vakuum", "vacuum", "bar", "pressure", "druck"]);
+      assignIfEmpty("v3", stationConfig.v3, ["signal", "güte", "quality", "zähler", "counter", "count", "parts", "dosen"]);
     } else if (stationConfig.id === "ST-020") {
       assignIfEmpty("v1", stationConfig.v1, ["gewicht", "weight", "gramm", "fill"]);
       assignIfEmpty("v2", stationConfig.v2, ["druck", "pressure", "bar", "press"]);
@@ -582,7 +612,7 @@ export class TelemetryInterpreter {
     let stationConfig = this.stations.find(s => s.id === stationId);
     let synthesizedStation = null;
     if (!stationConfig) {
-      synthesizedStation = this.synthesizeStationFromPayload(payload, context);
+      synthesizedStation = this.synthesizeStationFromPayload(payload, { ...context, stationId });
       stationConfig = synthesizedStation;
     }
 

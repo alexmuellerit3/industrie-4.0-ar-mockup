@@ -92,9 +92,7 @@ class TestConfigAndTelemetryService(unittest.TestCase):
             config_content = f.read()
         self.assertIn("export const APP_CONFIG", config_content)
         self.assertIn("ST-010", config_content)
-        self.assertIn("ST-020", config_content)
-        self.assertIn("ST-030", config_content)
-        self.assertIn("ST-040", config_content)
+        self.assertIn("PowerHouse", config_content)
 
     def test_telemetry_service_methods(self):
         with open(os.path.join(BASE_DIR, "js", "services", "telemetry-service.js"), "r") as f:
