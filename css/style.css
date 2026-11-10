@@ -1408,5 +1408,72 @@ a-scene canvas {
   font-weight: 700;
 }
 
+/* ========================================================================
+   A-FRAME & WEBXR DIALOG / MODAL DARK THEME OVERRIDES (iOS & Mobile)
+   High-contrast dark styling ensuring perfect readability on mobile browsers
+   ======================================================================== */
+.a-dialog,
+.a-modal,
+.a-dialog-container {
+  background-color: #121621 !important;
+  color: #f4f4f5 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8) !important;
+  font-family: var(--font-sans) !important;
+}
+
+.a-dialog-text,
+.a-dialog p,
+.a-dialog span,
+.a-dialog h1,
+.a-dialog h2,
+.a-dialog h3 {
+  color: #f4f4f5 !important;
+  font-size: 15px !important;
+  line-height: 1.5 !important;
+}
+
+.a-dialog-buttons {
+  display: flex !important;
+  gap: 12px !important;
+  margin-top: 18px !important;
+}
+
+.a-dialog-button {
+  flex: 1 !important;
+  border-radius: 10px !important;
+  padding: 10px 18px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+  text-align: center !important;
+}
+
+.a-dialog-allow-button,
+.a-dialog-ok-button {
+  background: var(--heroui-primary) !important;
+  color: #ffffff !important;
+}
+
+.a-dialog-allow-button:hover,
+.a-dialog-ok-button:hover {
+  background: var(--heroui-primary-hover) !important;
+}
+
+.a-dialog-deny-button {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #d4d4d8 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+.a-dialog-deny-button:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+}
+
+
 
 

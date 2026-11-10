@@ -33,6 +33,15 @@ class TestCameraAndCSSStacking(unittest.TestCase):
         self.assertIn(".a-canvas", self.css, "CSS-Selektor .a-canvas fehlt")
         self.assertIn(".ar-frame", self.css, "CSS-Selektor .ar-frame fehlt")
 
+    def test_aframe_dialog_contrast_rules(self):
+        """Prüft, dass A-Frame/WebXR Modals und Dialoge kontrastreich und auf mobilen Geräten gut lesbar sind."""
+        self.assertIn(".a-dialog", self.css, "CSS-Selektor .a-dialog fehlt")
+        self.assertIn(".a-modal", self.css, "CSS-Selektor .a-modal fehlt")
+        self.assertIn(".a-dialog-text", self.css, "CSS-Selektor .a-dialog-text fehlt")
+        self.assertIn(".a-dialog-allow-button", self.css, "CSS-Selektor .a-dialog-allow-button fehlt")
+        self.assertIn(".a-dialog-deny-button", self.css, "CSS-Selektor .a-dialog-deny-button fehlt")
+
+
 
 class TestARSceneConfiguration(unittest.TestCase):
     """Prüft die AR.js und A-Frame Parameter in index.html."""
@@ -47,6 +56,8 @@ class TestARSceneConfiguration(unittest.TestCase):
         self.assertIn("sourceType: webcam", self.html, "AR.js sourceType: webcam fehlt!")
         self.assertIn("facingMode: environment", self.html, "Kamera facingMode: environment fehlt!")
         self.assertIn("logarithmicDepthBuffer: true", self.html, "logarithmicDepthBuffer fehlt!")
+        self.assertIn('device-orientation-permission-ui="enabled: false"', self.html,
+                      "device-orientation-permission-ui='enabled: false' fehlt! Dies verhindert unlesbare Motion-Dialoge auf iOS.")
 
     def test_hiro_marker_and_camera(self):
         """Prüft, ob der Hiro-Marker und das Kamera-Element definiert sind."""
