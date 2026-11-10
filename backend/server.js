@@ -105,9 +105,18 @@ export function createApp(options = {}) {
         });
       }
     },
-    onBroadcastConfig: (cfg) => {
+    onBroadcastConfig: (cfg, stationAdded = null) => {
       if (app.locals.wsServer) {
-        app.locals.wsServer.broadcastConfig(cfg);
+        if (typeof app.locals.wsServer.broadcastConfig === "function") {
+          app.locals.wsServer.broadcastConfig(cfg, stationAdded);
+        } else {
+          app.locals.wsServer.broadcast({
+            type: "config_updated",
+            config: cfg,
+            stationAdded,
+            timestamp: Date.now()
+          });
+        }
       }
     }
   });

@@ -185,6 +185,41 @@
         "min": 10,
         "max": 30
       }
+    },
+    {
+      "id": "ST-POWERHOUSE-VIBRATION",
+      "name": "PowerHouse: Vibration (P-101)",
+      "description": "Automatisch aus Live-Telemetrie generiertes Modul (ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration)",
+      "plcIp": "192.168.10.15",
+      "mqttTopic": "/bbk-lf/rpi04/power-house/vibration",
+      "wsNodeId": "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+      "isDynamic": true,
+      "isLive": true,
+      "isDemo": false,
+      "v1": {
+        "label": "Vibration",
+        "unit": "mm/s",
+        "min": 0.05,
+        "max": 2.5,
+        "defaultVal": 0.8,
+        "val": 0.8
+      },
+      "v2": {
+        "label": "Status-Code",
+        "unit": "Good",
+        "min": 0,
+        "max": 0,
+        "defaultVal": 0,
+        "val": 0
+      },
+      "v3": {
+        "label": "Signal-Güte",
+        "unit": "%",
+        "min": 90,
+        "max": 100,
+        "defaultVal": 100,
+        "val": 100
+      }
     }
   ]
 }

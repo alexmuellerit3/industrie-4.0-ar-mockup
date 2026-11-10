@@ -312,6 +312,18 @@ export class WebSocketServerService {
     });
   }
 
+  /**
+   * Broadcastet Konfigurations- oder Moduländerungen
+   */
+  broadcastConfig(config, stationAdded = null) {
+    this.broadcast({
+      type: "config_updated",
+      config,
+      stationAdded,
+      timestamp: Date.now()
+    });
+  }
+
   getClientCount() {
     return this.clients.size;
   }
