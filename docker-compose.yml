@@ -15,6 +15,11 @@ services:
       - NODE_ENV=production
       - MQTT_BROKER_URL=mqtt://mqtt-broker:1883
       - ENABLE_WSS=${ENABLE_WSS:-false}
+      - MYSQL_HOST=${MYSQL_HOST:-cps-mysql}
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-cps_telemetry}
+      - MYSQL_USER=${MYSQL_USER:-cps_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-cps_pass_2026}
     volumes:
       - ./config:/app/config
     depends_on:
@@ -39,6 +44,28 @@ services:
       - mosquitto-data:/mosquitto/data
       - mosquitto-log:/mosquitto/log
 
+  # 3. MySQL 8.0 24h-Langzeitarchiv & Zabbix-Metadaten
+  cps-mysql:
+    image: mysql:8.0
+    container_name: cps-i40-mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_cps_2026}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-cps_telemetry}
+      - MYSQL_USER=${MYSQL_USER:-cps_user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-cps_pass_2026}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
 volumes:
   mosquitto-data:
   mosquitto-log:
+  mysql-data:

@@ -16,13 +16,23 @@
       "cps-i40/+/status",
       "cps-i40/+/fault",
       "cps-i40/+/command",
-      "/bbk-lf/rpi04/power-house/vibration"
+      "/bbk-lf/rpi04/power-house/vibration",
+      "cps-i40/ST-050/telemetry"
     ]
   },
   "api": {
     "mode": "websocket",
     "pollIntervalMs": 1500,
     "historyTtlMs": 300000
+  },
+  "mysql": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 3306,
+    "database": "cps_telemetry",
+    "user": "cps_user",
+    "password": "cps_pass_2026",
+    "retentionHours": 24
   },
   "stations": [
     {
@@ -148,6 +158,67 @@
         "unit": "%",
         "isFixed": true,
         "defaultVal": 93
+      }
+    },
+    {
+      "id": "ST-050",
+      "name": "Modul 5: Zabbix Endverpackung",
+      "description": "Automatische Kartonierung",
+      "plcIp": "192.168.10.15",
+      "mqttTopic": "cps-i40/ST-050/telemetry",
+      "wsNodeId": "",
+      "v1": {
+        "label": "Karton-Füllstand",
+        "unit": "%",
+        "min": 20,
+        "max": 100
+      },
+      "v2": {
+        "label": "Vakuum-Hub",
+        "unit": "bar",
+        "min": -0.9,
+        "max": -0.5
+      },
+      "v3": {
+        "label": "Takt",
+        "unit": "K/min",
+        "min": 10,
+        "max": 30
+      }
+    },
+    {
+      "id": "ST-POWERHOUSE-VIBRATION",
+      "name": "PowerHouse: Vibration (P-101)",
+      "description": "Automatisch aus Live-Telemetrie generiertes Modul (ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration)",
+      "plcIp": "192.168.10.15",
+      "mqttTopic": "/bbk-lf/rpi04/power-house/vibration",
+      "wsNodeId": "ns=2;s=Demo.Alarms.Plant.PowerHouse.P-101.Vibration",
+      "isDynamic": true,
+      "isLive": true,
+      "isDemo": false,
+      "v1": {
+        "label": "Vibration",
+        "unit": "mm/s",
+        "min": 0.05,
+        "max": 2.5,
+        "defaultVal": 3.088,
+        "val": 3.088
+      },
+      "v2": {
+        "label": "Status-Code",
+        "unit": "Good",
+        "min": 0,
+        "max": 0,
+        "defaultVal": 0,
+        "val": 0
+      },
+      "v3": {
+        "label": "Signal-Güte",
+        "unit": "%",
+        "min": 90,
+        "max": 100,
+        "defaultVal": 100,
+        "val": 100
       }
     }
   ]

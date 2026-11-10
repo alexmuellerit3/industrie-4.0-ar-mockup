@@ -234,6 +234,66 @@ server.listen(PORT, async () => {
     await page.$eval("#btn-export-incidents-json", el => el.click());
     console.log("[11] CSV & JSON Export ausgelöst ohne Fehler");
 
+    // 12. MySQL 24h Zeitreihenspeicher & Zabbix Host Onboarding
+    console.log("[12] Teste MySQL 24h Telemetriespeicher & Zabbix Host Onboarding...");
+    const zbxStrip = await page.$("#zabbix-availability-strip");
+    if (!zbxStrip) throw new Error("Zabbix Availability Strip #zabbix-availability-strip fehlt im DOM");
+
+    const mysqlBadgeText = await page.$eval("#mysql-badge-text", el => el.textContent);
+    console.log(`[12] MySQL Status Badge im Leitstand: "${mysqlBadgeText}"`);
+
+    // Umschalten des Zeitbereichs auf 24 Std bei Station ST-010
+    const time24hBtn = await page.$('.time-pill[data-range="24h"]');
+    if (!time24hBtn) throw new Error("24h Time-Pill Button nicht gefunden");
+    await time24hBtn.click();
+    await new Promise(r => setTimeout(r, 400));
+
+    const chartTitle = await page.$eval("#chart-title-ST-010", el => el.textContent);
+    console.log(`[12] Station Chart-Titel nach 24h Umschaltung: "${chartTitle}"`);
+    if (!chartTitle.includes("24h")) {
+      throw new Error("24h Zeitbereich-Umschaltung aktualisierte den Chart-Titel nicht");
+    }
+
+    // Zurück zu 5 Min
+    await page.$eval('.time-pill[data-range="5m"]', el => el.click());
+    await new Promise(r => setTimeout(r, 300));
+
+    // Öffne Konfiguration und teste MySQL & Zabbix Tabs
+    await page.$eval("#btn-open-config", el => el.click());
+    await page.waitForSelector("#config-modal-backdrop", { visible: true });
+
+    // Klick auf Tab MySQL
+    await page.$eval('.heroui-tab-btn[data-tab="pane-tab-mysql"]', el => el.click());
+    await new Promise(r => setTimeout(r, 200));
+
+    // Teste MySQL Verbindung
+    await page.$eval("#btn-test-mysql", el => el.click());
+    await new Promise(r => setTimeout(r, 400));
+    const mysqlTestFeedback = await page.$eval("#mysql-test-result", el => el.textContent);
+    console.log(`[12] MySQL Test-Rückmeldung: "${mysqlTestFeedback}"`);
+    if (!mysqlTestFeedback.includes("✓")) {
+      throw new Error("MySQL Auto-DDL Verbindungstest lieferte kein Erfolgs-Feedback");
+    }
+
+    // Klick auf Tab Zabbix Onboarding
+    await page.$eval('.heroui-tab-btn[data-tab="pane-tab-zabbix"]', el => el.click());
+    await new Promise(r => setTimeout(r, 200));
+
+    await page.$eval("#zbx-host-id", el => el.value = "ST-050");
+    await page.$eval("#zbx-host-name", el => el.value = "Modul 5: Vakuumkühlung & Entfeuchtung");
+    await page.$eval("#btn-save-zabbix-host", el => el.click());
+    await new Promise(r => setTimeout(r, 400));
+
+    const zbxFeedback = await page.$eval("#zbx-host-feedback", el => el.textContent);
+    console.log(`[12] Zabbix Host Onboarding Feedback: "${zbxFeedback}"`);
+    if (!zbxFeedback.includes("✓")) {
+      throw new Error("Zabbix Host Onboarding lieferte kein Erfolgs-Feedback");
+    }
+
+    // Schließe Modal
+    await page.$eval("#btn-close-config", el => el.click());
+    await new Promise(r => setTimeout(r, 300));
+
     if (pageErrors.length > 0) {
       throw new Error(`Unerwartete Page-Errors aufgetreten: ${pageErrors.join(", ")}`);
     }

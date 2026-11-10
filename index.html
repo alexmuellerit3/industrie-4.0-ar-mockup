@@ -73,6 +73,10 @@
         <span class="status-dot" id="status-dot"></span>
         <span>CPS-i40 • <strong>Bonbon-Fertigung</strong> <span id="ar-source-tag" class="ar-source-tag">WebSocket</span></span>
       </div>
+      <div class="ar-zabbix-strip" id="ar-zabbix-strip" title="Zabbix & MySQL 24h Status">
+        <span class="ar-zbx-badge zbx-active" id="ar-zbx-badge" title="Zabbix Host Monitoring & LLD">ZBX</span>
+        <span class="ar-zbx-badge" id="ar-mysql-badge" title="MySQL 24h Zeitreihenspeicher">MYSQL 24H</span>
+      </div>
       <div class="header-ctrl-group interactive">
         <a href="overview.html" class="overview-nav-btn interactive" title="Gesamtanlage ohne Hiro-Marker ansehen">Leitstand ↗</a>
         <button class="auth-pill interactive" id="btn-ar-auth" title="Benutzeranmeldung">👤</button>
@@ -201,6 +205,12 @@
             </div>
           </div>
 
+          <!-- Time Range Switcher (5m vs 24h Shift-Historie) -->
+          <div class="ar-time-switcher" id="ar-time-switcher" role="tablist">
+            <button type="button" class="ar-time-btn active" id="ar-time-5m" data-range="5m">5 Min Puffer</button>
+            <button type="button" class="ar-time-btn" id="ar-time-24h" data-range="24h">24h Shift-Historie</button>
+          </div>
+
           <!-- 5-Minuten KeyValueStore Historie & Auswertung -->
           <div class="detail-5m-grid" id="tab-5m-box">
             <div class="detail-5m-card">
@@ -264,6 +274,7 @@
       <!-- Modal Tabs Bar -->
       <div class="heroui-tabs-bar">
         <button type="button" class="heroui-tab-btn active" data-tab="ar-pane-mqtt">📡 Datenquellen (WS & MQTT)</button>
+        <button type="button" class="heroui-tab-btn" data-tab="ar-pane-mysql">🐬 MySQL 24h</button>
         <button type="button" class="heroui-tab-btn" data-tab="ar-pane-stations">🏭 Toleranzbänder</button>
         <button type="button" class="heroui-tab-btn" data-tab="ar-pane-system">⚙️ System</button>
       </div>
@@ -376,6 +387,39 @@
           </div>
           <div class="form-section" style="margin-top:12px;">
             <button type="button" class="heroui-btn heroui-btn-danger" id="ar-btn-reset-defaults">Auf Werkseinstellungen zurücksetzen</button>
+          </div>
+        </div>
+
+        <!-- Tab 4: MySQL 24h Zeitreihen -->
+        <div class="tab-pane" id="ar-pane-mysql">
+          <div class="form-section">
+            <div class="section-title-tag">🐬 MySQL 24h Zeitreihen-Puffer</div>
+            <label class="form-label" for="ar-cfg-mysql-host">MySQL Host</label>
+            <input type="text" id="ar-cfg-mysql-host" class="heroui-input font-mono" placeholder="cps-mysql" value="cps-mysql">
+            <div class="form-grid-2" style="margin-top:8px;">
+              <div>
+                <label class="form-sub-label" for="ar-cfg-mysql-port">Port</label>
+                <input type="number" id="ar-cfg-mysql-port" class="heroui-input font-mono" value="3306">
+              </div>
+              <div>
+                <label class="form-sub-label" for="ar-cfg-mysql-db">Datenbank</label>
+                <input type="text" id="ar-cfg-mysql-db" class="heroui-input font-mono" value="cpr_telemetry">
+              </div>
+            </div>
+            <div class="form-grid-2" style="margin-top:8px;">
+              <div>
+                <label class="form-sub-label" for="ar-cfg-mysql-user">Benutzer</label>
+                <input type="text" id="ar-cfg-mysql-user" class="heroui-input font-mono" value="cpr_user">
+              </div>
+              <div>
+                <label class="form-sub-label" for="ar-cfg-mysql-pass">Passwort</label>
+                <input type="password" id="ar-cfg-mysql-pass" class="heroui-input font-mono" value="cpr_secret">
+              </div>
+            </div>
+            <div style="margin-top:10px;">
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="ar-btn-test-mysql">Verbindung testen</button>
+            </div>
+            <div id="ar-mysql-test-result" class="test-feedback-badge" style="display:none; margin-top:8px;"></div>
           </div>
         </div>
 

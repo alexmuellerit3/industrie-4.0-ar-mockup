@@ -1114,6 +1114,92 @@ class TestBackendServerLive(unittest.TestCase):
             self.assertFalse(clear_res.get("isFault"))
             self.assertEqual(clear_res["incident"]["status"], "RESOLVED")
 
+    def test_mysql_24h_and_zabbix_monitoring_api(self):
+        """
+        Prüft die 24-Stunden-MySQL- und Zabbix-Monitoring-Schnittstellen:
+        - GET /api/history/24h liefert 24h-Zeitreihen und statistische Aggregationen
+        - GET /api/mysql/status liefert Verbindungs-, Retention- und Tabellenstatus
+        - POST /api/config/test-mysql testet Erreichbarkeit der MySQL-Datenbank
+        - GET /api/zabbix/hosts liefert Hosts mit Availability-Badges ([ZBX], [MQTT], [WS], [MYSQL])
+        - POST /api/zabbix/hosts erlaubt das standardisierte Einpflegen neuer Hosts & Items
+        - GET /api/zabbix/problems liefert aktive Schwellenwert-Verletzungen
+        """
+        # 1. GET /api/history/24h
+        h24_url = f"http://127.0.0.1:{self.server_port}/api/history/24h?stationId=ST-010&hours=24"
+        with urllib.request.urlopen(h24_url, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(data.get("success"))
+            self.assertEqual(data.get("stationId"), "ST-010")
+            self.assertEqual(data.get("hours"), 24)
+            self.assertIn("history", data)
+            self.assertIn("aggregates", data)
+            self.assertIn("v1", data["aggregates"])
+
+        # 2. GET /api/mysql/status
+        status_url = f"http://127.0.0.1:{self.server_port}/api/mysql/status"
+        with urllib.request.urlopen(status_url, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            status_data = json.loads(resp.read().decode("utf-8"))
+            self.assertIn("connected", status_data)
+            self.assertEqual(status_data.get("retentionHours"), 24)
+            self.assertIn("totalSamples24h", status_data)
+
+        # 3. POST /api/config/test-mysql
+        test_sql_url = f"http://127.0.0.1:{self.server_port}/api/config/test-mysql"
+        test_payload = json.dumps({
+            "host": "localhost",
+            "port": 3306,
+            "database": "cps_telemetry"
+        }).encode("utf-8")
+        test_req = urllib.request.Request(test_sql_url, data=test_payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(test_req, timeout=4) as resp:
+            self.assertEqual(resp.status, 200)
+            test_res = json.loads(resp.read().decode("utf-8"))
+            self.assertIn("message", test_res)
+            self.assertIn("database", test_res)
+
+        # 4. GET /api/zabbix/hosts
+        zbx_hosts_url = f"http://127.0.0.1:{self.server_port}/api/zabbix/hosts"
+        with urllib.request.urlopen(zbx_hosts_url, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            zbx_data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(zbx_data.get("success"))
+            self.assertGreaterEqual(zbx_data.get("totalHosts", 0), 4)
+            first_host = zbx_data["hosts"][0]
+            self.assertIn("hostId", first_host)
+            self.assertIn("availability", first_host)
+            self.assertIn("items", first_host)
+            self.assertTrue(first_host["availability"].get("zabbix"))
+
+        # 5. POST /api/zabbix/hosts (Neuen Host einpflegen)
+        create_host_payload = json.dumps({
+            "hostId": "ST-050",
+            "name": "Modul 5: Zabbix Endverpackung",
+            "description": "Automatische Kartonierung",
+            "plcIp": "192.168.10.15",
+            "mqttTopic": "cps-i40/ST-050/telemetry",
+            "items": {
+              "v1": { "label": "Karton-Füllstand", "unit": "%", "min": 20, "max": 100 },
+              "v2": { "label": "Vakuum-Hub", "unit": "bar", "min": -0.9, "max": -0.5 },
+              "v3": { "label": "Takt", "unit": "K/min", "min": 10, "max": 30 }
+            }
+        }).encode("utf-8")
+        create_host_req = urllib.request.Request(zbx_hosts_url, data=create_host_payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(create_host_req, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            create_res = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(create_res.get("success"))
+            self.assertEqual(create_res["host"]["id"], "ST-050")
+
+        # 6. GET /api/zabbix/problems
+        problems_url = f"http://127.0.0.1:{self.server_port}/api/zabbix/problems"
+        with urllib.request.urlopen(problems_url, timeout=3) as resp:
+            self.assertEqual(resp.status, 200)
+            problems_data = json.loads(resp.read().decode("utf-8"))
+            self.assertTrue(problems_data.get("success"))
+            self.assertIn("problems", problems_data)
+
 
 if __name__ == "__main__":
     unittest.main()

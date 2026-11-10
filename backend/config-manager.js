@@ -98,6 +98,15 @@ export class ConfigManager {
         pollIntervalMs: 1500,
         historyTtlMs: 300000
       },
+      mysql: {
+        enabled: overrides.mysql?.enabled !== undefined ? overrides.mysql.enabled : true,
+        host: overrides.mysql?.host || process.env.MYSQL_HOST || "localhost",
+        port: parseInt(overrides.mysql?.port || process.env.MYSQL_PORT || 3306, 10),
+        database: overrides.mysql?.database || process.env.MYSQL_DATABASE || "cps_telemetry",
+        user: overrides.mysql?.user || process.env.MYSQL_USER || "cps_user",
+        password: overrides.mysql?.password || process.env.MYSQL_PASSWORD || "cps_pass_2026",
+        retentionHours: parseInt(overrides.mysql?.retentionHours || 24, 10)
+      },
       stations: JSON.parse(JSON.stringify(overrides.stations || DEFAULT_STATIONS_CONFIG))
     };
   }
@@ -116,6 +125,7 @@ export class ConfigManager {
           websocket: { ...this.defaults.websocket, ...(parsed.websocket || {}) },
           mqtt: { ...this.defaults.mqtt, ...(parsed.mqtt || {}) },
           api: { ...this.defaults.api, ...(parsed.api || {}) },
+          mysql: { ...this.defaults.mysql, ...(parsed.mysql || {}) },
           stations: parsed.stations && Array.isArray(parsed.stations) ? parsed.stations : this.defaults.stations
         };
       }
@@ -202,6 +212,17 @@ export class ConfigManager {
       if (partial.api.mode) updated.api.mode = String(partial.api.mode);
       if (partial.api.pollIntervalMs) updated.api.pollIntervalMs = Number(partial.api.pollIntervalMs);
       if (partial.api.historyTtlMs) updated.api.historyTtlMs = Number(partial.api.historyTtlMs);
+    }
+
+    if (partial.mysql) {
+      if (!updated.mysql) updated.mysql = {};
+      if (partial.mysql.enabled !== undefined) updated.mysql.enabled = Boolean(partial.mysql.enabled);
+      if (partial.mysql.host) updated.mysql.host = String(partial.mysql.host).trim();
+      if (partial.mysql.port) updated.mysql.port = parseInt(partial.mysql.port, 10);
+      if (partial.mysql.database) updated.mysql.database = String(partial.mysql.database).trim();
+      if (partial.mysql.user) updated.mysql.user = String(partial.mysql.user).trim();
+      if (partial.mysql.password !== undefined) updated.mysql.password = String(partial.mysql.password);
+      if (partial.mysql.retentionHours) updated.mysql.retentionHours = parseInt(partial.mysql.retentionHours, 10);
     }
 
     if (Array.isArray(partial.stations)) {

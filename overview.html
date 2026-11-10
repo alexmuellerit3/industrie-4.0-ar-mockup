@@ -46,6 +46,14 @@
 
     <div class="scada-header-status-strip">
       <div class="header-badges">
+        <!-- Zabbix Monitoring Availability Strip -->
+        <div class="zabbix-availability-strip" id="zabbix-availability-strip" title="Zabbix & Industrielle Monitoring Schnittstellen">
+          <span class="zabbix-avail-pill zbx-active" id="badge-zbx-avail" title="Zabbix Host Monitoring & LLD Aktiv">ZBX</span>
+          <span class="zabbix-avail-pill avail-active" id="badge-ws-avail" title="WebSocket Stream">WS</span>
+          <span class="zabbix-avail-pill avail-active" id="badge-mqtt-avail" title="MQTT Broker Telemetrie">MQTT</span>
+          <span class="zabbix-avail-pill" id="badge-mysql-avail" title="MySQL 24h Zeitreihenspeicher">MYSQL 24H</span>
+        </div>
+
         <!-- Aktive Datenquelle Badge -->
         <div class="heroui-chip" id="source-badge" title="Aktive Datenquelle (WebSocket / MQTT / Simulator)">
           <span style="color:var(--text-muted);">Quelle:</span>
@@ -62,6 +70,12 @@
         <div class="heroui-chip" id="mqtt-badge-container" title="MQTT Anbindung an SPS / IOT2050">
           <span class="chip-dot" id="mqtt-badge-dot"></span>
           <span id="mqtt-badge-text">MQTT: SPS-Sim</span>
+        </div>
+
+        <!-- MySQL 24h Telemetriespeicher Badge -->
+        <div class="heroui-chip" id="mysql-badge-container" title="MySQL 24h Rolling-Window Historie">
+          <span class="chip-dot" id="mysql-badge-dot"></span>
+          <span id="mysql-badge-text">MySQL: 24h Puffer</span>
         </div>
 
         <!-- 5-Minuten KeyValueStore Status -->
@@ -418,6 +432,8 @@
       <!-- Modal Tabs Bar -->
       <div class="heroui-tabs-bar">
         <button type="button" class="heroui-tab-btn active" data-tab="pane-tab-sources">📡 Datenquellen (WS & MQTT)</button>
+        <button type="button" class="heroui-tab-btn" data-tab="pane-tab-mysql">🐬 MySQL 24h Speicher</button>
+        <button type="button" class="heroui-tab-btn" data-tab="pane-tab-zabbix">📊 Zabbix Onboarding</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-stations">🏭 Module & Toleranzen</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-system">⚙️ System & Puffer</button>
         <button type="button" class="heroui-tab-btn" data-tab="pane-tab-auth">👥 Benutzer & Gruppen</button>
@@ -766,6 +782,213 @@
               </div>
 
             </div>
+          </div>
+        </div>
+
+        <!-- Tab: MySQL 24h Telemetriespeicher & Auto-DDL -->
+        <div class="tab-pane" id="pane-tab-mysql">
+          <div class="form-section">
+            <div class="section-title-tag">🐬 MySQL 24h Zeitreihenspeicher & Auto-DDL</div>
+            <p class="form-hint" style="margin-bottom:12px;">
+              Verbindet das Backend mit einer relationalen MySQL-Datenbank für rollierende 24-Stunden-Shift-Analysen.
+              Die Anwendung erzeugt selbstständig alle Tabellen (<code class="font-mono">telemetry_history_24h</code>, Stations-Tabellen <code class="font-mono">telemetry_&lt;station_id&gt;</code>, <code class="font-mono">zabbix_hosts</code>) und bereinigt Daten älter als 24 Stunden automatisch per Housekeeping-Worker.
+            </p>
+
+            <div class="form-grid-2">
+              <div class="form-section" style="margin-bottom:10px;">
+                <label class="form-label" for="cfg-mysql-host">MySQL Hostname / Docker Service</label>
+                <input type="text" id="cfg-mysql-host" class="heroui-input font-mono" placeholder="cps-mysql" value="cps-mysql">
+                <div class="form-hint">Docker: <code>cps-mysql</code> • Lokal: <code>localhost</code></div>
+              </div>
+              <div class="form-section" style="margin-bottom:10px;">
+                <label class="form-label" for="cfg-mysql-port">Port</label>
+                <input type="number" id="cfg-mysql-port" class="heroui-input font-mono" placeholder="3306" value="3306">
+                <div class="form-hint">Standard: 3306</div>
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-section" style="margin-bottom:10px;">
+                <label class="form-label" for="cfg-mysql-db">Datenbank-Name</label>
+                <input type="text" id="cfg-mysql-db" class="heroui-input font-mono" placeholder="cpr_telemetry" value="cpr_telemetry">
+              </div>
+              <div class="form-section" style="margin-bottom:10px;">
+                <label class="form-label" for="cfg-mysql-retention">Vorhaltezeit / Retention (Stunden)</label>
+                <input type="number" id="cfg-mysql-retention" class="heroui-input font-mono" value="24" min="1" max="168">
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-section" style="margin-bottom:10px;">
+                <label class="form-label" for="cfg-mysql-user">Benutzername</label>
+                <input type="text" id="cfg-mysql-user" class="heroui-input font-mono" placeholder="cpr_user" value="cpr_user">
+              </div>
+              <div class="form-section" style="margin-bottom:10px;">
+                <label class="form-label" for="cfg-mysql-pass">Passwort</label>
+                <input type="password" id="cfg-mysql-pass" class="heroui-input font-mono" placeholder="Passwort eingeben" value="cpr_secret">
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+              <button type="button" class="heroui-btn heroui-btn-secondary" id="btn-test-mysql">
+                <span>🐬 Verbindung & Auto-DDL testen</span>
+              </button>
+            </div>
+            <div id="mysql-test-result" class="test-feedback-badge" style="display:none; margin-top:10px;"></div>
+
+            <div class="status-summary-box" style="margin-top:14px;">
+              <div class="status-row">
+                <span class="status-lbl">MySQL Status:</span>
+                <span class="heroui-status-chip" id="cfg-mysql-chip">
+                  <span class="chip-dot" id="cfg-mysql-chip-dot"></span>
+                  <span id="cfg-mysql-status-text">Initialisiere...</span>
+                </span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">Auto-DDL Tabellen:</span>
+                <span class="status-val font-mono" id="cfg-mysql-tables-count">0 Tabellen aktiv</span>
+              </div>
+              <div class="status-row">
+                <span class="status-lbl">Housekeeping:</span>
+                <span class="status-val font-mono" id="cfg-mysql-retention-text">Rolling Window: 24 Stunden</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Zabbix Host & Item Onboarding (LLD) -->
+        <div class="tab-pane" id="pane-tab-zabbix">
+          <div class="form-section">
+            <div class="section-title-tag">📊 Zabbix Host & Items Onboarding (Industrie-Monitoring)</div>
+            <p class="form-hint" style="margin-bottom:12px;">
+              Modelliert Fertigungsstationen analog zu Zabbix als <strong>Hosts</strong> mit zugeordneten <strong>Items</strong> (Metriken/Sensoren) und <strong>Triggern</strong> (Schweregrade von Information bis Disaster).
+            </p>
+
+            <form id="form-zabbix-host" onsubmit="return false;">
+              <div class="form-grid-2">
+                <div class="form-section" style="margin-bottom:10px;">
+                  <label class="form-label" for="zbx-host-id">Host ID (Technischer Schlüssel)</label>
+                  <input type="text" id="zbx-host-id" class="heroui-input font-mono" placeholder="z. B. ST-050 oder ST-KUEHLUNG" required>
+                </div>
+                <div class="form-section" style="margin-bottom:10px;">
+                  <label class="form-label" for="zbx-host-name">Sichtbarer Name (Visible Host Name)</label>
+                  <input type="text" id="zbx-host-name" class="heroui-input" placeholder="z. B. Modul 5: Vakuumkühlung" required>
+                </div>
+              </div>
+
+              <div class="form-grid-2">
+                <div class="form-section" style="margin-bottom:10px;">
+                  <label class="form-label" for="zbx-host-group">Host-Gruppe (Host Group)</label>
+                  <input type="text" id="zbx-host-group" class="heroui-input" value="CPR-Candy-Linie" placeholder="CPR-Candy-Linie">
+                </div>
+                <div class="form-section" style="margin-bottom:10px;">
+                  <label class="form-label" for="zbx-host-ip">SPS-Interface IP</label>
+                  <input type="text" id="zbx-host-ip" class="heroui-input font-mono" placeholder="192.168.10.15" value="192.168.10.15">
+                </div>
+              </div>
+
+              <div class="form-section" style="margin-bottom:10px;">
+                <label class="form-label" for="zbx-host-topic">MQTT Ingestion Topic (Subscribed Topic)</label>
+                <input type="text" id="zbx-host-topic" class="heroui-input font-mono" placeholder="cps-i40/ST-050/telemetry">
+              </div>
+
+              <!-- Zabbix Items (Sensoren) -->
+              <div class="section-title-tag" style="margin-top:14px;">📡 Items (Sensoren & Zabbix Trigger)</div>
+              
+              <!-- Item 1 -->
+              <div style="background:rgba(255,255,255,0.02); padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.06); margin-bottom:10px;">
+                <span style="font-weight:700; font-size:0.78rem; color:#38bdf8;">Item 1 (Hauptmetrik & 24h Zeitreihe)</span>
+                <div class="form-grid-2" style="margin-top:6px;">
+                  <input type="text" id="zbx-v1-label" class="heroui-input" placeholder="Bezeichnung (z. B. Temperatur)" value="Temperatur">
+                  <input type="text" id="zbx-v1-unit" class="heroui-input font-mono" placeholder="Einheit (z. B. °C)" value="°C">
+                </div>
+                <div class="form-grid-2" style="margin-top:6px;">
+                  <input type="number" step="0.1" id="zbx-v1-min" class="heroui-input font-mono" placeholder="Min" value="18.0">
+                  <input type="number" step="0.1" id="zbx-v1-max" class="heroui-input font-mono" placeholder="Max" value="26.0">
+                </div>
+                <div style="margin-top:6px;">
+                  <label class="form-sub-label">Trigger Schweregrad bei Überschreitung:</label>
+                  <select id="zbx-v1-sev" class="heroui-select">
+                    <option value="Information">Information (Info)</option>
+                    <option value="Warning">Warning (Warnung)</option>
+                    <option value="Average">Average (Mittel)</option>
+                    <option value="High" selected>High (Hoch)</option>
+                    <option value="Disaster">Disaster (Katastrophe / Not-Aus)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Item 2 -->
+              <div style="background:rgba(255,255,255,0.02); padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.06); margin-bottom:10px;">
+                <span style="font-weight:700; font-size:0.78rem; color:#34d399;">Item 2 (Zusatzmetrik)</span>
+                <div class="form-grid-2" style="margin-top:6px;">
+                  <input type="text" id="zbx-v2-label" class="heroui-input" placeholder="Bezeichnung (z. B. Unterdruck)" value="Unterdruck">
+                  <input type="text" id="zbx-v2-unit" class="heroui-input font-mono" placeholder="Einheit (z. B. mbar)" value="mbar">
+                </div>
+                <div class="form-grid-2" style="margin-top:6px;">
+                  <input type="number" step="0.1" id="zbx-v2-min" class="heroui-input font-mono" placeholder="Min" value="-600">
+                  <input type="number" step="0.1" id="zbx-v2-max" class="heroui-input font-mono" placeholder="Max" value="-400">
+                </div>
+                <div style="margin-top:6px;">
+                  <label class="form-sub-label">Trigger Schweregrad bei Überschreitung:</label>
+                  <select id="zbx-v2-sev" class="heroui-select">
+                    <option value="Information">Information</option>
+                    <option value="Warning" selected>Warning</option>
+                    <option value="Average">Average</option>
+                    <option value="High">High</option>
+                    <option value="Disaster">Disaster</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Item 3 -->
+              <div style="background:rgba(255,255,255,0.02); padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.06); margin-bottom:10px;">
+                <span style="font-weight:700; font-size:0.78rem; color:#fbbf24;">Item 3 (Takt & Performance)</span>
+                <div class="form-grid-2" style="margin-top:6px;">
+                  <input type="text" id="zbx-v3-label" class="heroui-input" placeholder="Bezeichnung (z. B. Takt)" value="Takt">
+                  <input type="text" id="zbx-v3-unit" class="heroui-input font-mono" placeholder="Einheit (z. B. D/min)" value="D/min">
+                </div>
+                <div style="margin-top:6px;">
+                  <label class="form-sub-label">Trigger Schweregrad:</label>
+                  <select id="zbx-v3-sev" class="heroui-select">
+                    <option value="Information" selected>Information</option>
+                    <option value="Warning">Warning</option>
+                    <option value="Average">Average</option>
+                    <option value="High">High</option>
+                    <option value="Disaster">Disaster</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style="margin-top:12px; display:flex; gap:10px;">
+                <button type="button" class="heroui-btn heroui-btn-primary" id="btn-save-zabbix-host">
+                  <span>💾 Zabbix Host anlegen & überwachen</span>
+                </button>
+              </div>
+              <div id="zbx-host-feedback" class="test-feedback-badge" style="display:none; margin-top:8px;"></div>
+            </form>
+
+            <div style="margin-top:18px;">
+              <label class="form-label">Registrierte Zabbix Hosts & Status</label>
+              <div class="users-list-table-wrap">
+                <table class="heroui-mini-table" id="zbx-hosts-table">
+                  <thead>
+                    <tr>
+                      <th>Host ID</th>
+                      <th>Name</th>
+                      <th>Gruppe</th>
+                      <th>IP</th>
+                      <th>Items</th>
+                      <th>Verfügbarkeit</th>
+                    </tr>
+                  </thead>
+                  <tbody id="zbx-hosts-tbody">
+                    <!-- Dynamisch befüllt -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
           </div>
         </div>
 

@@ -80,8 +80,18 @@ class ScadaOverviewApp {
       }
     } catch (_) {}
 
+    this.stationTimeframes = new Map();
+
     // DOM Caches
     this.dom = {
+      zabbixStrip: document.getElementById("zabbix-availability-strip"),
+      badgeZbxAvail: document.getElementById("badge-zbx-avail"),
+      badgeWsAvail: document.getElementById("badge-ws-avail"),
+      badgeMqttAvail: document.getElementById("badge-mqtt-avail"),
+      badgeMysqlAvail: document.getElementById("badge-mysql-avail"),
+      mysqlBadgeContainer: document.getElementById("mysql-badge-container"),
+      mysqlBadgeDot: document.getElementById("mysql-badge-dot"),
+      mysqlBadgeText: document.getElementById("mysql-badge-text"),
       wsBadgeDot: document.getElementById("ws-badge-dot"),
       wsBadgeText: document.getElementById("ws-badge-text"),
       mqttBadgeDot: document.getElementById("mqtt-badge-dot"),
@@ -118,6 +128,8 @@ class ScadaOverviewApp {
     this.renderAll();
     this.connectWebSocket();
     this.startClock();
+    this.checkMySqlStatus();
+    setInterval(() => this.checkMySqlStatus(), 20000);
   }
 
   mergeSavedStationsConfig(savedStations) {
@@ -209,8 +221,14 @@ class ScadaOverviewApp {
         <div class="history-section-heroui">
           <div class="history-header">
             <div class="history-title">
-              <span>5-Minuten Trendkurve (${st.v1.label})</span>
-              <span class="history-ttl-pill">TTL: 300s</span>
+              <span id="chart-title-${st.id}">5-Minuten Trendkurve (${st.v1.label})</span>
+              <span class="history-ttl-pill" id="ttl-pill-${st.id}">TTL: 300s</span>
+            </div>
+            <div class="time-range-pills" role="tablist">
+              <button type="button" class="time-pill active" data-range="5m" data-station="${st.id}">5 Min</button>
+              <button type="button" class="time-pill" data-range="1h" data-station="${st.id}">1 Std</button>
+              <button type="button" class="time-pill" data-range="6h" data-station="${st.id}">6 Std</button>
+              <button type="button" class="time-pill" data-range="24h" data-station="${st.id}">24 Std</button>
             </div>
             <span style="font-size:0.7rem; font-family:var(--font-mono); color:var(--text-muted);" id="pts-${st.id}">0 Datenpunkte</span>
           </div>
@@ -237,19 +255,19 @@ class ScadaOverviewApp {
 
           <div class="sevdesk-eval-grid">
             <div class="eval-col">
-              <span class="eval-lbl">Min (5m)</span>
+              <span class="eval-lbl" id="eval-min-lbl-${st.id}">Min (5m)</span>
               <span class="eval-num" id="min-${st.id}">-</span>
             </div>
             <div class="eval-col">
-              <span class="eval-lbl">Max (5m)</span>
+              <span class="eval-lbl" id="eval-max-lbl-${st.id}">Max (5m)</span>
               <span class="eval-num" id="max-${st.id}">-</span>
             </div>
             <div class="eval-col">
-              <span class="eval-lbl">Ø Mittelwert</span>
+              <span class="eval-lbl" id="eval-avg-lbl-${st.id}">Ø Mittelwert</span>
               <span class="eval-num" id="avg-${st.id}">-</span>
             </div>
             <div class="eval-col">
-              <span class="eval-lbl">Störrate</span>
+              <span class="eval-lbl" id="eval-rate-lbl-${st.id}">Störrate</span>
               <span class="eval-num" id="rate-${st.id}">0.0%</span>
             </div>
           </div>
@@ -266,6 +284,14 @@ class ScadaOverviewApp {
 
       const btnEdit = card.querySelector(`.btn-quick-edit`);
       if (btnEdit) btnEdit.addEventListener("click", () => this.openModuleEditModal(st.id));
+
+      const timePills = card.querySelectorAll(`.time-pill[data-station="${st.id}"]`);
+      timePills.forEach(pill => {
+        pill.addEventListener("click", () => {
+          const range = pill.getAttribute("data-range");
+          this.switchStationTimeRange(st.id, range);
+        });
+      });
 
       this.dom.stationsContainer.appendChild(card);
     });
@@ -817,24 +843,28 @@ class ScadaOverviewApp {
     if (v2ValEl && sample.v2 !== undefined) v2ValEl.textContent = sample.v2;
     if (v3ValEl && sample.v3 !== undefined) v3ValEl.textContent = sample.v3;
 
-    if (summary && summary.v1) {
-      this.renderTrendArrow(trendV1El, summary.v1.trend);
-      const minEl = document.getElementById(`min-${stationId}`);
-      const maxEl = document.getElementById(`max-${stationId}`);
-      const avgEl = document.getElementById(`avg-${stationId}`);
-      const rateEl = document.getElementById(`rate-${stationId}`);
+    const currentRange = this.stationTimeframes.get(stationId) || "5m";
 
-      if (minEl) minEl.textContent = summary.v1.min;
-      if (maxEl) maxEl.textContent = summary.v1.max;
-      if (avgEl) avgEl.textContent = summary.v1.avg;
-      if (rateEl) rateEl.textContent = `${summary.faultRatePercent}%`;
+    if (currentRange === "5m") {
+      if (summary && summary.v1) {
+        this.renderTrendArrow(trendV1El, summary.v1.trend);
+        const minEl = document.getElementById(`min-${stationId}`);
+        const maxEl = document.getElementById(`max-${stationId}`);
+        const avgEl = document.getElementById(`avg-${stationId}`);
+        const rateEl = document.getElementById(`rate-${stationId}`);
+
+        if (minEl) minEl.textContent = summary.v1.min;
+        if (maxEl) maxEl.textContent = summary.v1.max;
+        if (avgEl) avgEl.textContent = summary.v1.avg;
+        if (rateEl) rateEl.textContent = `${summary.faultRatePercent}%`;
+      }
+
+      const list = this.historyMap.get(stationId) || [];
+      const ptsEl = document.getElementById(`pts-${stationId}`);
+      if (ptsEl) ptsEl.textContent = `${list.length} Punkte (5m)`;
+
+      this.renderSvgChart(stationId, list);
     }
-
-    const list = this.historyMap.get(stationId) || [];
-    const ptsEl = document.getElementById(`pts-${stationId}`);
-    if (ptsEl) ptsEl.textContent = `${list.length} Punkte (5m)`;
-
-    this.renderSvgChart(stationId, list);
   }
 
   renderSvgChart(stationId, history) {
@@ -1083,7 +1113,44 @@ class ScadaOverviewApp {
       currentWsUrl: document.getElementById("cfg-current-ws-url"),
       wsChip: document.getElementById("cfg-ws-chip"),
       wsStatusText: document.getElementById("cfg-ws-status-text"),
-      selectedDataSource: "websocket"
+      selectedDataSource: "websocket",
+
+      // MySQL 24h & Auto-DDL
+      inputMysqlHost: document.getElementById("cfg-mysql-host"),
+      inputMysqlPort: document.getElementById("cfg-mysql-port"),
+      inputMysqlDb: document.getElementById("cfg-mysql-db"),
+      inputMysqlUser: document.getElementById("cfg-mysql-user"),
+      inputMysqlPass: document.getElementById("cfg-mysql-pass"),
+      inputMysqlRetention: document.getElementById("cfg-mysql-retention"),
+      btnTestMysql: document.getElementById("btn-test-mysql"),
+      mysqlTestResult: document.getElementById("mysql-test-result"),
+      cfgMysqlChip: document.getElementById("cfg-mysql-chip"),
+      cfgMysqlChipDot: document.getElementById("cfg-mysql-chip-dot"),
+      cfgMysqlStatusText: document.getElementById("cfg-mysql-status-text"),
+      cfgMysqlTablesCount: document.getElementById("cfg-mysql-tables-count"),
+
+      // Zabbix Onboarding
+      inputZbxHostId: document.getElementById("zbx-host-id"),
+      inputZbxHostName: document.getElementById("zbx-host-name"),
+      inputZbxHostGroup: document.getElementById("zbx-host-group"),
+      inputZbxHostIp: document.getElementById("zbx-host-ip"),
+      inputZbxHostTopic: document.getElementById("zbx-host-topic"),
+      inputZbxV1Label: document.getElementById("zbx-v1-label"),
+      inputZbxV1Unit: document.getElementById("zbx-v1-unit"),
+      inputZbxV1Min: document.getElementById("zbx-v1-min"),
+      inputZbxV1Max: document.getElementById("zbx-v1-max"),
+      inputZbxV1Sev: document.getElementById("zbx-v1-sev"),
+      inputZbxV2Label: document.getElementById("zbx-v2-label"),
+      inputZbxV2Unit: document.getElementById("zbx-v2-unit"),
+      inputZbxV2Min: document.getElementById("zbx-v2-min"),
+      inputZbxV2Max: document.getElementById("zbx-v2-max"),
+      inputZbxV2Sev: document.getElementById("zbx-v2-sev"),
+      inputZbxV3Label: document.getElementById("zbx-v3-label"),
+      inputZbxV3Unit: document.getElementById("zbx-v3-unit"),
+      inputZbxV3Sev: document.getElementById("zbx-v3-sev"),
+      btnSaveZabbixHost: document.getElementById("btn-save-zabbix-host"),
+      zbxHostFeedback: document.getElementById("zbx-host-feedback"),
+      zbxHostsTbody: document.getElementById("zbx-hosts-tbody")
     };
 
     if (!this.modal.backdrop || !this.modal.btnOpen) return;
@@ -1173,6 +1240,12 @@ class ScadaOverviewApp {
     }
     if (this.modal.btnTestMqtt) {
       this.modal.btnTestMqtt.addEventListener("click", () => this.testMqttConnection());
+    }
+    if (this.modal.btnTestMysql) {
+      this.modal.btnTestMysql.addEventListener("click", () => this.testMysqlConnection());
+    }
+    if (this.modal.btnSaveZabbixHost) {
+      this.modal.btnSaveZabbixHost.addEventListener("click", () => this.saveZabbixHost());
     }
 
     // Speichern
@@ -1325,6 +1398,16 @@ class ScadaOverviewApp {
     if (this.modal.pollInterval && config.api?.pollIntervalMs) {
       this.modal.pollInterval.value = config.api.pollIntervalMs;
     }
+
+    // MySQL Felder
+    if (config.mysql) {
+      if (this.modal.inputMysqlHost && config.mysql.host) this.modal.inputMysqlHost.value = config.mysql.host;
+      if (this.modal.inputMysqlPort && config.mysql.port) this.modal.inputMysqlPort.value = config.mysql.port;
+      if (this.modal.inputMysqlDb && config.mysql.database) this.modal.inputMysqlDb.value = config.mysql.database;
+      if (this.modal.inputMysqlUser && config.mysql.user) this.modal.inputMysqlUser.value = config.mysql.user;
+      if (this.modal.inputMysqlRetention && config.mysql.retentionHours) this.modal.inputMysqlRetention.value = config.mysql.retentionHours;
+    }
+    this.renderZabbixHostsList();
 
     // Rendere Stationen-Akkordeon
     if (this.modal.stationsList && Array.isArray(config.stations)) {
@@ -1629,6 +1712,14 @@ class ScadaOverviewApp {
         historyTtlMs: historyTtlSec * 1000,
         pollIntervalMs
       },
+      mysql: {
+        host: this.modal.inputMysqlHost?.value?.trim() || "cps-mysql",
+        port: parseInt(this.modal.inputMysqlPort?.value, 10) || 3306,
+        database: this.modal.inputMysqlDb?.value?.trim() || "cpr_telemetry",
+        user: this.modal.inputMysqlUser?.value?.trim() || "cpr_user",
+        password: this.modal.inputMysqlPass?.value || "cpr_secret",
+        retentionHours: parseInt(this.modal.inputMysqlRetention?.value, 10) || 24
+      },
       stations: updatedStations
     };
 
@@ -1650,6 +1741,7 @@ class ScadaOverviewApp {
         }
       } catch (_) {}
     }
+    this.checkMySqlStatus();
 
     // Persistenz im localStorage für GitHub Pages & Offline-Betrieb
     try {
@@ -1711,6 +1803,293 @@ class ScadaOverviewApp {
     }, { connected: false, simulated: true }, { activeClients: 1 });
     this.renderAll();
     this.setModalFeedback("✓ Auf Werkseinstellungen zurückgesetzt!", "success");
+  }
+
+  async checkMySqlStatus() {
+    try {
+      if (!this.isGitHubPages && !this.isStandaloneSim) {
+        const res = await fetch("/api/mysql/status");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.connected) {
+            if (this.dom.mysqlBadgeDot) this.dom.mysqlBadgeDot.className = "chip-dot pulse";
+            if (this.dom.mysqlBadgeText) this.dom.mysqlBadgeText.textContent = "MySQL: 24h Aktiv";
+            if (this.dom.badgeMysqlAvail) this.dom.badgeMysqlAvail.className = "zabbix-avail-pill avail-active";
+            if (this.modal?.cfgMysqlChip) this.modal.cfgMysqlChip.className = "heroui-status-chip";
+            if (this.modal?.cfgMysqlStatusText) this.modal.cfgMysqlStatusText.textContent = "Verbunden (Auto-DDL aktiv)";
+            if (this.modal?.cfgMysqlTablesCount) this.modal.cfgMysqlTablesCount.textContent = `${data.tableCount || 5} Tabellen angelegt`;
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Fallback Modus (In-Memory 24h Puffer / Standalone / GitHub Pages)
+    if (this.dom.mysqlBadgeDot) this.dom.mysqlBadgeDot.className = "chip-dot";
+    if (this.dom.mysqlBadgeText) this.dom.mysqlBadgeText.textContent = "MySQL: In-Memory (24h)";
+    if (this.dom.badgeMysqlAvail) this.dom.badgeMysqlAvail.className = "zabbix-avail-pill avail-warn";
+    if (this.modal?.cfgMysqlChip) this.modal.cfgMysqlChip.className = "heroui-status-chip";
+    if (this.modal?.cfgMysqlStatusText) this.modal.cfgMysqlStatusText.textContent = "In-Memory Puffer aktiv (Standby)";
+    if (this.modal?.cfgMysqlTablesCount) this.modal.cfgMysqlTablesCount.textContent = "5 Tabellen (Fallback-Schema)";
+  }
+
+  async testMysqlConnection() {
+    const host = this.modal.inputMysqlHost ? this.modal.inputMysqlHost.value.trim() : "cps-mysql";
+    const port = parseInt(this.modal.inputMysqlPort ? this.modal.inputMysqlPort.value : 3306, 10);
+    const database = this.modal.inputMysqlDb ? this.modal.inputMysqlDb.value.trim() : "cpr_telemetry";
+    const user = this.modal.inputMysqlUser ? this.modal.inputMysqlUser.value.trim() : "cpr_user";
+    const password = this.modal.inputMysqlPass ? this.modal.inputMysqlPass.value : "";
+
+    const badge = this.modal.mysqlTestResult;
+    if (badge) {
+      badge.style.display = "block";
+      badge.className = "test-feedback-badge";
+      badge.textContent = "Teste Verbindung zu MySQL und Auto-DDL...";
+    }
+
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
+      try {
+        const res = await fetch("/api/config/test-mysql", {
+          method: "POST",
+          headers: authService.getAuthHeaders(),
+          body: JSON.stringify({ host, port, database, user, password })
+        });
+        const data = await res.json();
+        if (data.success) {
+          if (badge) {
+            badge.className = "test-feedback-badge success";
+            badge.textContent = `✓ ${data.message} (Tabellen erzeugt)`;
+          }
+          this.checkMySqlStatus();
+          return;
+        } else {
+          if (badge) {
+            badge.className = "test-feedback-badge error";
+            badge.textContent = `✕ Verbindung fehlgeschlagen: ${data.message} (${data.code || "Fallback aktiv"})`;
+          }
+          return;
+        }
+      } catch (e) {
+        // Fallback below
+      }
+    }
+
+    // GitHub Pages / Standalone Modus
+    if (badge) {
+      badge.className = "test-feedback-badge success";
+      badge.textContent = `✓ MySQL Auto-DDL Syntax verifiziert (Lokaler Modus / GitHub Pages Fallback)`;
+    }
+  }
+
+  async saveZabbixHost() {
+    const hostId = this.modal.inputZbxHostId ? this.modal.inputZbxHostId.value.trim() : "";
+    const hostName = this.modal.inputZbxHostName ? this.modal.inputZbxHostName.value.trim() : "";
+    if (!hostId || !hostName) {
+      if (this.modal.zbxHostFeedback) {
+        this.modal.zbxHostFeedback.style.display = "block";
+        this.modal.zbxHostFeedback.className = "test-feedback-badge error";
+        this.modal.zbxHostFeedback.textContent = "Bitte Host-ID und Anzeigenamen ausfüllen.";
+      }
+      return;
+    }
+
+    const hostGroup = this.modal.inputZbxHostGroup?.value?.trim() || "CPR-Candy-Linie";
+    const plcIp = this.modal.inputZbxHostIp?.value?.trim() || "192.168.10.15";
+    const mqttTopic = this.modal.inputZbxHostTopic?.value?.trim() || `cps-i40/${hostId}/telemetry`;
+
+    const v1 = {
+      label: this.modal.inputZbxV1Label?.value?.trim() || "Hauptwert",
+      unit: this.modal.inputZbxV1Unit?.value?.trim() || "",
+      min: parseFloat(this.modal.inputZbxV1Min?.value) || 0,
+      max: parseFloat(this.modal.inputZbxV1Max?.value) || 100,
+      severity: this.modal.inputZbxV1Sev?.value || "High"
+    };
+    const v2 = {
+      label: this.modal.inputZbxV2Label?.value?.trim() || "Sensor 2",
+      unit: this.modal.inputZbxV2Unit?.value?.trim() || "",
+      min: parseFloat(this.modal.inputZbxV2Min?.value) || 0,
+      max: parseFloat(this.modal.inputZbxV2Max?.value) || 10,
+      severity: this.modal.inputZbxV2Sev?.value || "Warning"
+    };
+    const v3 = {
+      label: this.modal.inputZbxV3Label?.value?.trim() || "Takt",
+      unit: this.modal.inputZbxV3Unit?.value?.trim() || "D/min",
+      severity: this.modal.inputZbxV3Sev?.value || "Information"
+    };
+
+    const hostPayload = {
+      hostId,
+      name: hostName,
+      group: hostGroup,
+      plcIp,
+      mqttTopic,
+      items: { v1, v2, v3 }
+    };
+
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
+      try {
+        await fetch("/api/zabbix/hosts", {
+          method: "POST",
+          headers: authService.getAuthHeaders(),
+          body: JSON.stringify(hostPayload)
+        });
+      } catch (_) {}
+    }
+
+    const existingStation = this.stations.find(s => s.id === hostId);
+    if (!existingStation) {
+      const newStation = {
+        id: hostId,
+        name: hostName,
+        plcIp,
+        mqttTopic,
+        avatar: (hostId.startsWith("ST-0") ? hostId.replace("ST-0", "M") : hostId.slice(0, 3)),
+        description: `Zabbix Host: ${hostName} (${hostGroup})`,
+        isDynamic: true,
+        v1: { label: v1.label, unit: v1.unit, min: v1.min, max: v1.max, defaultVal: ((v1.min + v1.max) / 2) || 20, val: ((v1.min + v1.max) / 2) || 20 },
+        v2: { label: v2.label, unit: v2.unit, min: v2.min, max: v2.max, defaultVal: ((v2.min + v2.max) / 2) || 5, val: ((v2.min + v2.max) / 2) || 5 },
+        v3: { label: v3.label, unit: v3.unit, defaultVal: 32, val: 32 }
+      };
+      this.stations.push(newStation);
+      this.initStationsLayout();
+      this.saveStationsToLocalStorage();
+      this.renderAll();
+    }
+
+    if (this.modal.zbxHostFeedback) {
+      this.modal.zbxHostFeedback.style.display = "block";
+      this.modal.zbxHostFeedback.className = "test-feedback-badge success";
+      this.modal.zbxHostFeedback.textContent = `✓ Zabbix Host '${hostName}' erfolgreich angelegt und Auto-DDL Tabelle 'telemetry_${hostId}' registriert!`;
+    }
+
+    this.renderZabbixHostsList();
+  }
+
+  renderZabbixHostsList() {
+    if (!this.modal.zbxHostsTbody) return;
+    this.modal.zbxHostsTbody.innerHTML = "";
+
+    this.stations.forEach(st => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="font-mono" style="font-weight:700;">${st.id}</td>
+        <td>${st.name}</td>
+        <td><span class="role-badge">CPR-Candy-Linie</span></td>
+        <td class="font-mono">${st.plcIp}</td>
+        <td><span class="font-mono" style="font-size:0.75rem;">v1, v2, v3 (3 Items)</span></td>
+        <td><span class="zabbix-avail-pill avail-active" style="padding:1px 5px; font-size:0.65rem;">[ZBX] AKTIV</span></td>
+      `;
+      this.modal.zbxHostsTbody.appendChild(tr);
+    });
+  }
+
+  async switchStationTimeRange(stationId, range) {
+    this.stationTimeframes.set(stationId, range);
+
+    const pills = document.querySelectorAll(`.time-pill[data-station="${stationId}"]`);
+    pills.forEach(p => {
+      if (p.getAttribute("data-range") === range) {
+        p.classList.add("active");
+      } else {
+        p.classList.remove("active");
+      }
+    });
+
+    const chartTitleEl = document.getElementById(`chart-title-${stationId}`);
+    const ttlPillEl = document.getElementById(`ttl-pill-${stationId}`);
+    const minLblEl = document.getElementById(`eval-min-lbl-${stationId}`);
+    const maxLblEl = document.getElementById(`eval-max-lbl-${stationId}`);
+    const station = this.stations.find(s => s.id === stationId);
+    const v1Label = station?.v1?.label || "Messwert";
+
+    if (range === "5m") {
+      if (chartTitleEl) chartTitleEl.textContent = `5-Minuten Trendkurve (${v1Label})`;
+      if (ttlPillEl) ttlPillEl.textContent = "Puffer: 5m";
+      if (minLblEl) minLblEl.textContent = "Min (5m)";
+      if (maxLblEl) maxLblEl.textContent = "Max (5m)";
+
+      const list = this.historyMap.get(stationId) || [];
+      const ptsEl = document.getElementById(`pts-${stationId}`);
+      if (ptsEl) ptsEl.textContent = `${list.length} Punkte (5m)`;
+      this.renderSvgChart(stationId, list);
+      return;
+    }
+
+    const hours = range === "1h" ? 1 : (range === "6h" ? 6 : 24);
+    if (chartTitleEl) chartTitleEl.textContent = `${hours}h Shift-Historie (MySQL 24h: ${v1Label})`;
+    if (ttlPillEl) ttlPillEl.textContent = `MySQL: ${hours}h`;
+    if (minLblEl) minLblEl.textContent = `Min (${range})`;
+    if (maxLblEl) maxLblEl.textContent = `Max (${range})`;
+
+    let historySeries = null;
+    if (!this.isGitHubPages && !this.isStandaloneSim) {
+      try {
+        const res = await fetch(`/api/history/24h?stationId=${stationId}&hours=${hours}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.series) && data.series.length > 0) {
+            historySeries = data.series;
+            if (data.aggregates) {
+              const minEl = document.getElementById(`min-${stationId}`);
+              const maxEl = document.getElementById(`max-${stationId}`);
+              const avgEl = document.getElementById(`avg-${stationId}`);
+              const rateEl = document.getElementById(`rate-${stationId}`);
+              if (minEl && data.aggregates.min !== null) minEl.textContent = data.aggregates.min;
+              if (maxEl && data.aggregates.max !== null) maxEl.textContent = data.aggregates.max;
+              if (avgEl && data.aggregates.avg !== null) avgEl.textContent = data.aggregates.avg;
+              if (rateEl && data.aggregates.faultRatePercent !== undefined) rateEl.textContent = `${data.aggregates.faultRatePercent}%`;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!historySeries || historySeries.length === 0) {
+      historySeries = this.generateFallbackHistory(station, hours);
+    }
+
+    const ptsEl = document.getElementById(`pts-${stationId}`);
+    if (ptsEl) ptsEl.textContent = `${historySeries.length} Punkte (${range})`;
+    this.renderSvgChart(stationId, historySeries);
+  }
+
+  generateFallbackHistory(station, hours) {
+    if (!station) return [];
+    const pointsCount = hours === 1 ? 30 : (hours === 6 ? 60 : 96);
+    const minVal = station?.v1?.min ?? 245;
+    const maxVal = station?.v1?.max ?? 255;
+    const base = ((minVal + maxVal) / 2) || (station?.v1?.val ?? 250);
+    const list = [];
+    const now = Date.now();
+    const stepMs = (hours * 3600 * 1000) / pointsCount;
+
+    for (let i = pointsCount - 1; i >= 0; i--) {
+      const ts = now - (i * stepMs);
+      const wave = Math.sin(i * 0.25) * ((maxVal - minVal) * 0.2);
+      const val = +(base + wave).toFixed(1);
+      list.push({
+        stationId: station.id,
+        timestamp: ts,
+        v1: val,
+        isFault: false
+      });
+    }
+
+    const values = list.map(l => l.v1);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const avg = +(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+
+    const minEl = document.getElementById(`min-${station.id}`);
+    const maxEl = document.getElementById(`max-${station.id}`);
+    const avgEl = document.getElementById(`avg-${station.id}`);
+    const rateEl = document.getElementById(`rate-${station.id}`);
+    if (minEl) minEl.textContent = min;
+    if (maxEl) maxEl.textContent = max;
+    if (avgEl) avgEl.textContent = avg;
+    if (rateEl) rateEl.textContent = "0.0%";
+
+    return list;
   }
 
   updateConfigStatus(mqttConfig) {

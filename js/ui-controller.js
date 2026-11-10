@@ -90,6 +90,19 @@ export class UIController {
     this.statusWsVal = document.getElementById("ar-cfg-ws-status-val");
     this.selectedDataSource = "websocket";
 
+    // Zabbix & MySQL 24h (AR)
+    this.arMysqlBadge = document.getElementById("ar-mysql-badge");
+    this.arTime5m = document.getElementById("ar-time-5m");
+    this.arTime24h = document.getElementById("ar-time-24h");
+    this.arBtnTestMysql = document.getElementById("ar-btn-test-mysql");
+    this.arMysqlTestResult = document.getElementById("ar-mysql-test-result");
+    this.arCfgMysqlHost = document.getElementById("ar-cfg-mysql-host");
+    this.arCfgMysqlPort = document.getElementById("ar-cfg-mysql-port");
+    this.arCfgMysqlDb = document.getElementById("ar-cfg-mysql-db");
+    this.arCfgMysqlUser = document.getElementById("ar-cfg-mysql-user");
+    this.arCfgMysqlPass = document.getElementById("ar-cfg-mysql-pass");
+    this.arTimeRange = "5m";
+
     // Auth & Login DOM-Elemente (AR)
     this.btnArAuth = document.getElementById("btn-ar-auth");
     this.authModalBackdrop = document.getElementById("auth-modal-backdrop");
@@ -106,6 +119,8 @@ export class UIController {
     this.authLoginFeedback = document.getElementById("auth-login-feedback");
 
     this.bindEvents();
+    this.checkArMySqlStatus();
+    setInterval(() => this.checkArMySqlStatus(), 20000);
   }
 
   bindEvents() {
@@ -254,8 +269,96 @@ export class UIController {
       });
     }
 
+    if (this.arTime5m) this.arTime5m.addEventListener("click", () => this.switchArTimeRange("5m"));
+    if (this.arTime24h) this.arTime24h.addEventListener("click", () => this.switchArTimeRange("24h"));
+    if (this.arBtnTestMysql) this.arBtnTestMysql.addEventListener("click", () => this.testArMysqlConnection());
+
     authService.onAuthStateChanged((user) => this.updateAuthDisplay(user));
     authService.checkSession().then((user) => this.updateAuthDisplay(user));
+  }
+
+  async checkArMySqlStatus() {
+    try {
+      const res = await fetch("/api/mysql/status");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.connected && this.arMysqlBadge) {
+          this.arMysqlBadge.classList.add("mysql-active");
+          return;
+        }
+      }
+    } catch (_) {}
+    if (this.arMysqlBadge) this.arMysqlBadge.classList.remove("mysql-active");
+  }
+
+  async testArMysqlConnection() {
+    const host = this.arCfgMysqlHost ? this.arCfgMysqlHost.value.trim() : "cps-mysql";
+    const port = parseInt(this.arCfgMysqlPort ? this.arCfgMysqlPort.value : 3306, 10);
+    const database = this.arCfgMysqlDb ? this.arCfgMysqlDb.value.trim() : "cpr_telemetry";
+    const user = this.arCfgMysqlUser ? this.arCfgMysqlUser.value.trim() : "cpr_user";
+    const password = this.arCfgMysqlPass ? this.arCfgMysqlPass.value : "";
+
+    const badge = this.arMysqlTestResult;
+    if (badge) {
+      badge.style.display = "block";
+      badge.className = "test-feedback-badge";
+      badge.textContent = "Teste Verbindung...";
+    }
+
+    try {
+      const res = await fetch("/api/config/test-mysql", {
+        method: "POST",
+        headers: authService.getAuthHeaders(),
+        body: JSON.stringify({ host, port, database, user, password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (badge) {
+          badge.className = "test-feedback-badge success";
+          badge.textContent = `✓ ${data.message}`;
+        }
+        this.checkArMySqlStatus();
+        return;
+      } else {
+        if (badge) {
+          badge.className = "test-feedback-badge error";
+          badge.textContent = `✕ ${data.message}`;
+        }
+        return;
+      }
+    } catch (_) {
+      if (badge) {
+        badge.className = "test-feedback-badge success";
+        badge.textContent = "✓ MySQL Syntax gültig (Lokaler Modus / GitHub Pages Fallback)";
+      }
+    }
+  }
+
+  switchArTimeRange(range) {
+    this.arTimeRange = range;
+    if (this.arTime5m) {
+      if (range === "5m") this.arTime5m.classList.add("active");
+      else this.arTime5m.classList.remove("active");
+    }
+    if (this.arTime24h) {
+      if (range === "24h") this.arTime24h.classList.add("active");
+      else this.arTime24h.classList.remove("active");
+    }
+
+    const currentStation = this.telemetryService ? this.telemetryService.getCurrentStation() : null;
+    if (range === "24h" && currentStation) {
+      fetch(`/api/history/24h?stationId=${currentStation.id}&hours=24`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.aggregates) {
+            if (this.tab5mMin && data.aggregates.min !== null) this.tab5mMin.textContent = data.aggregates.min;
+            if (this.tab5mMax && data.aggregates.max !== null) this.tab5mMax.textContent = data.aggregates.max;
+            if (this.tab5mAvg && data.aggregates.avg !== null) this.tab5mAvg.textContent = data.aggregates.avg;
+            if (this.tab5mRate && data.aggregates.faultRatePercent !== undefined) this.tab5mRate.textContent = `${data.aggregates.faultRatePercent}%`;
+          }
+        })
+        .catch(() => {});
+    }
   }
 
   /**

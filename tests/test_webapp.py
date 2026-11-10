@@ -458,6 +458,81 @@ class TestGitHubPagesAndOfflineCompatibility(unittest.TestCase):
         self.assertIn("downloadIncidentsJson", js_content)
         self.assertIn("cps_incident_history", js_content)
 
+    def test_mysql_24h_and_zabbix_monitoring_ui(self):
+        """Prüft das Vorhandensein und die Integrität der MySQL 24h Zeitreihen & Zabbix UI-Komponenten in Leitstand und AR:"""
+        # 1. overview.html Markup
+        self.assertIn('id="zabbix-availability-strip"', self.overview_html)
+        self.assertIn('id="badge-zbx-avail"', self.overview_html)
+        self.assertIn('id="badge-ws-avail"', self.overview_html)
+        self.assertIn('id="badge-mqtt-avail"', self.overview_html)
+        self.assertIn('id="badge-mysql-avail"', self.overview_html)
+        self.assertIn('id="mysql-badge-container"', self.overview_html)
+        self.assertIn('id="mysql-badge-dot"', self.overview_html)
+        self.assertIn('id="mysql-badge-text"', self.overview_html)
+
+        # Config Modal Panes (MySQL & Zabbix)
+        self.assertIn('data-tab="pane-tab-mysql"', self.overview_html)
+        self.assertIn('data-tab="pane-tab-zabbix"', self.overview_html)
+        self.assertIn('id="cfg-mysql-host"', self.overview_html)
+        self.assertIn('id="cfg-mysql-port"', self.overview_html)
+        self.assertIn('id="cfg-mysql-db"', self.overview_html)
+        self.assertIn('id="cfg-mysql-user"', self.overview_html)
+        self.assertIn('id="cfg-mysql-pass"', self.overview_html)
+        self.assertIn('id="cfg-mysql-retention"', self.overview_html)
+        self.assertIn('id="btn-test-mysql"', self.overview_html)
+        self.assertIn('id="mysql-test-result"', self.overview_html)
+
+        # Zabbix Onboarding Form
+        self.assertIn('id="zbx-host-id"', self.overview_html)
+        self.assertIn('id="zbx-host-name"', self.overview_html)
+        self.assertIn('id="zbx-host-group"', self.overview_html)
+        self.assertIn('id="zbx-host-ip"', self.overview_html)
+        self.assertIn('id="zbx-host-topic"', self.overview_html)
+        self.assertIn('id="btn-save-zabbix-host"', self.overview_html)
+        self.assertIn('id="zbx-hosts-table"', self.overview_html)
+
+        # 2. index.html Markup (AR)
+        self.assertIn('id="ar-zabbix-strip"', self.index_html)
+        self.assertIn('id="ar-zbx-badge"', self.index_html)
+        self.assertIn('id="ar-mysql-badge"', self.index_html)
+        self.assertIn('id="ar-time-switcher"', self.index_html)
+        self.assertIn('id="ar-time-5m"', self.index_html)
+        self.assertIn('id="ar-time-24h"', self.index_html)
+        self.assertIn('data-tab="ar-pane-mysql"', self.index_html)
+        self.assertIn('id="ar-btn-test-mysql"', self.index_html)
+
+        # 3. CSS Stylings
+        with open(os.path.join(BASE_DIR, "css", "overview.css"), "r") as f:
+            overview_css = f.read()
+        self.assertIn(".zabbix-availability-strip", overview_css)
+        self.assertIn(".zabbix-avail-pill", overview_css)
+        self.assertIn(".time-range-pills", overview_css)
+        self.assertIn(".time-pill", overview_css)
+        self.assertIn(".zabbix-severity-badge", overview_css)
+
+        with open(os.path.join(BASE_DIR, "css", "style.css"), "r") as f:
+            ar_css = f.read()
+        self.assertIn(".ar-zabbix-strip", ar_css)
+        self.assertIn(".ar-zbx-badge", ar_css)
+        self.assertIn(".ar-time-switcher", ar_css)
+        self.assertIn(".ar-time-btn", ar_css)
+
+        # 4. JavaScript Logic in overview.js & ui-controller.js
+        with open(os.path.join(BASE_DIR, "js", "overview.js"), "r") as f:
+            js_overview = f.read()
+        self.assertIn("checkMySqlStatus", js_overview)
+        self.assertIn("testMysqlConnection", js_overview)
+        self.assertIn("saveZabbixHost", js_overview)
+        self.assertIn("renderZabbixHostsList", js_overview)
+        self.assertIn("switchStationTimeRange", js_overview)
+        self.assertIn("generateFallbackHistory", js_overview)
+
+        with open(os.path.join(BASE_DIR, "js", "ui-controller.js"), "r") as f:
+            js_ui = f.read()
+        self.assertIn("checkArMySqlStatus", js_ui)
+        self.assertIn("testArMysqlConnection", js_ui)
+        self.assertIn("switchArTimeRange", js_ui)
+
 
 if __name__ == "__main__":
     unittest.main()

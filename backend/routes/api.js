@@ -14,9 +14,12 @@ import { MqttClientService } from "../mqtt-client.js";
 import { WebSocketServerService } from "../websocket-server.js";
 import { WebSocketClientService, normalizeWsUrl } from "../websocket-client.js";
 import { AVAILABLE_PERMISSIONS } from "../auth-manager.js";
+import { MySqlStore } from "../mysql-store.js";
 
 export function createApiRouter({
   store,
+  mysqlStore,
+  collectorService,
   mqttClient,
   wsClient,
   wsServer,
@@ -1048,6 +1051,144 @@ export function createApiRouter({
   router.delete("/incidents", (req, res) => {
     store.clearIncidents();
     res.json({ success: true, message: "Incident history cleared" });
+  });
+
+  /* ========================================================================
+     MYSQL 24H-ZEITREIHEN- & ZABBIX-MONITORING ENDPUNKTE
+     ======================================================================== */
+
+  // 16. 24h-Zeitreihen und Aggregationen abrufen
+  router.get("/history/24h", async (req, res) => {
+    const stationId = req.query.stationId || "all";
+    const hours = parseInt(req.query.hours || 24, 10);
+
+    try {
+      let history = [];
+      let aggregates = null;
+
+      if (mysqlStore) {
+        history = await mysqlStore.getHistory(stationId, hours);
+        aggregates = await mysqlStore.getAggregates(stationId, hours);
+      } else {
+        history = store.getHistory(stationId);
+        aggregates = store.getSummary(stationId);
+      }
+
+      res.json({
+        success: true,
+        stationId,
+        hours,
+        count: history.length,
+        history,
+        aggregates
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // 17. MySQL Verbindungs- und Tabellenstatus
+  router.get("/mysql/status", async (req, res) => {
+    if (!mysqlStore) {
+      return res.json({
+        connected: false,
+        message: "MySQL Store ist nicht instanziiert"
+      });
+    }
+    const status = await mysqlStore.getStatus();
+    res.json({ success: true, ...status });
+  });
+
+  // 18. MySQL Verbindungstest mit Parametern
+  router.post("/config/test-mysql", async (req, res) => {
+    const result = await MySqlStore.testConnection(req.body);
+    res.json(result);
+  });
+
+  // 19. Zabbix Hosts & Status abrufen
+  router.get("/zabbix/hosts", async (req, res) => {
+    const stations = configManager ? configManager.getStations() : [];
+    const activeProblems = collectorService ? Array.from(collectorService.activeTriggers.values()) : [];
+
+    const hosts = stations.map(st => {
+      const hostProblems = activeProblems.filter(p => p.hostId === st.id);
+      const isFault = Boolean(store.getMeta(`fault_${st.id}`));
+      return {
+        hostId: st.id,
+        name: st.name,
+        description: st.description,
+        hostGroup: "CPS-Candy-Line",
+        interfaces: {
+          plcIp: st.plcIp,
+          mqttTopic: st.mqttTopic,
+          wsNodeId: st.wsNodeId
+        },
+        availability: {
+          zabbix: true,
+          mqtt: Boolean(mqttClient?.isConnected),
+          ws: Boolean(wsClient?.isConnected),
+          mysql: Boolean(mysqlStore?.isConnected)
+        },
+        items: [
+          { key: "v1", name: st.v1?.label || "Wert 1", unit: st.v1?.unit || "", min: st.v1?.min, max: st.v1?.max },
+          { key: "v2", name: st.v2?.label || "Wert 2", unit: st.v2?.unit || "", min: st.v2?.min, max: st.v2?.max },
+          { key: "v3", name: st.v3?.label || "Wert 3", unit: st.v3?.unit || "", min: st.v3?.min, max: st.v3?.max }
+        ],
+        status: isFault ? "PROBLEM" : (hostProblems.length > 0 ? "WARNING" : "OK"),
+        activeProblemCount: hostProblems.length + (isFault ? 1 : 0)
+      };
+    });
+
+    res.json({
+      success: true,
+      totalHosts: hosts.length,
+      hosts,
+      activeProblems
+    });
+  });
+
+  // 20. Zabbix Host anlegen / aktualisieren
+  router.post("/zabbix/hosts", async (req, res) => {
+    const { hostId, name, description, plcIp, mqttTopic, wsNodeId, items } = req.body;
+    if (!hostId || !name) {
+      return res.status(400).json({ success: false, message: "hostId und name erforderlich" });
+    }
+
+    const hostData = {
+      id: hostId,
+      name,
+      description: description || "",
+      plcIp: plcIp || "192.168.10.15",
+      mqttTopic: mqttTopic || `cps-i40/${hostId}/telemetry`,
+      wsNodeId: wsNodeId || ""
+    };
+
+    if (items) {
+      if (items.v1) hostData.v1 = items.v1;
+      if (items.v2) hostData.v2 = items.v2;
+      if (items.v3) hostData.v3 = items.v3;
+    }
+
+    const saved = configManager.updateStation(hostId, hostData);
+    if (mysqlStore && mysqlStore.isConnected) {
+      await mysqlStore.syncHostsAndItems([saved]).catch(() => {});
+    }
+
+    if (wsServer) {
+      wsServer.broadcastConfig(configManager.getConfig());
+    }
+
+    res.json({ success: true, host: saved });
+  });
+
+  // 21. Zabbix aktive Probleme & Trigger-Zustände abrufen
+  router.get("/zabbix/problems", (req, res) => {
+    const problems = collectorService ? Array.from(collectorService.activeTriggers.values()) : [];
+    res.json({
+      success: true,
+      count: problems.length,
+      problems
+    });
   });
 
   return router;

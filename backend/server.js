@@ -25,6 +25,8 @@ import { createApiRouter } from "./routes/api.js";
 import { ConfigManager, DEFAULT_STATIONS_CONFIG } from "./config-manager.js";
 import { AuthManager } from "./auth-manager.js";
 import { TelemetryInterpreter } from "./telemetry-interpreter.js";
+import { MySqlStore } from "./mysql-store.js";
+import { CollectorService } from "./collector-service.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -75,6 +77,41 @@ export function createApp(options = {}) {
   // 1. Initialisiere 5-Minuten In-Memory KeyValueStore (300.000 ms)
   const store = new KeyValueStore(activeConfig.api?.historyTtlMs || 5 * 60 * 1000);
 
+  // 2. Initialisiere 24-Stunden MySQL Store & Auto-DDL
+  const mysqlStore = options.mysqlStore || new MySqlStore(activeConfig.mysql);
+  if (activeConfig.mysql?.enabled !== false && !options.skipMysql) {
+    mysqlStore.init().then(() => {
+      mysqlStore.syncHostsAndItems(activeConfig.stations).catch(() => {});
+    }).catch(() => {});
+  }
+
+  // 3. Entkoppelte CollectorService Schicht (Dual-Write & Zabbix Triggers)
+  const collectorService = new CollectorService({
+    store,
+    mysqlStore,
+    configManager,
+    telemetryInterpreter,
+    onBroadcastTelemetry: (stationId, entry, meta) => {
+      if (app.locals.wsServer) {
+        app.locals.wsServer.broadcastTelemetry(stationId, entry, meta);
+      }
+    },
+    onBroadcastProblem: (problemEvent) => {
+      if (app.locals.wsServer) {
+        app.locals.wsServer.broadcast({
+          type: "zabbix_problem",
+          ...problemEvent,
+          timestamp: Date.now()
+        });
+      }
+    },
+    onBroadcastConfig: (cfg) => {
+      if (app.locals.wsServer) {
+        app.locals.wsServer.broadcastConfig(cfg);
+      }
+    }
+  });
+
   // Vorbefüllung mit plausiblen historischen Datenpunkten der letzten 5 Minuten (als Demo markiert)
   const now = Date.now();
   const stepMs = 15000; // alle 15 Sekunden ein Datenpunkt = 20 Punkte
@@ -94,7 +131,7 @@ export function createApp(options = {}) {
     });
   }
 
-  // 2. Initialisiere MQTT-Client (mit dynamischem Topic-Support und Stations-Binding)
+  // 4. Initialisiere MQTT-Client (mit dynamischem Topic-Support und Stations-Binding)
   const isWsPrimary = activeConfig.dataSource === "websocket";
   const mqttClient = new MqttClientService({
     brokerUrl: activeConfig.mqtt?.brokerUrl || process.env.MQTT_BROKER_URL || "mqtt://localhost:1883",
@@ -125,56 +162,21 @@ export function createApp(options = {}) {
   configManager.onChange((newCfg) => {
     if (newCfg.stations) {
       mqttClient.updateStations(newCfg.stations);
+      if (mysqlStore && mysqlStore.isConnected) {
+        mysqlStore.syncHostsAndItems(newCfg.stations).catch(() => {});
+      }
     }
     if (newCfg.mqtt && Array.isArray(newCfg.mqtt.topics)) {
       newCfg.mqtt.topics.forEach(t => mqttClient.subscribe(t));
     }
   });
 
-  // Zentrale Telemetrie-Einspeisung: Erstellt bei neuen Topics automatisch neue Module
+  // Zentrale Telemetrie-Einspeisung über CollectorService
   const ingestTelemetry = (stationId, payload, meta) => {
-    // 1. Modul automatisch erstellen, falls noch nicht in Konfiguration vorhanden
-    if (!configManager.getStation(stationId)) {
-      const newStation = meta?.synthesizedStation || 
-        telemetryInterpreter.synthesizeStationFromPayload(payload, { stationId, topic: meta?.opcuaTopic || meta?.topic }) || {
-          id: stationId,
-          name: meta?.stationName || stationId,
-          plcIp: "192.168.10.15",
-          mqttTopic: meta?.topic || null,
-          wsNodeId: meta?.opcuaTopic || null,
-          isDynamic: true,
-          isLive: true,
-          isDemo: false,
-          v1: { label: "Messwert", unit: "", min: 0, max: 100, defaultVal: payload.v1, val: payload.v1 },
-          v2: { label: "Status-Code", unit: "Good", min: 0, max: 0, defaultVal: 0, val: 0 },
-          v3: { label: "Signal-Güte", unit: "%", min: 90, max: 100, defaultVal: 100, val: 100 }
-        };
-      configManager.addStation(newStation);
-      telemetryInterpreter.updateStations(configManager.getStations());
-      if (newStation.mqttTopic) {
-        mqttClient.subscribe(newStation.mqttTopic);
-      }
-      if (app.locals.wsServer) {
-        app.locals.wsServer.broadcastConfig(configManager.getConfig());
-      }
-    }
-
-    // 2. Simulator deaktivieren, da echte Felddaten ankommen
     if (mqttClient.isSimulatorActive || mqttClient.allowSimulator) {
       mqttClient.disableSimulator();
     }
-
-    // 3. Im Ringspeicher speichern
-    const entry = store.push(stationId, {
-      ...payload,
-      isLive: true,
-      isDemo: false
-    });
-
-    // 4. An alle SCADA-Clients streamen
-    if (app.locals.wsServer) {
-      app.locals.wsServer.broadcastTelemetry(stationId, entry, meta);
-    }
+    return collectorService.ingest(stationId, payload, meta);
   };
 
   // 3. Upstream WebSocket-Client (für externe WebSocket Datenquellen z. B. Node-RED / OPC UA)
@@ -207,6 +209,8 @@ export function createApp(options = {}) {
   // 4. REST-API Router registrieren
   app.use("/api", createApiRouter({
     store,
+    mysqlStore,
+    collectorService,
     mqttClient,
     wsClient,
     get wsServer() { return app.locals.wsServer; },
@@ -255,7 +259,7 @@ export function createApp(options = {}) {
   // Statische Web-Dateien ausliefern (index.html, css/, js/, assets/)
   app.use(express.static(ROOT_DIR));
 
-  return { app, store, mqttClient, wsClient, configManager, authManager, telemetryInterpreter };
+  return { app, store, mysqlStore, collectorService, mqttClient, wsClient, configManager, authManager, telemetryInterpreter };
 }
 
 // Ermittelt SSL-Zertifikate für HTTPS & WSS (Secure WebSocket)
@@ -352,7 +356,7 @@ export function resolveSslConfig(options = {}) {
 // Start-Funktion
 export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 80, options = {}) {
   const parsedPort = parseInt(port, 10) || 80;
-  const { app, store, mqttClient, wsClient, configManager, authManager, telemetryInterpreter } = createApp(options);
+  const { app, store, mysqlStore, collectorService, mqttClient, wsClient, configManager, authManager, telemetryInterpreter } = createApp(options);
   
   const sslConfig = resolveSslConfig(options);
   const isHttps = Boolean(sslConfig);
@@ -409,11 +413,13 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
     console.info(`- WebSocket Stream:           ${wsProto}://localhost:${parsedPort}/ws/telemetry`);
     console.info(`- MQTT Broker:                ${mqttClient.brokerUrl}`);
     console.info(`- 5-Minuten KeyValueStore:    TTL = 300s (aktiv)`);
+    console.info(`- 24h MySQL Store:           ${mysqlStore.isConnected ? 'Verbunden (Auto-DDL aktiv)' : 'Fallback Modus'}`);
     console.info("=================================================");
   });
 
   const shutdown = () => {
     console.info("[Server] Fahre Dienste ordnungsgemäß herunter...");
+    if (mysqlStore) mysqlStore.close();
     if (wsServer) wsServer.close();
     if (wsClient) wsClient.close();
     if (mqttClient) mqttClient.disconnect();
@@ -426,7 +432,7 @@ export function startServer(port = process.env.PORT || process.env.HTTP_PORT || 
   process.on("SIGTERM", shutdown);
   process.on("SIGINT", shutdown);
 
-  return { server, app, store, mqttClient, wsClient, wsServer, configManager, authManager, telemetryInterpreter };
+  return { server, app, store, mysqlStore, collectorService, mqttClient, wsClient, wsServer, configManager, authManager, telemetryInterpreter };
 }
 
 // Direktstart bei Aufruf von node backend/server.js (unterstützt CLI-Port z.B. node backend/server.js 8080)

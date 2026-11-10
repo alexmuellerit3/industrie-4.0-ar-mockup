@@ -1330,4 +1330,83 @@ a-scene canvas {
   border-color: #34d399;
 }
 
+/* ========================================================================
+   AR ZABBIX & MYSQL 24H AVAILABILITY STRIP
+   ======================================================================== */
+.ar-zabbix-strip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(18, 20, 26, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 9999px;
+  padding: 2px 6px;
+  margin-left: 6px;
+}
+
+.ar-zbx-badge {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  border: 1px solid transparent;
+}
+
+.ar-zbx-badge.zbx-active {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.ar-zbx-badge.mysql-active {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* ========================================================================
+   AR 24H SHIFT TIME SWITCHER (TABLET COCKPIT)
+   ======================================================================== */
+.ar-time-switcher {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 8px;
+}
+
+.ar-time-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.ar-time-btn:hover {
+  color: var(--text-white);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.ar-time-btn.active {
+  background: var(--heroui-primary);
+  color: #0f172a;
+  font-weight: 700;
+}
+
+
 
