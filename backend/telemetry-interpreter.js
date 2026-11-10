@@ -454,7 +454,7 @@ export class TelemetryInterpreter {
           v2 = 0;
           v3 = 100;
         } else if (st.v1 && st.v1.defaultVal !== undefined) {
-          v1 = +(st.v1.defaultVal + Math.sin(seconds * 0.25) * 0.1).toFixed(2);
+          v1 = +(st.v1.defaultVal + Math.sin(seconds * 0.25) * 0.1).toFixed(3);
         }
 
         return {
@@ -529,6 +529,15 @@ export class TelemetryInterpreter {
     if (values.v1 === null) values.v1 = numericEndpoints[0]?.value ?? stationConfig.v1.defaultVal;
     if (values.v2 === null) values.v2 = numericEndpoints[1]?.value ?? stationConfig.v2.defaultVal;
     if (values.v3 === null) values.v3 = numericEndpoints[2]?.value ?? stationConfig.v3.defaultVal;
+
+    const round3 = (val) => {
+      if (typeof val === "number") return isNaN(val) ? 0 : +val.toFixed(3);
+      if (typeof val === "string" && !isNaN(parseFloat(val)) && /^-?\d+(\.\d+)?$/.test(val.trim())) return +parseFloat(val).toFixed(3);
+      return val;
+    };
+    values.v1 = round3(values.v1);
+    values.v2 = round3(values.v2);
+    values.v3 = round3(values.v3);
 
     return values;
   }

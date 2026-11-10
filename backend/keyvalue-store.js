@@ -43,11 +43,17 @@ export class KeyValueStore {
       }
     }
 
+    const round3 = (val) => {
+      if (typeof val === 'number') return isNaN(val) ? 0 : +val.toFixed(3);
+      if (typeof val === 'string' && !isNaN(parseFloat(val))) return +parseFloat(val).toFixed(3);
+      return 0;
+    };
+
     const entry = {
       timestamp,
-      v1: typeof sample.v1 === 'number' ? sample.v1 : sample.v1?.val ?? 0,
-      v2: typeof sample.v2 === 'number' ? sample.v2 : sample.v2?.val ?? 0,
-      v3: typeof sample.v3 === 'number' ? sample.v3 : sample.v3?.val ?? 0,
+      v1: round3(sample.v1?.val ?? sample.v1),
+      v2: round3(sample.v2?.val ?? sample.v2),
+      v3: round3(sample.v3?.val ?? sample.v3),
       isFault: Boolean(sample.isFault),
       status: sample.status || (sample.isFault ? 'FAULT' : 'NORMAL'),
       isLive: isLiveSample,
@@ -56,7 +62,7 @@ export class KeyValueStore {
     };
 
     list.push(entry);
-    this.pruneStation(stationId, timestamp);
+    this.pruneStation(targetId, timestamp);
     return entry;
   }
 
@@ -220,11 +226,11 @@ export class KeyValueStore {
       const values = history.map(h => h[key]).filter(v => typeof v === 'number');
       if (values.length === 0) return { min: 0, max: 0, avg: 0, current: 0, trend: 'stable' };
 
-      const min = Math.min(...values);
-      const max = Math.max(...values);
+      const min = +Math.min(...values).toFixed(3);
+      const max = +Math.max(...values).toFixed(3);
       const sum = values.reduce((a, b) => a + b, 0);
-      const avg = +(sum / values.length).toFixed(2);
-      const current = values[values.length - 1];
+      const avg = +(sum / values.length).toFixed(3);
+      const current = +values[values.length - 1].toFixed(3);
 
       // Trendberechnung: Vergleich des ersten Viertels mit dem letzten Viertel
       let trend = 'stable';

@@ -68,13 +68,14 @@ export class TelemetryService {
     }
     const h = current.v1?.history || [];
     if (h.length === 0) return null;
-    const min = Math.min(...h);
-    const max = Math.max(...h);
-    const avg = +(h.reduce((a, b) => a + b, 0) / h.length).toFixed(1);
+    const min = +Math.min(...h).toFixed(3);
+    const max = +Math.max(...h).toFixed(3);
+    const avg = +(h.reduce((a, b) => a + b, 0) / h.length).toFixed(3);
+    const currentVal = typeof current.v1?.val === "number" ? +current.v1.val.toFixed(3) : (current.v1?.val ?? 0);
     return {
       stationId: sId,
       windowSeconds: 300,
-      v1: { min, max, avg, current: current.v1?.val ?? 0, trend: current.v1?.trend || "stable" },
+      v1: { min, max, avg, current: currentVal, trend: current.v1?.trend || "stable" },
       faultRatePercent: this.isFaultSimulated ? 100 : 0
     };
   }
@@ -358,6 +359,12 @@ export class TelemetryService {
   applyExternalData(data) {
     if (!data) return;
 
+    const round3 = (val) => {
+      if (typeof val === "number") return isNaN(val) ? 0 : +val.toFixed(3);
+      if (typeof val === "string" && !isNaN(parseFloat(val)) && /^-?\d+(\.\d+)?$/.test(val.trim())) return +parseFloat(val).toFixed(3);
+      return val;
+    };
+
     // Sobald echte Daten eintreffen: Mock-Simulation abschalten
     if (this.timerId) {
       clearInterval(this.timerId);
@@ -378,26 +385,28 @@ export class TelemetryService {
               target.isLive = true;
               target.isDemo = false;
               if (stData.v1 !== undefined) {
+                const roundedV1 = round3(stData.v1);
                 const prev1 = target.v1.val;
-                target.v1.val = stData.v1;
+                target.v1.val = roundedV1;
                 if (!target.v1.history) target.v1.history = [];
-                target.v1.history.push(stData.v1);
+                target.v1.history.push(roundedV1);
                 if (target.v1.history.length > 20) target.v1.history.shift();
-                if (stData.v1 > prev1 + 0.04) target.v1.trend = "up";
-                else if (stData.v1 < prev1 - 0.04) target.v1.trend = "down";
+                if (roundedV1 > prev1 + 0.04) target.v1.trend = "up";
+                else if (roundedV1 < prev1 - 0.04) target.v1.trend = "down";
                 else target.v1.trend = "stable";
               }
               if (stData.v2 !== undefined) {
+                const roundedV2 = round3(stData.v2);
                 const prev2 = target.v2.val;
-                target.v2.val = stData.v2;
+                target.v2.val = roundedV2;
                 if (!target.v2.history) target.v2.history = [];
-                target.v2.history.push(stData.v2);
+                target.v2.history.push(roundedV2);
                 if (target.v2.history.length > 20) target.v2.history.shift();
-                if (stData.v2 > prev2 + 0.04) target.v2.trend = "up";
-                else if (stData.v2 < prev2 - 0.04) target.v2.trend = "down";
+                if (roundedV2 > prev2 + 0.04) target.v2.trend = "up";
+                else if (roundedV2 < prev2 - 0.04) target.v2.trend = "down";
                 else target.v2.trend = "stable";
               }
-              if (stData.v3 !== undefined) target.v3.val = stData.v3;
+              if (stData.v3 !== undefined) target.v3.val = round3(stData.v3);
               if (stData.isFault !== undefined) this.isFaultSimulated = stData.isFault;
             }
           });
@@ -434,9 +443,9 @@ export class TelemetryService {
           isDynamic: true,
           isLive: true,
           isDemo: false,
-          v1: { label: "Messwert", val: targetData.v1 ?? 0, unit: "", min: 0, max: 100 },
-          v2: { label: "Status", val: targetData.v2 ?? 0, unit: "Code", min: 0, max: 0 },
-          v3: { label: "Signal", val: targetData.v3 ?? 100, unit: "%", min: 90, max: 100 }
+          v1: { label: "Messwert", val: round3(targetData.v1 ?? 0), unit: "", min: 0, max: 100 },
+          v2: { label: "Status", val: round3(targetData.v2 ?? 0), unit: "Code", min: 0, max: 0 },
+          v3: { label: "Signal", val: round3(targetData.v3 ?? 100), unit: "%", min: 90, max: 100 }
         };
         this.addDynamicStation(synth);
         target = this.stations.find(s => s.id === targetData.stationId);
@@ -448,26 +457,28 @@ export class TelemetryService {
 
     if (target) {
       if (targetData.v1 !== undefined) {
+        const roundedV1 = round3(targetData.v1);
         const prev1 = target.v1.val;
-        target.v1.val = targetData.v1;
+        target.v1.val = roundedV1;
         if (!target.v1.history) target.v1.history = [];
-        target.v1.history.push(targetData.v1);
+        target.v1.history.push(roundedV1);
         if (target.v1.history.length > 20) target.v1.history.shift();
-        if (targetData.v1 > prev1 + 0.04) target.v1.trend = "up";
-        else if (targetData.v1 < prev1 - 0.04) target.v1.trend = "down";
+        if (roundedV1 > prev1 + 0.04) target.v1.trend = "up";
+        else if (roundedV1 < prev1 - 0.04) target.v1.trend = "down";
         else target.v1.trend = "stable";
       }
       if (targetData.v2 !== undefined) {
+        const roundedV2 = round3(targetData.v2);
         const prev2 = target.v2.val;
-        target.v2.val = targetData.v2;
+        target.v2.val = roundedV2;
         if (!target.v2.history) target.v2.history = [];
-        target.v2.history.push(targetData.v2);
+        target.v2.history.push(roundedV2);
         if (target.v2.history.length > 20) target.v2.history.shift();
-        if (targetData.v2 > prev2 + 0.04) target.v2.trend = "up";
-        else if (targetData.v2 < prev2 - 0.04) target.v2.trend = "down";
+        if (roundedV2 > prev2 + 0.04) target.v2.trend = "up";
+        else if (roundedV2 < prev2 - 0.04) target.v2.trend = "down";
         else target.v2.trend = "stable";
       }
-      if (targetData.v3 !== undefined) target.v3.val = targetData.v3;
+      if (targetData.v3 !== undefined) target.v3.val = round3(targetData.v3);
       if (targetData.isFault !== undefined) this.isFaultSimulated = targetData.isFault;
       this.notify();
     }

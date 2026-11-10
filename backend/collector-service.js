@@ -36,6 +36,15 @@ export class CollectorService {
   async ingest(stationId, payload, meta = {}) {
     if (!stationId || !payload) return null;
 
+    const round3 = (val) => {
+      if (typeof val === "number") return isNaN(val) ? 0 : +val.toFixed(3);
+      if (typeof val === "string" && !isNaN(parseFloat(val)) && /^-?\d+(\.\d+)?$/.test(val.trim())) return +parseFloat(val).toFixed(3);
+      return val;
+    };
+    if (payload.v1 !== undefined) payload.v1 = round3(payload.v1);
+    if (payload.v2 !== undefined) payload.v2 = round3(payload.v2);
+    if (payload.v3 !== undefined) payload.v3 = round3(payload.v3);
+
     let effectiveId = stationId;
     if (effectiveId === "ST-POWERHOUSE-VIBRATION") {
       const st010 = this.configManager.getStation("ST-010");

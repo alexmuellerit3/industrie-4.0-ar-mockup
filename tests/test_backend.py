@@ -86,6 +86,60 @@ class TestKeyValueStoreNode(unittest.TestCase):
         self.assertEqual(summary["faultCount"], 1)
         self.assertEqual(summary["faultRatePercent"], 25.0)
 
+    def test_telemetry_three_decimal_places_rounding(self):
+        """Prüft, dass Telemetriedaten in Store und Ingestion durchgängig auf 3 Nachkommastellen gerundet werden."""
+        script = """
+        import { KeyValueStore } from './backend/keyvalue-store.js';
+        import { TelemetryInterpreter } from './backend/telemetry-interpreter.js';
+        import { ConfigManager } from './backend/config-manager.js';
+        import { CollectorService } from './backend/collector-service.js';
+
+        const store = new KeyValueStore(300000);
+        const now = Date.now();
+
+        // 1. Store push runden
+        const rawVibration = 2.0054946931373245;
+        const entry = store.push('ST-010', { v1: rawVibration, v2: 0.123456, v3: 99.87654 }, now);
+        
+        // 2. Statistical summary runden
+        store.push('ST-010', { v1: 2.006888, v2: 0.123, v3: 100 }, now + 1000);
+        const summary = store.getSummary('ST-010');
+
+        // 3. TelemetryInterpreter runden
+        const cfg = new ConfigManager('/tmp/test-cfg-round.json');
+        const interp = new TelemetryInterpreter(cfg.getStations());
+        const mapped = interp.mapMetricsToStation(cfg.getStation('ST-010'), [
+          { path: 'Demo.Alarms.Plant.PowerHouse.P-101.Vibration', value: 1.456789, type: 'Double' }
+        ]);
+
+        console.log(JSON.stringify({
+          entryV1: entry.v1,
+          entryV2: entry.v2,
+          entryV3: entry.v3,
+          sumMin: summary.v1.min,
+          sumMax: summary.v1.max,
+          sumAvg: summary.v1.avg,
+          sumCur: summary.v1.current,
+          mappedV1: mapped.v1
+        }));
+        """
+        res = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        data = json.loads(res.stdout)
+        self.assertEqual(data["entryV1"], 2.005, "v1 muss auf 3 Nachkommastellen gerundet werden")
+        self.assertEqual(data["entryV2"], 0.123, "v2 muss auf 3 Nachkommastellen gerundet werden")
+        self.assertEqual(data["entryV3"], 99.877, "v3 muss auf 3 Nachkommastellen gerundet werden")
+        self.assertEqual(data["sumMin"], 2.005)
+        self.assertEqual(data["sumMax"], 2.007)
+        self.assertEqual(data["sumAvg"], 2.006)
+        self.assertEqual(data["sumCur"], 2.007)
+        self.assertEqual(data["mappedV1"], 1.457, "Interpreter muss Messwerte auf 3 Dezimalstellen runden")
+
 
 class TestDockerAndPipelineFiles(unittest.TestCase):
     """Prüft Dockerfile, docker-compose.yml und CI/CD Pipeline."""

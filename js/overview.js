@@ -159,6 +159,18 @@ class ScadaOverviewApp {
     });
   }
 
+  format3Dec(val) {
+    if (val === null || val === undefined) return "--";
+    if (typeof val === "number") {
+      return Number.isInteger(val) ? String(val) : val.toFixed(3);
+    }
+    const n = parseFloat(val);
+    if (!isNaN(n) && typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim())) {
+      return Number.isInteger(n) ? String(n) : n.toFixed(3);
+    }
+    return String(val);
+  }
+
   /**
    * Erzeugt das HeroUI & SevDesk DOM-Gerüst für alle Stationen
    */
@@ -209,7 +221,7 @@ class ScadaOverviewApp {
               <span class="metric-cell-lbl" id="lbl-${st.id}-v1">${st.v1.label}</span>
               <span class="metric-cell-trend-pill trend-stable" id="trend-${st.id}-v1">→</span>
             </div>
-            <div class="metric-cell-val"><span id="val-${st.id}-v1">${st.v1.val}</span><span class="metric-cell-unit">${st.v1.unit}</span></div>
+            <div class="metric-cell-val"><span id="val-${st.id}-v1">${this.format3Dec(st.v1.val)}</span><span class="metric-cell-unit">${st.v1.unit}</span></div>
           </div>
 
           <div class="sevdesk-metric-cell" id="cell-${st.id}-v2">
@@ -217,7 +229,7 @@ class ScadaOverviewApp {
               <span class="metric-cell-lbl" id="lbl-${st.id}-v2">${st.v2.label}</span>
               <span class="metric-cell-trend-pill trend-stable" id="trend-${st.id}-v2">→</span>
             </div>
-            <div class="metric-cell-val"><span id="val-${st.id}-v2">${st.v2.val}</span><span class="metric-cell-unit">${st.v2.unit}</span></div>
+            <div class="metric-cell-val"><span id="val-${st.id}-v2">${this.format3Dec(st.v2.val)}</span><span class="metric-cell-unit">${st.v2.unit}</span></div>
           </div>
 
           <div class="sevdesk-metric-cell" id="cell-${st.id}-v3">
@@ -225,7 +237,7 @@ class ScadaOverviewApp {
               <span class="metric-cell-lbl" id="lbl-${st.id}-v3">${st.v3.label}</span>
               <span class="metric-cell-trend-pill trend-stable" id="trend-${st.id}-v3">→</span>
             </div>
-            <div class="metric-cell-val"><span id="val-${st.id}-v3">${st.v3.val}</span><span class="metric-cell-unit">${st.v3.unit}</span></div>
+            <div class="metric-cell-val"><span id="val-${st.id}-v3">${this.format3Dec(st.v3.val)}</span><span class="metric-cell-unit">${st.v3.unit}</span></div>
           </div>
         </div>
 
@@ -541,8 +553,8 @@ class ScadaOverviewApp {
         const v1Delta = (Math.sin(i * 0.4) * 0.05);
         const v2Delta = (Math.cos(i * 0.3) * 0.04);
         list.push({
-          v1: +(v1Def + v1Delta).toFixed(1),
-          v2: +(v2Def + v2Delta).toFixed(1),
+          v1: +(v1Def + v1Delta).toFixed(3),
+          v2: +(v2Def + v2Delta).toFixed(3),
           v3: v3Def,
           timestamp: t,
           isFault: false,
@@ -570,7 +582,7 @@ class ScadaOverviewApp {
 
       if (isFault) {
         if (st.id === "ST-020" || st.id === "ST-030") {
-          v1 = +(2.8 + (Math.random() - 0.5) * 0.2).toFixed(1);
+          v1 = +(2.8 + (Math.random() - 0.5) * 0.2).toFixed(3);
         } else if (st.id === "ST-010") {
           v1 = 12.0;
         } else {
@@ -579,8 +591,8 @@ class ScadaOverviewApp {
       } else {
         const delta1 = (Math.random() - 0.5) * 0.1;
         const delta2 = (Math.random() - 0.5) * 0.08;
-        v1 = +(v1 + delta1).toFixed(1);
-        v2 = +(v2 + delta2).toFixed(1);
+        v1 = +(v1 + delta1).toFixed(3);
+        v2 = +(v2 + delta2).toFixed(3);
 
         if (st.v1?.min !== undefined && st.v1?.max !== undefined) {
           if (v1 < st.v1.min) v1 = st.v1.min;
@@ -618,10 +630,10 @@ class ScadaOverviewApp {
     const list = this.historyMap.get(stationId) || [];
     if (list.length === 0) return;
     const v1Values = list.map(e => e.v1);
-    const min = Math.min(...v1Values);
-    const max = Math.max(...v1Values);
-    const avg = +(v1Values.reduce((a, b) => a + b, 0) / v1Values.length).toFixed(1);
-    const current = v1Values[v1Values.length - 1];
+    const min = +Math.min(...v1Values).toFixed(3);
+    const max = +Math.max(...v1Values).toFixed(3);
+    const avg = +(v1Values.reduce((a, b) => a + b, 0) / v1Values.length).toFixed(3);
+    const current = typeof v1Values[v1Values.length - 1] === "number" ? +v1Values[v1Values.length - 1].toFixed(3) : v1Values[v1Values.length - 1];
 
     let trend = "stable";
     if (v1Values.length >= 2) {
@@ -850,9 +862,9 @@ class ScadaOverviewApp {
     const v3ValEl = document.getElementById(`val-${stationId}-v3`);
     const trendV1El = document.getElementById(`trend-${stationId}-v1`);
 
-    if (v1ValEl && sample.v1 !== undefined) v1ValEl.textContent = sample.v1;
-    if (v2ValEl && sample.v2 !== undefined) v2ValEl.textContent = sample.v2;
-    if (v3ValEl && sample.v3 !== undefined) v3ValEl.textContent = sample.v3;
+    if (v1ValEl && sample.v1 !== undefined) v1ValEl.textContent = this.format3Dec(sample.v1);
+    if (v2ValEl && sample.v2 !== undefined) v2ValEl.textContent = this.format3Dec(sample.v2);
+    if (v3ValEl && sample.v3 !== undefined) v3ValEl.textContent = this.format3Dec(sample.v3);
 
     const currentRange = this.stationTimeframes.get(stationId) || "5m";
 
@@ -864,9 +876,9 @@ class ScadaOverviewApp {
         const avgEl = document.getElementById(`avg-${stationId}`);
         const rateEl = document.getElementById(`rate-${stationId}`);
 
-        if (minEl) minEl.textContent = summary.v1.min;
-        if (maxEl) maxEl.textContent = summary.v1.max;
-        if (avgEl) avgEl.textContent = summary.v1.avg;
+        if (minEl) minEl.textContent = this.format3Dec(summary.v1.min);
+        if (maxEl) maxEl.textContent = this.format3Dec(summary.v1.max);
+        if (avgEl) avgEl.textContent = this.format3Dec(summary.v1.avg);
         if (rateEl) rateEl.textContent = `${summary.faultRatePercent}%`;
       }
 
@@ -2045,9 +2057,9 @@ class ScadaOverviewApp {
               const maxEl = document.getElementById(`max-${stationId}`);
               const avgEl = document.getElementById(`avg-${stationId}`);
               const rateEl = document.getElementById(`rate-${stationId}`);
-              if (minEl && data.aggregates.min !== null) minEl.textContent = data.aggregates.min;
-              if (maxEl && data.aggregates.max !== null) maxEl.textContent = data.aggregates.max;
-              if (avgEl && data.aggregates.avg !== null) avgEl.textContent = data.aggregates.avg;
+              if (minEl && data.aggregates.min !== null) minEl.textContent = this.format3Dec(data.aggregates.min);
+              if (maxEl && data.aggregates.max !== null) maxEl.textContent = this.format3Dec(data.aggregates.max);
+              if (avgEl && data.aggregates.avg !== null) avgEl.textContent = this.format3Dec(data.aggregates.avg);
               if (rateEl && data.aggregates.faultRatePercent !== undefined) rateEl.textContent = `${data.aggregates.faultRatePercent}%`;
             }
           }
@@ -2077,7 +2089,7 @@ class ScadaOverviewApp {
     for (let i = pointsCount - 1; i >= 0; i--) {
       const ts = now - (i * stepMs);
       const wave = Math.sin(i * 0.25) * ((maxVal - minVal) * 0.2);
-      const val = +(base + wave).toFixed(1);
+      const val = +(base + wave).toFixed(3);
       list.push({
         stationId: station.id,
         timestamp: ts,
@@ -2087,17 +2099,17 @@ class ScadaOverviewApp {
     }
 
     const values = list.map(l => l.v1);
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    const avg = +(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+    const min = +Math.min(...values).toFixed(3);
+    const max = +Math.max(...values).toFixed(3);
+    const avg = +(values.reduce((a, b) => a + b, 0) / values.length).toFixed(3);
 
     const minEl = document.getElementById(`min-${station.id}`);
     const maxEl = document.getElementById(`max-${station.id}`);
     const avgEl = document.getElementById(`avg-${station.id}`);
     const rateEl = document.getElementById(`rate-${station.id}`);
-    if (minEl) minEl.textContent = min;
-    if (maxEl) maxEl.textContent = max;
-    if (avgEl) avgEl.textContent = avg;
+    if (minEl) minEl.textContent = this.format3Dec(min);
+    if (maxEl) maxEl.textContent = this.format3Dec(max);
+    if (avgEl) avgEl.textContent = this.format3Dec(avg);
     if (rateEl) rateEl.textContent = "0.0%";
 
     return list;

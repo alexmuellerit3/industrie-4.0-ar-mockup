@@ -351,14 +351,26 @@ export class UIController {
         .then(r => r.json())
         .then(data => {
           if (data && data.aggregates) {
-            if (this.tab5mMin && data.aggregates.min !== null) this.tab5mMin.textContent = data.aggregates.min;
-            if (this.tab5mMax && data.aggregates.max !== null) this.tab5mMax.textContent = data.aggregates.max;
-            if (this.tab5mAvg && data.aggregates.avg !== null) this.tab5mAvg.textContent = data.aggregates.avg;
+            if (this.tab5mMin && data.aggregates.min !== null) this.tab5mMin.textContent = this.format3Dec(data.aggregates.min);
+            if (this.tab5mMax && data.aggregates.max !== null) this.tab5mMax.textContent = this.format3Dec(data.aggregates.max);
+            if (this.tab5mAvg && data.aggregates.avg !== null) this.tab5mAvg.textContent = this.format3Dec(data.aggregates.avg);
             if (this.tab5mRate && data.aggregates.faultRatePercent !== undefined) this.tab5mRate.textContent = `${data.aggregates.faultRatePercent}%`;
           }
         })
         .catch(() => {});
     }
+  }
+
+  format3Dec(val) {
+    if (val === null || val === undefined) return "--";
+    if (typeof val === "number") {
+      return Number.isInteger(val) ? String(val) : val.toFixed(3);
+    }
+    const n = parseFloat(val);
+    if (!isNaN(n) && typeof val === "string" && /^-?\d+(\.\d+)?$/.test(val.trim())) {
+      return Number.isInteger(n) ? String(n) : n.toFixed(3);
+    }
+    return String(val);
   }
 
   /**
@@ -381,7 +393,7 @@ export class UIController {
 
       // Zweite Spalte als Störungszelle markieren
       this.cellV2.classList.add("alert-active");
-      this.v2Val.textContent = "2.8";
+      this.v2Val.textContent = "2.800";
     } else {
       this.stTag.textContent = "NORMAL";
       this.stTag.className = "station-status-tag";
@@ -390,12 +402,12 @@ export class UIController {
       this.btnFault.textContent = "Störung simulieren";
 
       this.cellV2.classList.remove("alert-active");
-      this.v2Val.textContent = station.v2.val;
+      this.v2Val.textContent = this.format3Dec(station.v2.val);
     }
 
     // Spalte 1
     this.v1Lbl.textContent = station.v1.label;
-    this.v1Val.textContent = station.v1.val;
+    this.v1Val.textContent = this.format3Dec(station.v1.val);
     this.v1Unit.textContent = station.v1.unit;
     this.renderTrendArrow(this.v1Trend, station.v1?.trend);
     this.renderSparkline(this.v1Spark, station.v1?.history, false);
@@ -408,7 +420,7 @@ export class UIController {
 
     // Spalte 3
     this.v3Lbl.textContent = station.v3.label;
-    this.v3Val.textContent = station.v3.val;
+    this.v3Val.textContent = this.format3Dec(station.v3.val);
     this.v3Unit.textContent = station.v3.unit;
     this.renderTrendArrow(this.v3Trend, station.v3?.trend);
     this.renderSparkline(this.v3Spark, station.v3?.history, false);
@@ -444,9 +456,9 @@ export class UIController {
 
     // 5-Minuten KeyValueStore Aggregationen im Panel darstellen
     if (summary && summary.v1) {
-      if (this.tab5mMin) this.tab5mMin.textContent = summary.v1.min;
-      if (this.tab5mMax) this.tab5mMax.textContent = summary.v1.max;
-      if (this.tab5mAvg) this.tab5mAvg.textContent = summary.v1.avg;
+      if (this.tab5mMin) this.tab5mMin.textContent = this.format3Dec(summary.v1.min);
+      if (this.tab5mMax) this.tab5mMax.textContent = this.format3Dec(summary.v1.max);
+      if (this.tab5mAvg) this.tab5mAvg.textContent = this.format3Dec(summary.v1.avg);
       if (this.tab5mRate) this.tab5mRate.textContent = `${summary.faultRatePercent}%`;
     }
   }

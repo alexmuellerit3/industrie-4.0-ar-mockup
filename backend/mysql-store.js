@@ -412,11 +412,11 @@ export class MySqlStore {
     const calcMetric = (key) => {
       const vals = history.map(h => h[key]).filter(v => typeof v === "number" && !isNaN(v));
       if (vals.length === 0) return { min: 0, max: 0, avg: 0, current: 0 };
-      const min = Math.min(...vals);
-      const max = Math.max(...vals);
+      const min = +Math.min(...vals).toFixed(3);
+      const max = +Math.max(...vals).toFixed(3);
       const sum = vals.reduce((a, b) => a + b, 0);
-      const avg = +(sum / vals.length).toFixed(2);
-      const current = vals[vals.length - 1];
+      const avg = +(sum / vals.length).toFixed(3);
+      const current = +vals[vals.length - 1].toFixed(3);
       return { min, max, avg, current };
     };
 
@@ -440,8 +440,8 @@ export class MySqlStore {
         buckets.push({
           timestamp: Math.round(start + (bucketSize / 2)),
           count: bucketItems.length,
-          v1: +v1Avg.toFixed(2),
-          v2: +v2Avg.toFixed(2),
+          v1: +v1Avg.toFixed(3),
+          v2: +v2Avg.toFixed(3),
           hasFault: bucketItems.some(i => i.isFault)
         });
       }
