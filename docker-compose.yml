@@ -24,6 +24,9 @@ services:
       - ./config:/app/config
     depends_on:
       - mqtt-broker
+      - cps-mysql
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:${CONTAINER_PORT:-${PORT:-80}}/health || wget -qO- http://localhost:80/health || exit 1"]
       interval: 15s
@@ -64,6 +67,18 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  # 4. Watchtower: Automatisches Pullen & Live-Aktualisierung
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: cps-i40-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=${WATCHTOWER_POLL_INTERVAL:-300}
+      - WATCHTOWER_LABEL_ENABLE=true
 
 volumes:
   mosquitto-data:

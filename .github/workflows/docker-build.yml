@@ -2,9 +2,9 @@ name: CPS-i40 CI/CD & Docker Pipeline
 
 on:
   push:
-    branches: [ "main", "experimental" ]
+    branches: [ "master", "main", "experimental" ]
   pull_request:
-    branches: [ "main", "experimental" ]
+    branches: [ "master", "main", "experimental" ]
   workflow_dispatch:
 
 permissions:

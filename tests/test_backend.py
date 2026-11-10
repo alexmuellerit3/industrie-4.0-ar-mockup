@@ -184,9 +184,8 @@ class TestBackendServerLive(unittest.TestCase):
             ["node", "backend/server.js"],
             cwd=BASE_DIR,
             env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
         )
 
         # Warte bis der Server antwortet
@@ -206,10 +205,6 @@ class TestBackendServerLive(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         if cls.server_process:
-            if cls.server_process.stdout:
-                cls.server_process.stdout.close()
-            if cls.server_process.stderr:
-                cls.server_process.stderr.close()
             cls.server_process.terminate()
             cls.server_process.wait()
 
