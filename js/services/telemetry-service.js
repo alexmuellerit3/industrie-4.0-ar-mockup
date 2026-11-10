@@ -149,8 +149,31 @@ export class TelemetryService {
     return this.isFaultSimulated;
   }
 
+  addDynamicStation(station) {
+    if (!station || !station.id) return;
+    const existingIdx = this.stations.findIndex(s => s.id === station.id);
+    const prepared = {
+      ...station,
+      isLive: true,
+      isDemo: false,
+      isDynamic: true,
+      v1: { ...station.v1, history: station.v1?.history || [station.v1?.val ?? 0], trend: station.v1?.trend || "stable" },
+      v2: { ...station.v2, history: station.v2?.history || [station.v2?.val ?? 0], trend: station.v2?.trend || "stable" },
+      v3: { ...station.v3, history: station.v3?.history || [station.v3?.val ?? 0], trend: station.v3?.trend || "stable" }
+    };
+
+    if (existingIdx >= 0) {
+      this.stations[existingIdx] = prepared;
+      this.currentIndex = existingIdx;
+    } else {
+      this.stations.push(prepared);
+      this.currentIndex = this.stations.length - 1;
+    }
+    this.notify();
+  }
+
   /**
-   * Startet die Telemetrie-Engine (Mock oder Live je nach Konfiguration)
+   * Startet die Telemetrie-Engine (Live WebSocket mit automatischer Modul-Erkennung)
    */
   start() {
     let savedWsUrl = null;
@@ -166,43 +189,36 @@ export class TelemetryService {
       }
     } catch (_) {}
 
-    if (savedDataSource === "simulator") {
-      this.startMockSimulation();
-      return;
-    }
-
     // Auto-Erkennung: Falls auf GitHub Pages oder file:
     const isGitHubPages = typeof window !== "undefined" && window.location && (
       window.location.hostname.endsWith("github.io") || window.location.protocol === "file:"
     );
 
     if (isGitHubPages) {
-      // Auf GitHub Pages: Starte Mock-Simulation als sofortigen Fallback und verbinde parallel mit Node-RED WSS
-      this.startMockSimulation();
       const targetWs = savedWsUrl || "wss://nodered.bbk.robin-w.de/ws/opcua";
       this.connectWebSocket(targetWs);
       return;
     }
 
-    if (this.config.api.mode === "websocket") {
-      let targetWs = savedWsUrl || this.config.api.wsEndpoint;
-      if (!targetWs || targetWs.includes("edge-gateway.local")) {
-        const proto = (typeof window !== "undefined" && window.location && window.location.protocol === "https:") ? "wss:" : "ws:";
-        const host = (typeof window !== "undefined" && window.location && window.location.host) || "localhost:3000";
-        targetWs = `${proto}//${host}/ws/telemetry`;
-      }
+    // Wenn über Webserver/Docker gehostet:
+    if (typeof window !== "undefined" && window.location && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
+      const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const targetWs = savedWsUrl || `${proto}//${window.location.host}/ws/telemetry`;
       this.connectWebSocket(targetWs);
-    } else if (this.config.api.mode === "rest") {
-      this.startRestPolling(this.config.api.restEndpoint);
-    } else {
-      // Falls über Node.js / Docker Server geladen, mit integriertem Backend verbinden
-      if (typeof window !== "undefined" && window.location && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
-        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const internalWs = `${proto}//${window.location.host}/ws/telemetry`;
-        this.connectWebSocket(internalWs);
-      } else {
-        this.startMockSimulation();
+
+      if (typeof fetch === "function") {
+        fetch("/api/stations").then(r => r.json()).then(data => {
+          if (data && Array.isArray(data.stations) && data.stations.length > 0) {
+            this.updateStationsConfig(data.stations);
+          }
+        }).catch(() => {});
       }
+      return;
+    }
+
+    if (this.config.api.mode === "websocket") {
+      let targetWs = savedWsUrl || this.config.api.wsEndpoint || "wss://nodered.bbk.robin-w.de/ws/opcua";
+      this.connectWebSocket(targetWs);
     }
   }
 
@@ -218,45 +234,13 @@ export class TelemetryService {
   }
 
   /**
-   * 1. MOCK-SIMULATION
-   * Erzeugt realistische kleine Prozessschwankungen und pflegt Historie / Trends
+   * Mock-Simulation deaktiviert (Demo komplett rausgeschmissen)
    */
   startMockSimulation() {
-    if (this.timerId) clearInterval(this.timerId);
-
-    this.timerId = setInterval(() => {
-      if (this.isFaultSimulated) return;
-
-      const current = this.getCurrentStation();
-      ['v1', 'v2', 'v3'].forEach(key => {
-        const item = current[key];
-        if (item) {
-          const prevVal = item.val;
-          if (!item.isFixed && item.min !== undefined && item.max !== undefined) {
-            const delta = (Math.random() - 0.5) * 0.1;
-            let val = +(item.val + delta).toFixed(1);
-            if (val >= item.min && val <= item.max) {
-              item.val = val;
-            }
-          }
-
-          if (!item.history) item.history = [];
-          item.history.push(item.val);
-          if (item.history.length > 20) item.history.shift();
-
-          // Trend-Kalkulation
-          if (item.val > prevVal + 0.04) {
-            item.trend = "up";
-          } else if (item.val < prevVal - 0.04) {
-            item.trend = "down";
-          } else {
-            item.trend = "stable";
-          }
-        }
-      });
-
-      this.notify();
-    }, this.config.api.pollIntervalMs || 1500);
+    if (this.timerId) {
+      clearInterval(this.timerId);
+      this.timerId = null;
+    }
   }
 
   /**
@@ -317,6 +301,9 @@ export class TelemetryService {
               this.notify();
             }
           } else if (incoming.type === "config_updated") {
+            if (incoming.stationAdded) {
+              this.addDynamicStation(incoming.stationAdded);
+            }
             if (incoming.config && Array.isArray(incoming.config.stations)) {
               this.updateStationsConfig(incoming.config.stations);
             }
@@ -377,10 +364,15 @@ export class TelemetryService {
     if (!targetData.stationId) {
       const interp = authService.standaloneInterpret(data);
       if (interp && interp.interpretation) {
+        if (interp.synthesizedStation) {
+          this.addDynamicStation(interp.synthesizedStation);
+        }
         if (Array.isArray(interp.interpretation.allStations) && interp.interpretation.allStations.length > 0) {
           interp.interpretation.allStations.forEach(stData => {
             const target = this.stations.find(s => s.id === stData.stationId);
             if (target) {
+              target.isLive = true;
+              target.isDemo = false;
               if (stData.v1 !== undefined) {
                 const prev1 = target.v1.val;
                 target.v1.val = stData.v1;
@@ -420,7 +412,32 @@ export class TelemetryService {
       }
     }
     if (!targetData.stationId) return;
-    const target = this.stations.find(s => s.id === targetData.stationId);
+
+    let target = this.stations.find(s => s.id === targetData.stationId);
+    if (!target) {
+      if (data.synthesizedStation) {
+        this.addDynamicStation(data.synthesizedStation);
+        target = this.stations.find(s => s.id === targetData.stationId);
+      } else {
+        const synth = {
+          id: targetData.stationId,
+          name: targetData.stationName || targetData.stationId,
+          plcIp: targetData.plcIp || "192.168.10.15",
+          isDynamic: true,
+          isLive: true,
+          isDemo: false,
+          v1: { label: "Messwert", val: targetData.v1 ?? 0, unit: "", min: 0, max: 100 },
+          v2: { label: "Status", val: targetData.v2 ?? 0, unit: "Code", min: 0, max: 0 },
+          v3: { label: "Signal", val: targetData.v3 ?? 100, unit: "%", min: 90, max: 100 }
+        };
+        this.addDynamicStation(synth);
+        target = this.stations.find(s => s.id === targetData.stationId);
+      }
+    } else {
+      target.isLive = true;
+      target.isDemo = false;
+    }
+
     if (target) {
       if (targetData.v1 !== undefined) {
         const prev1 = target.v1.val;
@@ -468,6 +485,10 @@ export class TelemetryService {
             if (newSt[k].defaultVal !== undefined) target[k].val = newSt[k].defaultVal;
           }
         });
+        if (newSt.isLive) target.isLive = true;
+        if (newSt.isDynamic) target.isDynamic = true;
+      } else {
+        this.stations.push(JSON.parse(JSON.stringify(newSt)));
       }
     });
     this.notify();

@@ -60,8 +60,7 @@ class ScadaOverviewApp {
     this.isStandaloneSim = false;
     this.isGitHubPages = typeof window !== "undefined" && window.location && (
       window.location.hostname.endsWith("github.io") ||
-      window.location.protocol === "file:" ||
-      (window.location.port !== "3000" && !window.location.host.includes("cps-backend"))
+      window.location.protocol === "file:"
     );
 
     // Standalone / Offline-Persistenz: Prüfe auf zuvor gespeicherte Konfiguration
@@ -335,8 +334,8 @@ class ScadaOverviewApp {
       wsUrl = wsUrl.replace(/tobin-w\.de/g, "robin-w.de");
     }
 
-    // Falls lokaler Backend-Server aktiv ist (Port 3000) und keine externe WS-URL manuell überschrieben wurde:
-    if (!isGitHubPages && !savedWsUrl && window.location && (window.location.port === "3000" || (window.location.host && window.location.host.includes("cps-backend")))) {
+    // Falls lokaler Backend-Server aktiv ist und keine externe WS-URL manuell überschrieben wurde:
+    if (!isGitHubPages && !savedWsUrl && window.location && (window.location.protocol === "http:" || window.location.protocol === "https:")) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host || "localhost:3000";
       wsUrl = `${protocol}//${host}/ws/telemetry`;
@@ -3348,10 +3347,11 @@ class ScadaOverviewApp {
   addDynamicStation(station) {
     if (!station || !station.id) return;
     const existingIdx = this.stations.findIndex(s => s.id === station.id);
+    const prepared = { ...station, isDynamic: true, isLive: true, isDemo: false };
     if (existingIdx >= 0) {
-      this.stations[existingIdx] = { ...this.stations[existingIdx], ...station, isDynamic: true, isLive: true };
+      this.stations[existingIdx] = { ...this.stations[existingIdx], ...prepared };
     } else {
-      this.stations.push(station);
+      this.stations.push(prepared);
     }
     if (!this.historyMap.has(station.id)) {
       this.historyMap.set(station.id, []);

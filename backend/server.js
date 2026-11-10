@@ -176,6 +176,9 @@ export function createApp(options = {}) {
     if (mqttClient.isSimulatorActive || mqttClient.allowSimulator) {
       mqttClient.disableSimulator();
     }
+    if (store && store.hasDemoData()) {
+      store.clearAllDemoData();
+    }
     return collectorService.ingest(stationId, payload, meta);
   };
 
