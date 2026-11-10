@@ -72,9 +72,11 @@
     <header class="top-bar interactive">
       <div class="top-indicator interactive">
         <span class="status-dot" id="status-dot"></span>
-        <span>CPS-i40 • <strong>Live-Telemetrie</strong> <span id="ar-source-tag" class="ar-source-tag">WebSocket</span></span>
+        <span>CPS-i40 • <strong>Live-Telemetrie</strong></span>
+        <!-- Verbindungsart und MySQL/Zabbix Status im AR-Header oben ausgeblendet -->
+        <span id="ar-source-tag" class="ar-source-tag" style="display:none;" aria-hidden="true">WebSocket</span>
       </div>
-      <div class="ar-zabbix-strip" id="ar-zabbix-strip" title="Zabbix & MySQL 24h Status">
+      <div class="ar-zabbix-strip" id="ar-zabbix-strip" title="Zabbix & MySQL 24h Status" style="display:none;" aria-hidden="true">
         <span class="ar-zbx-badge zbx-active" id="ar-zbx-badge" title="Zabbix Host Monitoring & LLD">ZBX</span>
         <span class="ar-zbx-badge" id="ar-mysql-badge" title="MySQL 24h Zeitreihenspeicher">MYSQL 24H</span>
       </div>

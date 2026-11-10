@@ -1253,7 +1253,7 @@ a-scene canvas {
 .section-title-tag { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--status-ok); margin-bottom: 8px; }
 
 .ar-source-tag {
-  display: inline-block;
+  display: none !important;
   padding: 1px 6px;
   font-size: 0.65rem;
   font-weight: 700;
@@ -1334,7 +1334,7 @@ a-scene canvas {
    AR ZABBIX & MYSQL 24H AVAILABILITY STRIP
    ======================================================================== */
 .ar-zabbix-strip {
-  display: inline-flex;
+  display: none !important;
   align-items: center;
   gap: 4px;
   background: rgba(18, 20, 26, 0.75);
